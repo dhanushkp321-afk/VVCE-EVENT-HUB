@@ -1,0 +1,27 @@
+{
+  "name": "vvce-events-hub",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dhanushkp321-afk/VVCE-EVENT-HUB.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dhanushkp321-afk/VVCE-EVENT-HUB/issues"
+  },
+  "homepage": "https://github.com/dhanushkp321-afk/VVCE-EVENT-HUB#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.107.0",
+    "vite": "^8.0.16"
+  }
+}

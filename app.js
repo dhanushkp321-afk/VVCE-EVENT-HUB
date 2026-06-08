@@ -34,112 +34,107 @@ const STATE = {
 };
 
 /* DB helpers */
-function getDB(key) {
-  try { return JSON.parse(localStorage.getItem(key) || 'null') || []; }
-  catch { return []; }
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+window.supabase = createClient(supabaseUrl, supabaseKey);
+
+const SUPABASE_CACHE = {
+  vvce_users: [],
+  vvce_events: [],
+  vvce_certs: [],
+  vvce_academic: []
+};
+
+function getDB(key, def = []) {
+  return SUPABASE_CACHE[key] || def;
 }
-function setDB(key, val) {
-  localStorage.setItem(key, JSON.stringify(val));
-}
+
 function getDBObj(key, def = {}) {
-  try { return JSON.parse(localStorage.getItem(key)) || def; }
-  catch { return def; }
+  return SUPABASE_CACHE[key] || def;
 }
 
-/* Seed default data */
-function seedData() {
-  if (localStorage.getItem('vvce_seeded_v6')) return;
+async function setDB(key, val) {
+  SUPABASE_CACHE[key] = val;
+  if (!window.supabase) return;
 
-  /* Demo users */
-  const users = [
-    {
-      id: 'u1', type: 'student', name: 'Akash Sharma', email: 'akash@vvce.ac.in',
-      pass: 'demo1234', usn: '4VV21CS001', branch: 'CS', section: 'A',
-      year: '3rd Year', sem: 'Sem 5', admissionYear: 2022, dept: 'Computer Science', phone: '+91 9876543210',
-      interests: ['Technical', 'Workshop'], skills: ['Python', 'React', 'Node.js'],
-      bio: 'Passionate developer & problem solver.', linkedin: 'linkedin.com/in/akash',
-      github: 'github.com/akash', achievements: ['Hackathon Winner 2024', 'DSA 450 complete'],
-      profilePhoto: null, resume: null,
-      points: 15, pointsBySem: { 'Sem 1': 0, 'Sem 2': 10, 'Sem 3': 20, 'Sem 4': 15, 'Sem 5': 15 },
-      notifs: [{ id:'n1', msg:'Welcome to VVCE Events Hub!', time:'Just now', read:false, icon:'🎉' }]
-    },
-    {
-      id: 'u2', type: 'admin', name: 'Harshill M Gowda', email: 'harshill@vvce.ac.in',
-      pass: 'demo1234', clubName: 'CSE Club', clubEmail: 'cseclub@vvce.ac.in',
-      domain: 'Technical', faculty: 'Dr. Ramesh Kumar', phone: '+91 9876543211',
-      approved: true, desc: 'Technical club for CS students.',
-      notifs: [{ id:'n1', msg:'Your club has been approved!', time:'1h ago', read:false, icon:'✅' }]
-    },
-    {
-      id: 'u3', type: 'authority', name: 'Dr. Priya Nair', email: 'dean.sw@vvce.ac.in',
-      pass: 'demo1234', designation: 'dean', dept: 'Administration',
-      notifs: []
-    },
-    {
-      id: 'u4', type: 'authority', name: 'Prof. Vijay Rao', email: 'principal@vvce.ac.in',
-      pass: 'demo1234', designation: 'principal', dept: 'Administration',
-      notifs: []
-    },
-  ];
-  setDB('vvce_users', users);
+  try {
+    if (key === 'vvce_events') {
+      const mapped = val.map(e => ({
+        id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, points: e.points, "desc": e.desc, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments
+      }));
+      await window.supabase.from('events').upsert(mapped);
+    } else if (key === 'vvce_users') {
+      const mapped = val.map(u => ({
+        id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admission_year: u.admissionYear, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profile_photo: u.profilePhoto, resume: u.resume, points: u.points, points_by_sem: u.pointsBySem, notifs: u.notifs, club_name: u.clubName, club_email: u.clubEmail, domain: u.domain, faculty: u.faculty, approved: u.approved, "desc": u.desc, designation: u.designation
+      }));
+      await window.supabase.from('users').upsert(mapped);
+    } else if (key === 'vvce_certs') {
+      const mapped = val.map(c => ({
+        id: c.id, "userId": c.userId, title: c.title, issuer: c.issuer, date: c.date, position: c.position, points: c.points, type: c.type, verified: c.verified
+      }));
+      await window.supabase.from('vvce_certs').upsert(mapped);
+    } else if (key === 'vvce_academic') {
+      const mapped = val.map(a => ({
+        id: a.id, date: a.date, type: a.type, "desc": a.desc
+      }));
+      await window.supabase.from('academic').upsert(mapped);
+    }
+  } catch (err) {
+    console.error('Failed to sync to Supabase:', err);
+  }
+}
 
-  /* Demo events */
-  const today = new Date();
-  const fmtD = (d) => d.toISOString().split('T')[0];
-  const future1 = new Date(today); future1.setDate(today.getDate() + 5);
-  const future2 = new Date(today); future2.setDate(today.getDate() + 12);
-  const future3 = new Date(today); future3.setDate(today.getDate() + 20);
-  const past1 = new Date(today); past1.setDate(today.getDate() - 10);
+async function bootApp() {
+  document.getElementById('app-main').style.display = 'none';
+  document.getElementById('sidebar').style.display = 'none';
+  
+  // Create a loading screen
+  const loader = document.createElement('div');
+  loader.id = 'supabase-loader';
+  loader.style = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:Outfit,sans-serif;font-size:24px;font-weight:800;z-index:9999;';
+  loader.innerHTML = '<div>Connecting to live cloud database...</div>';
+  document.body.appendChild(loader);
 
-  const events = [
-    {
-      id: 'e1', name: 'HackVVCE 2025', club: 'CSE Club', adminId: 'u2',
-      emoji: '💻', category: 'Technical', date: fmtD(future1), time: '09:00',
-      endDate: fmtD(future1), endTime: '18:00', venue: 'Main Auditorium',
-      maxParticipants: 100, regCount: 34, fee: 0, points: 20,
-      desc: 'A 12-hour hackathon open to all branches. Build innovative solutions!',
-      branches: ['All'], status: 'approved', rejReason: null,
-      registrations: [], pendingPayments: [], poster: null
-    },
-    {
-      id: 'e2', name: 'Cultural Fest – Utsav', club: 'Cultural Club', adminId: 'u2',
-      emoji: '🎭', category: 'Cultural', date: fmtD(future2), time: '10:00',
-      endDate: fmtD(future2), endTime: '20:00', venue: 'Open Air Theatre',
-      maxParticipants: 300, regCount: 120, fee: 50, points: 10,
-      desc: 'Annual cultural extravaganza with dance, music, and drama competitions.',
-      branches: ['All'], status: 'approved', rejReason: null,
-      registrations: [], pendingPayments: [], poster: null
-    },
-    {
-      id: 'e3', name: 'Workshop: React & Node.js', club: 'CSE Club', adminId: 'u2',
-      emoji: '⚛️', category: 'Workshop', date: fmtD(future3), time: '10:00',
-      endDate: fmtD(future3), endTime: '16:00', venue: 'CS Seminar Hall',
-      maxParticipants: 60, regCount: 18, fee: 0, points: 15,
-      desc: 'Hands-on workshop on building full-stack web apps with React and Node.js.',
-      branches: ['CS', 'IS'], status: 'approved', rejReason: null,
-      registrations: [], pendingPayments: [], poster: null
-    },
-  ];
-  setDB('vvce_events', events);
+  try {
+    const [uRes, eRes, cRes, aRes] = await Promise.all([
+      window.supabase.from('users').select('*'),
+      window.supabase.from('events').select('*'),
+      window.supabase.from('vvce_certs').select('*'),
+      window.supabase.from('academic').select('*')
+    ]);
 
-  /* Demo certificates */
-  const certs = [
-    {
-      id: 'c1', userId: 'u1', title: 'NPTEL Python Programming', issuer: 'NPTEL',
-      date: '2024-11-15', position: 'Participant', points: 15, type: 'participation', verified: true
-    },
-    {
-      id: 'c2', userId: 'u1', title: 'HackVVCE 2024 Winner', issuer: 'CSE Club',
-      date: '2024-09-20', position: 'Winner', points: 25, type: 'achievement', verified: true
-    },
-  ];
-  setDB('vvce_certs', certs);
+    if (uRes.data) {
+      SUPABASE_CACHE.vvce_users = uRes.data.map(u => ({
+        id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points, pointsBySem: u.points_by_sem, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation
+      }));
+    }
+    if (eRes.data) {
+      SUPABASE_CACHE.vvce_events = eRes.data.map(e => ({
+        id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time, venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, points: e.points, desc: e.desc, branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || []
+      }));
+    }
+    if (cRes.data) {
+      SUPABASE_CACHE.vvce_certs = cRes.data.map(c => ({
+        id: c.id, userId: c.userId, title: c.title, issuer: c.issuer, date: c.date, position: c.position, points: c.points, type: c.type, verified: c.verified
+      }));
+    }
+    if (aRes.data) {
+      SUPABASE_CACHE.vvce_academic = aRes.data.map(a => ({
+        id: a.id, date: a.date, type: a.type, desc: a.desc
+      }));
+    }
+  } catch (err) {
+    console.error('Failed to load from Supabase:', err);
+  }
 
-  /* Academic schedule */
-  const acad = [];
-  setDB('vvce_academic', acad);
-
-  localStorage.setItem('vvce_seeded_v6', '1');
+  loader.remove();
+  document.getElementById('app-main').style.display = '';
+  document.getElementById('sidebar').style.display = '';
+  
+  // Start the app
+  init();
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -3464,7 +3459,7 @@ window.deletePrincSchedule = function(id) {
    BOOT
 ───────────────────────────────────────────────────────────────*/
 document.addEventListener('DOMContentLoaded', function() {
-  seedData();
+  bootApp();
   // Set default register role (student form visible)
   selectRegRole('student');
   // Init Google Sign-In after GIS script finishes loading
@@ -3474,3 +3469,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('load', initGoogleAuth);
   }
 });
+
+// Expose all functions to window for inline onclick handlers in HTML
+window.addNotif = addNotif; window.addNotifToUser = addNotifToUser; window.applyAttendanceRewards = applyAttendanceRewards; window.approveClub = approveClub; window.approveEvent = approveEvent; window.avatar = avatar; window.changeMonth = changeMonth; window.checkClashCount = checkClashCount; window.clearAuthMsg = clearAuthMsg; window.closeModal = closeModal; window.completeRegistration = completeRegistration; window.computeStudentYearSem = computeStudentYearSem; window.confirmReject = confirmReject; window.deanApprovalsContent = deanApprovalsContent; window.deanApproveClub = deanApproveClub; window.deanClashContent = deanClashContent; window.deanDashboardContent = deanDashboardContent; window.deanEventApprovalsContent = deanEventApprovalsContent; window.deanEventsContent = deanEventsContent; window.deanFilterEvents = deanFilterEvents; window.deanRejectClub = deanRejectClub; window.detailChip = detailChip; window.drawCalendar = drawCalendar; window.eventCard = eventCard; window.filterClubs = filterClubs; window.filterEvents = filterEvents; window.formatDate = formatDate; window.formatTime = formatTime; window.genId = genId; window.getDB = getDB; window.getDBObj = getDBObj; window.getGreeting = getGreeting; window.getRelativeTime = getRelativeTime; window.goBack = goBack; window.googleLoginByEmail = googleLoginByEmail; window.handleAdminSignup = handleAdminSignup; window.handleAuthoritySignup = handleAuthoritySignup; window.handleDeanPortalNav = handleDeanPortalNav; window.handleForgotPassword = handleForgotPassword; window.handleLogin = handleLogin; window.handlePhotoUpload = handlePhotoUpload; window.handlePosterUpload = handlePosterUpload; window.handlePrincipalPortalNav = handlePrincipalPortalNav; window.handleResumeUpload = handleResumeUpload; window.handleStudentSignup = handleStudentSignup; window.initGoogleAuth = initGoogleAuth; window.launchApp = launchApp; window.lockDeanPortal = lockDeanPortal; window.lockPrincipalPortal = lockPrincipalPortal; window.logout = logout; window.manualGoogleEmailEntry = manualGoogleEmailEntry; window.markAllRead = markAllRead; window.navItem = navItem; window.openEventModal = openEventModal; window.openModal = openModal; window.openPaymentModal = openPaymentModal; window.openProfileEdit = openProfileEdit; window.openRejectModal = openRejectModal; window.profField = profField; window.profFieldLink = profFieldLink; window.quickLogin = quickLogin; window.readNotif = readNotif; window.registerEv = registerEv; window.regList = regList; window.renderAcadSchedule = renderAcadSchedule; window.renderAdminDashboard = renderAdminDashboard; window.renderApprovals = renderApprovals; window.renderAttendancePage = renderAttendancePage; window.renderAuthorityDashboard = renderAuthorityDashboard; window.renderAuthorityProfile = renderAuthorityProfile; window.renderCalendarPage = renderCalendarPage; window.renderCertificatesPage = renderCertificatesPage; window.renderClashDetect = renderClashDetect; window.renderClubCards = renderClubCards; window.renderClubMonitor = renderClubMonitor; window.renderCreateEventPage = renderCreateEventPage; window.renderDeanPortal = renderDeanPortal; window.renderEventsPage = renderEventsPage; window.renderManageEventsPage = renderManageEventsPage; window.renderNotifs = renderNotifs; window.renderParticipantsPage = renderParticipantsPage; window.renderParticipantTable = renderParticipantTable; window.renderPrincipalAvailability = renderPrincipalAvailability; window.renderPrincipalPortal = renderPrincipalPortal; window.renderProfilePage = renderProfilePage; window.renderRegistrationsPage = renderRegistrationsPage; window.renderSidebar = renderSidebar; window.renderStudentDashboard = renderStudentDashboard; window.renderTopbarUser = renderTopbarUser; window.revokeClub = revokeClub; window.saveProfileEdit = saveProfileEdit; window.selectRegRole = selectRegRole; window.showAuthMsg = showAuthMsg; window.showCalDateEvents = showCalDateEvents; window.showPage = showPage; window.simulatePayment = simulatePayment; window.statCard = statCard; window.submitCertificate = submitCertificate; window.submitDraftEvent = submitDraftEvent; window.submitEvent = submitEvent; window.switchMainTab = switchMainTab; window.switchRegTab = switchRegTab; window.titleCase = titleCase; window.toast = toast; window.toggleChip = toggleChip; window.toggleNotifPanel = toggleNotifPanel; window.togglePass = togglePass; window.toggleSidebar = toggleSidebar; window.triggerPhotoUpload = triggerPhotoUpload; window.unregisterEv = unregisterEv; window.updateUser = updateUser; window.verifyDeanPassword = verifyDeanPassword; window.verifyPrincipalPassword = verifyPrincipalPassword; window.viewClubDetail = viewClubDetail;
