@@ -2172,7 +2172,7 @@ function submitEvent(status='pending') {
     rules: document.getElementById('ev-rules').value.trim(),
     poster: document.getElementById('ev-poster-data').value||null,
     branches: branches.length ? branches : ['All'],
-    status, rejReason: null, registrations: []
+    status, rejReason: null, registrations: [], pendingPayments: []
   };
   events.push(ev);
   setDB('vvce_events', events);
