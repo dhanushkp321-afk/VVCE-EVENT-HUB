@@ -62,7 +62,7 @@ async function setDB(key, val) {
   try {
     if (key === 'vvce_events') {
       const mapped = val.map(e => ({
-        id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, points: e.points, "desc": e.desc, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments
+        id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments
       }));
       await window.supabase.from('events').upsert(mapped);
     } else if (key === 'vvce_users') {
@@ -112,7 +112,7 @@ async function bootApp() {
     }
     if (eRes.data) {
       SUPABASE_CACHE.vvce_events = eRes.data.map(e => ({
-        id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time, venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, points: e.points, desc: e.desc, branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || []
+        id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time, venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, adminUpiId: e.admin_upi_id || '', points: e.points, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || []
       }));
     }
     if (cRes.data) {
