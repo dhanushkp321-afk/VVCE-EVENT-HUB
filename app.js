@@ -80,6 +80,17 @@ async function setDB(key, val) {
         id: a.id, date: a.date, type: a.type, "desc": a.desc
       }));
       await window.supabase.from('academic').upsert(mapped);
+    } else if (key === 'vvce_principal_status') {
+      const mapped = { id: 'status', text: val.text, note: val.note, updated: val.updated, color: val.color, icon: val.icon };
+      await window.supabase.from('principal_status').upsert([mapped]);
+    } else if (key === 'vvce_principal_schedule') {
+      const mapped = val.map(s => ({ id: s.id, date: s.date, start_time: s.startTime, end_time: s.endTime, title: s.title, "desc": s.desc }));
+      await window.supabase.from('principal_schedules').delete().neq('id', '0');
+      if (mapped.length > 0) await window.supabase.from('principal_schedules').insert(mapped);
+    } else if (key === 'vvce_princ_attend') {
+      const mapped = val.map(id => ({ event_id: id }));
+      await window.supabase.from('princ_attend').delete().neq('event_id', '0');
+      if (mapped.length > 0) await window.supabase.from('princ_attend').insert(mapped);
     }
   } catch (err) {
     console.error('Failed to sync to Supabase:', err);
@@ -98,11 +109,14 @@ async function bootApp() {
   document.body.appendChild(loader);
 
   try {
-    const [uRes, eRes, cRes, aRes] = await Promise.all([
+    const [uRes, eRes, cRes, aRes, psRes, pscRes, paRes] = await Promise.all([
       window.supabase.from('users').select('*'),
       window.supabase.from('events').select('*'),
       window.supabase.from('vvce_certs').select('*'),
-      window.supabase.from('academic').select('*')
+      window.supabase.from('academic').select('*'),
+      window.supabase.from('principal_status').select('*'),
+      window.supabase.from('principal_schedules').select('*'),
+      window.supabase.from('princ_attend').select('*')
     ]);
 
     if (uRes.data) {
@@ -124,6 +138,24 @@ async function bootApp() {
       SUPABASE_CACHE.vvce_academic = aRes.data.map(a => ({
         id: a.id, date: a.date, type: a.type, desc: a.desc
       }));
+    }
+    if (psRes && psRes.data && psRes.data.length > 0) {
+      const s = psRes.data[0];
+      SUPABASE_CACHE.vvce_principal_status = { text: s.text, note: s.note, updated: s.updated, color: s.color, icon: s.icon };
+    } else {
+      SUPABASE_CACHE.vvce_principal_status = {"text":"Available","note":"","updated":"Just now","color":"#48bb78","icon":"✅"};
+    }
+    if (pscRes && pscRes.data) {
+      SUPABASE_CACHE.vvce_principal_schedule = pscRes.data.map(s => ({
+        id: s.id, date: s.date, startTime: s.start_time, endTime: s.end_time, title: s.title, desc: s.desc
+      }));
+    } else {
+      SUPABASE_CACHE.vvce_principal_schedule = [];
+    }
+    if (paRes && paRes.data) {
+      SUPABASE_CACHE.vvce_princ_attend = paRes.data.map(r => r.event_id);
+    } else {
+      SUPABASE_CACHE.vvce_princ_attend = [];
     }
   } catch (err) {
     console.error('Failed to load from Supabase:', err);
@@ -2495,7 +2527,7 @@ function renderAuthorityDashboard() {
 }
 
 function renderPrincipalAvailability() {
-  const princStatus = JSON.parse(localStorage.getItem('vvce_principal_status') || '{"text":"Available","note":"","updated":"Just now","color":"#48bb78","icon":"✅"}');
+  const princStatus = getDB('vvce_principal_status');
   return `
     <div class="avail-card">
       <div class="avail-head">
@@ -3183,8 +3215,8 @@ function renderPrincipalPortal() {
   const clubs  = getDB('vvce_users').filter(u=>u.type==='admin');
   const users  = getDB('vvce_users').filter(u=>u.type==='student');
   const toAttendIds = getDB('vvce_princ_attend');
-  const princStatus = JSON.parse(localStorage.getItem('vvce_principal_status') || '{"text":"Available","note":"","updated":"Just now","color":"#48bb78","icon":"✅"}');
-  const princSchedules = JSON.parse(localStorage.getItem('vvce_principal_schedule') || '[]');
+  const princStatus = getDB('vvce_principal_status');
+  const princSchedules = getDB('vvce_principal_schedule');
   const el     = document.getElementById('page-principal-portal');
   
   if (toAttendIds.length > 0 && !window.demoEmailSent) {
@@ -3338,7 +3370,7 @@ function lockPrincipalPortal() {
 window.setPrincStatus = function(text, color, icon) {
   const note = document.getElementById('princ-status-note').value;
   const updated = new Date().toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
-  localStorage.setItem('vvce_principal_status', JSON.stringify({text, note, updated, color, icon}));
+  setDB('vvce_principal_status', {text, note, updated, color, icon});
   renderPrincipalPortal();
   toast('Status updated successfully!', 'success');
 };
@@ -3355,7 +3387,7 @@ window.updatePrincStatusBtn = function() {
 
 window.openPrincScheduleModal = function(id = null) {
   if (id) {
-    const schedules = JSON.parse(localStorage.getItem('vvce_principal_schedule') || '[]');
+    const schedules = getDB('vvce_principal_schedule');
     const s = schedules.find(x => x.id === id);
     if(s) {
       document.getElementById('ps-date').value = s.dateRaw || s.date;
@@ -3391,7 +3423,7 @@ window.savePrincSchedule = function() {
   const d = new Date(dateRaw);
   const dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
 
-  const schedules = JSON.parse(localStorage.getItem('vvce_principal_schedule') || '[]');
+  const schedules = getDB('vvce_principal_schedule');
   
   if (window.editingPrincScheduleId) {
     const idx = schedules.findIndex(x => x.id === window.editingPrincScheduleId);
@@ -3409,7 +3441,7 @@ window.savePrincSchedule = function() {
     toast('Schedule added!', 'success');
   }
   
-  localStorage.setItem('vvce_principal_schedule', JSON.stringify(schedules));
+  setDB('vvce_principal_schedule', schedules);
   closeModal('modal-princ-schedule');
   renderPrincipalPortal();
 };
@@ -3420,9 +3452,9 @@ window.editPrincSchedule = function(id) {
 
 window.deletePrincSchedule = function(id) {
   if(!confirm('Delete this schedule?')) return;
-  let schedules = JSON.parse(localStorage.getItem('vvce_principal_schedule') || '[]');
+  let schedules = getDB('vvce_principal_schedule');
   schedules = schedules.filter(x => x.id !== id);
-  localStorage.setItem('vvce_principal_schedule', JSON.stringify(schedules));
+  setDB('vvce_principal_schedule', schedules);
   toast('Schedule deleted.', 'info');
   renderPrincipalPortal();
 };
