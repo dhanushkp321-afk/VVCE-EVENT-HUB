@@ -133,8 +133,7 @@ async function bootApp() {
   document.getElementById('app-main').style.display = '';
   document.getElementById('sidebar').style.display = '';
   
-  // Start the app
-  init();
+  // App is ready to be used (user remains on auth screen)
 }
 
 /* ─────────────────────────────────────────────────────────────
