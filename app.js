@@ -998,8 +998,7 @@ function renderStudentDashboard() {
   const certs  = getDB('vvce_certs').filter(c => c.userId === user.id);
   const regs   = events.filter(e => (e.registrations||[]).includes(user.id));
   const upcoming = regs.filter(e => new Date(e.date) >= new Date()).slice(0,4);
-  const certPts  = certs.reduce((s,c) => s+(c.points||0), 0);
-  const totalPts = certPts + (user.points||0);
+  const totalPts = user.points || 0;
   const pct = Math.min(100, Math.round(totalPts / 100 * 100));
 
   const approved = events.filter(e => 
