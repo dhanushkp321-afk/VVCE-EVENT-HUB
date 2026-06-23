@@ -714,6 +714,12 @@ function showPage(pageId) {
   const el = document.getElementById('page-' + pageId);
   if (el) { el.classList.add('active'); el.scrollTop = 0; }
 
+  // Auto-close sidebar on mobile when navigating
+  if (window.innerWidth <= 768) {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.classList.remove('open');
+  }
+
   // Update topbar title
   const titles = {
     'dashboard': 'Dashboard',
@@ -964,12 +970,21 @@ function addNotifToUser(userId, msg, icon = '🔔') {
   }
 }
 
-// Close notif panel on outside click
+// Close notif panel and sidebar on outside click
 document.addEventListener('click', (e) => {
-  const panel = document.getElementById('notif-dropdown');
-  const btn   = document.getElementById('notif-btn');
-  if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
-    panel.classList.remove('open');
+  const notifPanel = document.getElementById('notif-dropdown');
+  const notifBtn   = document.getElementById('notif-btn');
+  if (notifPanel && notifBtn && !notifPanel.contains(e.target) && !notifBtn.contains(e.target)) {
+    notifPanel.classList.remove('open');
+  }
+
+  const sidebar = document.getElementById('sidebar');
+  const hamBtn = document.querySelector('.hamburger-btn');
+  // If clicking outside sidebar AND not clicking the hamburger button, close it
+  if (sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target)) {
+    if (!hamBtn || !hamBtn.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
   }
 });
 
