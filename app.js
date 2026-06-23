@@ -490,7 +490,7 @@ function handleStudentSignup() {
     })(),
     skills: [], bio: '', linkedin: '', github: '', achievements: [],
     profilePhoto: null, resume: null,
-    points: 0, pointsBySem: { 'Sem 1':0, 'Sem 2':0, 'Sem 3':0, 'Sem 4':0, 'Sem 5':0 },
+    points: 0, pointsBySem: { 'Sem 1':0, 'Sem 2':0, 'Sem 3':0, 'Sem 4':0, 'Sem 5':0, 'Sem 6':0, 'Sem 7':0, 'Sem 8':0 },
     notifs: [{ id: genId('n'), msg: 'Welcome to VVCE Events Hub! Start exploring events.', time: 'Just now', read: false, icon: '🎉' }]
   };
   users.push(newUser);
@@ -655,7 +655,7 @@ function googleLoginByEmail(email, name, photo) {
       interests: [], skills: [], bio: '',
       linkedin: '', github: '', achievements: [],
       points: 0,
-      pointsBySem: { 'Sem 1':0,'Sem 2':0,'Sem 3':0,'Sem 4':0,'Sem 5':0 },
+      pointsBySem: { 'Sem 1':0,'Sem 2':0,'Sem 3':0,'Sem 4':0,'Sem 5':0,'Sem 6':0,'Sem 7':0,'Sem 8':0 },
       notifs: [{ id:genId('n'), msg:'Welcome to VVCE Events Hub! 🎉 Please complete your profile.', time:'Just now', read:false, icon:'🎉' }]
     };
     users.push(user);
