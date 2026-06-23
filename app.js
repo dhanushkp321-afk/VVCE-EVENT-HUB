@@ -43,6 +43,9 @@ const SUPABASE_CACHE = {
   vvce_academic: []
 };
 
+/* Stores payment screenshots keyed by "eventId::uid" to avoid embedding base64 in onclick attrs */
+const PENDING_SCREENSHOTS = {};
+
 function getDB(key, def = []) {
   return SUPABASE_CACHE[key] || def;
 }
@@ -238,16 +241,6 @@ function setupRealtimeSync() {
 }
 
 async function bootApp() {
-  document.getElementById('app-main').style.display = 'none';
-  document.getElementById('sidebar').style.display = 'none';
-  
-  // Create a loading screen
-  const loader = document.createElement('div');
-  loader.id = 'supabase-loader';
-  loader.style = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:Outfit,sans-serif;font-size:24px;font-weight:800;z-index:9999;';
-  loader.innerHTML = '<div>Connecting to live cloud database...</div>';
-  document.body.appendChild(loader);
-
   try {
     const [uRes, eRes, cRes, aRes, psRes, pscRes, paRes] = await Promise.all([
       window.supabase.from('users').select('*'),
@@ -301,12 +294,6 @@ async function bootApp() {
   } catch (err) {
     console.error('Failed to load from Supabase:', err);
   }
-
-  loader.remove();
-  document.getElementById('app-main').style.display = '';
-  document.getElementById('sidebar').style.display = '';
-  
-  // App is ready to be used (user remains on auth screen)
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -441,6 +428,10 @@ function handleLogin() {
   }
 
   const users = getDB('vvce_users');
+  if (users.length === 0) {
+    showAuthMsg('Connecting to database, please try again in a moment...', 'info');
+    return;
+  }
   const user  = users.find(u => u.email.toLowerCase() === email && u.pass === pass);
   if (!user) { showAuthMsg('Invalid email or password. Try the quick demo buttons below.'); return; }
 
@@ -1229,7 +1220,16 @@ function openPaymentModal(ev) {
   currentPaymentEvent = ev;
   document.getElementById('pmt-ev-name').textContent = ev.name;
   document.getElementById('pmt-amount').textContent = `₹${ev.fee}`;
-  document.getElementById('pmt-upi-id').textContent = ev.adminUpiId || 'Not specified';
+  
+  const upiEl = document.getElementById('pmt-upi-id');
+  if (ev.adminUpiId) {
+    upiEl.textContent = ev.adminUpiId;
+    upiEl.style.color = '#10b981';
+  } else {
+    upiEl.textContent = 'Not configured — contact the club directly';
+    upiEl.style.color = '#ef4444';
+  }
+  
   const statusEl = document.getElementById('pmt-status');
   statusEl.style.display = 'none';
   statusEl.textContent = '';
@@ -2298,6 +2298,12 @@ function submitEvent(status='pending') {
   const branches = branchEl ? [...branchEl.selectedOptions].map(o => o.value) : ['All'];
 
   if (!name||!club||!date||!time||!venue) { toast('Please fill all required fields (marked with *).','error'); return; }
+  const fee = parseInt(document.getElementById('create-ev-fee').value||'0');
+  const upiId = document.getElementById('create-ev-upi')?.value.trim() || '';
+  if (fee > 0 && !upiId) {
+    toast('⚠️ You set a registration fee but no UPI ID. Students won\'t be able to pay. Add a UPI ID or set fee to 0.', 'error');
+    return;
+  }
 
   const events = getDB('vvce_events');
   const ev = {
@@ -2305,8 +2311,8 @@ function submitEvent(status='pending') {
     emoji: '🎓', category: cat, date, time,
     endDate: date, endTime: '',
     venue, maxParticipants: max, regCount: 0,
-    fee: parseInt(document.getElementById('create-ev-fee').value||'0'),
-    adminUpiId: document.getElementById('create-ev-upi')?.value.trim() || '',
+    fee,
+    adminUpiId: upiId,
     points: document.getElementById('ev-gives-points').checked ? parseInt(document.getElementById('ev-points').value||'0') : 0,
     desc: document.getElementById('ev-desc').value.trim(),
     speakers: document.getElementById('ev-speakers').value.trim(),
@@ -2381,22 +2387,31 @@ function renderParticipantsPage() {
   if (!myEvents.length) { el.innerHTML=`<div class="empty-state"><div class="ei">👥</div><div class="et">No approved events</div></div>`; return; }
 
   let pendingHtml = '';
+  let pendingCount = 0;
   myEvents.forEach(ev => {
     if (ev.pendingPayments && ev.pendingPayments.length) {
       ev.pendingPayments.forEach(p => {
         const student = allUsers.find(u=>u.id===p.uid);
         if (!student) return;
+        pendingCount++;
+        // Store screenshot in JS map to avoid embedding base64 in onclick attr (breaks HTML)
+        const screenshotKey = `${ev.id}::${p.uid}`;
+        PENDING_SCREENSHOTS[screenshotKey] = p.screenshot || '';
+        const hasScreenshot = !!p.screenshot;
         pendingHtml += `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
             background:linear-gradient(135deg,#1e1a2e,#2d1f3d);border-radius:10px;margin-bottom:8px;
-            border:1px solid rgba(251,191,36,0.3);">
+            border:1px solid rgba(251,191,36,0.3);flex-wrap:wrap;gap:8px;">
             <div>
               <div style="font-weight:700;color:#fbbf24;font-size:13px;">💳 ${student.name}</div>
               <div style="font-size:11px;color:#9ca3af;">${ev.name} • ₹${ev.fee} • ${student.usn||student.email}</div>
-              <div style="font-size:11px;color:#9ca3af;">${formatDate(p.date?.split('T')[0]||new Date().toISOString().split('T')[0])}</div>
+              <div style="font-size:11px;color:#9ca3af;">Submitted: ${formatDate(p.date?.split('T')[0]||new Date().toISOString().split('T')[0])}</div>
             </div>
-            <div style="display:flex;gap:6px;">
-              <button onclick="viewScreenshot('${p.screenshot}')" style="padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11px;cursor:pointer;">📸 View</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${hasScreenshot
+                ? `<button onclick="viewScreenshot('${screenshotKey}')" style="padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11px;cursor:pointer;">📸 View Screenshot</button>`
+                : `<span style="padding:8px 12px;background:#374151;color:#9ca3af;border-radius:6px;font-size:11px;">No screenshot</span>`
+              }
               <button onclick="approvePayment('${ev.id}','${p.uid}')" style="padding:8px 12px;background:#10b981;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11px;cursor:pointer;">✅ Approve</button>
               <button onclick="rejectPayment('${ev.id}','${p.uid}')" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11px;cursor:pointer;">❌ Reject</button>
             </div>
@@ -2408,7 +2423,7 @@ function renderParticipantsPage() {
   let html = `
     ${pendingHtml ? `
       <div style="margin-bottom:18px;">
-        <div style="font-weight:700;color:#fbbf24;font-size:14px;margin-bottom:10px;">⏳ Pending Screenshot Verifications (${pendingHtml.split('✅ Approve').length-1})</div>
+        <div style="font-weight:700;color:#fbbf24;font-size:14px;margin-bottom:10px;">⏳ Pending Payment Verifications (${pendingCount})</div>
         ${pendingHtml}
       </div>
       <div style="border-top:1px solid rgba(255,255,255,0.08);margin-bottom:18px;"></div>` : ''}
@@ -2424,8 +2439,14 @@ function renderParticipantsPage() {
   renderParticipantTable();
 }
 
-window.viewScreenshot = function(b64) {
-  document.getElementById('screenshot-img-view').src = b64;
+window.viewScreenshot = function(key) {
+  // key is either "eventId::uid" (from PENDING_SCREENSHOTS map) or a direct base64 string (legacy)
+  const src = PENDING_SCREENSHOTS[key] || key;
+  if (!src || src === 'undefined') {
+    toast('No screenshot available for this payment.', 'error');
+    return;
+  }
+  document.getElementById('screenshot-img-view').src = src;
   openModal('modal-screenshot');
 };
 
