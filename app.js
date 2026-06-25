@@ -1627,8 +1627,7 @@ function regList(evs, past) {
 function renderCertificatesPage() {
   const user  = STATE.user;
   const certs = getDB('vvce_certs').filter(c=>c.userId===user.id);
-  const certPts = certs.reduce((s,c)=>s+(c.points||0),0);
-  const totalPts = certPts + (user.points||0);
+  const totalPts = user.points || 0;
   const el = document.getElementById('page-certificates');
 
   el.innerHTML = `
@@ -1777,7 +1776,7 @@ function renderProfilePage() {
   const user  = STATE.user;
   const certs = getDB('vvce_certs').filter(c=>c.userId===user.id);
   const regs  = getDB('vvce_events').filter(e=>(e.registrations||[]).includes(user.id));
-  const total = certs.reduce((s,c)=>s+(c.points||0),0)+(user.points||0);
+  const total = user.points || 0;
   const el    = document.getElementById('page-profile');
 
   if (user.type !== 'student') { el.innerHTML = renderAuthorityProfile(); return; }
