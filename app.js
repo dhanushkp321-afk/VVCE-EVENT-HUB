@@ -75,7 +75,7 @@ async function setDB(key, val) {
       }));
       const activeIds = mapped.map(c => c.id);
       if (activeIds.length > 0) {
-        await window.supabase.from('vvce_certs').delete().not('id', 'in', activeIds);
+        await window.supabase.from('vvce_certs').delete().not('id', 'in', `(${activeIds.join(',')})`);
       } else {
         await window.supabase.from('vvce_certs').delete().neq('id', '_none_');
       }
