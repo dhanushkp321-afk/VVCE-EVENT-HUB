@@ -206,7 +206,11 @@ function handleRealtimeUpdate(key, payload) {
   const activeTag = document.activeElement ? document.activeElement.tagName : '';
   const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
   if (!isTyping && STATE.page) {
-    showPage(STATE.page);
+    if (STATE.page === 'participants') {
+      if (typeof renderParticipantTable === 'function') renderParticipantTable();
+    } else {
+      showPage(STATE.page);
+    }
   }
 }
 
@@ -2586,24 +2590,32 @@ function renderParticipantTable() {
 
 /* Toggle attendance and award / revoke rewards */
 window.toggleAttendance = async function(eventId, userId) {
-  const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === eventId);
-  if (!ev) return;
-  if (!ev.attendedStudents) ev.attendedStudents = [];
+  if (window._isTogglingAttendance) return;
+  window._isTogglingAttendance = true;
 
-  const isAtt = ev.attendedStudents.includes(userId);
-  if (isAtt) {
-    ev.attendedStudents = ev.attendedStudents.filter(id => id !== userId);
-    await applyAttendanceRewards(eventId, userId, false, ev); // revoke certs + points first
-    await setDB('vvce_events', events);                       // then save event state
-    toast('Marked as Not Attended — AICTE points & certificate revoked.', 'info');
-  } else {
-    ev.attendedStudents.push(userId);
-    await applyAttendanceRewards(eventId, userId, true, ev);  // award certs + points first
-    await setDB('vvce_events', events);                       // then save event state
-    toast('Marked as Attended! 🎓 AICTE points & certificate awarded.', 'success');
+  try {
+    const events = getDB('vvce_events');
+    const ev = events.find(e => e.id === eventId);
+    if (!ev) return;
+    if (!ev.attendedStudents) ev.attendedStudents = [];
+
+    const isAtt = ev.attendedStudents.includes(userId);
+    if (isAtt) {
+      ev.attendedStudents = ev.attendedStudents.filter(id => id !== userId);
+      renderParticipantTable(); // Update instantly for UX
+      await applyAttendanceRewards(eventId, userId, false, ev); // revoke certs + points first
+      await setDB('vvce_events', events);                       // then save event state
+      toast('Marked as Not Attended — AICTE points & certificate revoked.', 'info');
+    } else {
+      ev.attendedStudents.push(userId);
+      renderParticipantTable(); // Update instantly for UX
+      await applyAttendanceRewards(eventId, userId, true, ev);  // award certs + points first
+      await setDB('vvce_events', events);                       // then save event state
+      toast('Marked as Attended! 🎓 AICTE points & certificate awarded.', 'success');
+    }
+  } finally {
+    window._isTogglingAttendance = false;
   }
-  renderParticipantTable();
 };
 
 async function applyAttendanceRewards(eventId, userId, attended, ev) {
