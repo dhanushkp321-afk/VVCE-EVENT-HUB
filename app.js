@@ -700,13 +700,24 @@ function handleAdminSignup() {
 }
 
 /* ── Authority Signup ── */
+window.bypassPrincipalScan = function() {
+  window._scannedData.authority = { name: 'Principal' };
+  const scanUi = document.getElementById('auth-scanner-ui');
+  if (scanUi) scanUi.style.display = 'none';
+  const manualUi = document.getElementById('auth-manual-fields');
+  if (manualUi) manualUi.style.display = 'block';
+  const desigSel = document.getElementById('f-designation');
+  if (desigSel) desigSel.value = 'principal';
+  toast('Unlocked for Principal Registration', 'info');
+};
+
 function handleAuthoritySignup() {
   const name  = document.getElementById('f-name').value.trim();
   const desig = document.getElementById('f-designation').value;
   const email = document.getElementById('f-email').value.trim().toLowerCase();
   const pass  = document.getElementById('f-pass').value;
 
-  if (!window._scannedData.authority) {
+  if (!window._scannedData.authority && desig !== 'principal') {
     showAuthMsg('❌ You must scan your Faculty ID card first.', 'error');
     return;
   }
