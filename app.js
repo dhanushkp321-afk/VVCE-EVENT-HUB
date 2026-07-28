@@ -507,11 +507,15 @@ window.handleFileUpload = async function(event, role) {
     }
 
     const users = getDB('vvce_users');
-    const existing = users.find(u => u.usn === finalUsn);
-    if (existing) {
-      showAuthMsg(`❌ USN ${finalUsn} has already been registered!`, 'error');
-      toast(`❌ USN ${finalUsn} already registered`, 'error');
-      return;
+    
+    // Enforce 1 student account per ID card (Club Admins are allowed to scan the same ID card)
+    if (role === 'student') {
+      const existing = users.find(u => u.type === 'student' && u.usn === finalUsn);
+      if (existing) {
+        showAuthMsg(`❌ A student account with USN ${finalUsn} has already been registered!`, 'error');
+        toast(`❌ USN ${finalUsn} already registered`, 'error');
+        return;
+      }
     }
 
     window._scannedData[role] = { usn: finalUsn, name: parsedName };
