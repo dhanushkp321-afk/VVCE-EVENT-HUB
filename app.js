@@ -523,26 +523,49 @@ window.handleFileUpload = async function(event, role) {
     toast('✅ ID Card Verified!', 'success');
 
     if (role === 'student') {
-      document.getElementById('s-usn').value = finalUsn;
-      if (parsedName) document.getElementById('s-name').value = parsedName.toUpperCase();
-      document.getElementById('s-verified-usn').innerText = finalUsn + (parsedName ? ` (${parsedName.toUpperCase()})` : '');
-      document.getElementById('student-scanner-ui').style.display = 'none';
-      document.getElementById('student-manual-fields').style.display = 'block';
+      const usnEl = document.getElementById('s-usn');
+      if (usnEl) usnEl.value = finalUsn;
 
-      const match = finalUsn.match(/^4VV\d{2}([A-Z]{2})\d{3}$/i);
+      const nameEl = document.getElementById('s-name');
+      if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
+
+      const verEl = document.getElementById('s-verified-usn');
+      if (verEl) verEl.innerText = finalUsn + (parsedName ? ` (${parsedName.toUpperCase()})` : '');
+
+      const scanUi = document.getElementById('student-scanner-ui');
+      if (scanUi) scanUi.style.display = 'none';
+
+      const manualUi = document.getElementById('student-manual-fields');
+      if (manualUi) manualUi.style.display = 'block';
+
+      const match = finalUsn.match(/^4VV\d{2}([A-Z]{2,3})\d{3}$/i);
       if (match) {
          const br = match[1].toUpperCase();
          const sel = document.getElementById('s-branch');
-         for(let i=0; i<sel.options.length; i++) {
-            if(sel.options[i].value === br) sel.selectedIndex = i;
+         if (sel) {
+           for(let i=0; i<sel.options.length; i++) {
+              if(sel.options[i].value === br || sel.options[i].value.startsWith(br)) {
+                sel.selectedIndex = i;
+                break;
+              }
+           }
          }
       }
     } else {
-      document.getElementById('a-usn').value = finalUsn;
-      if (parsedName) document.getElementById('a-name').value = parsedName.toUpperCase();
-      document.getElementById('a-verified-usn').innerText = finalUsn + (parsedName ? ` (${parsedName.toUpperCase()})` : '');
-      document.getElementById('admin-scanner-ui').style.display = 'none';
-      document.getElementById('admin-manual-fields').style.display = 'block';
+      const usnEl = document.getElementById('a-usn');
+      if (usnEl) usnEl.value = finalUsn;
+
+      const nameEl = document.getElementById('a-name');
+      if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
+
+      const verEl = document.getElementById('a-verified-usn');
+      if (verEl) verEl.innerText = finalUsn + (parsedName ? ` (${parsedName.toUpperCase()})` : '');
+
+      const scanUi = document.getElementById('admin-scanner-ui');
+      if (scanUi) scanUi.style.display = 'none';
+
+      const manualUi = document.getElementById('admin-manual-fields');
+      if (manualUi) manualUi.style.display = 'block';
     }
   } else if (role === 'authority') {
     window._scannedData[role] = { name: parsedName || 'Verified Faculty' };
