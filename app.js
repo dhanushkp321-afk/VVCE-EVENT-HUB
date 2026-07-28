@@ -328,12 +328,12 @@ function avatar(name) { return name ? name.trim()[0].toUpperCase() : '?'; }
  * Academic year starts in September each year.
  * Sept–Feb = Odd sem, Mar–Aug = Even sem.
  */
-function computeStudentYearSem(user) {
+function computeStudentYearSem(user, dateStr = null) {
   if (!user.admissionYear) {
     // Fallback if no admissionYear stored (legacy data)
     return { year: user.year || '—', sem: user.sem || '—' };
   }
-  const now = new Date();
+  const now = dateStr ? new Date(dateStr) : new Date();
   const currentMonth = now.getMonth() + 1; // 1–12
   const currentYear  = now.getFullYear();
 
@@ -341,7 +341,9 @@ function computeStudentYearSem(user) {
   // Sept–Feb = Odd semester (1st half), Mar–Aug = Even semester (2nd half).
   const academicYear = currentMonth >= 9 ? currentYear : currentYear - 1;
   const yearsElapsed = academicYear - user.admissionYear;
-  const studyYear = Math.min(yearsElapsed + 1, 4); // 1–4
+  
+  // Constrain to 1st-4th year. If date is earlier than admission, fallback to 1.
+  const studyYear = Math.max(1, Math.min(yearsElapsed + 1, 4)); // 1–4
 
   // Sept(9)–Feb(2) = odd sem, Mar(3)–Aug(8) = even sem
   let semInYear;
@@ -2735,7 +2737,11 @@ async function applyAttendanceRewards(eventId, userId, attended, ev) {
     const student = allUsers.find(u => u.id === userId);
     if (student) {
       if (!student.pointsBySem) student.pointsBySem = {};
-      const sem = student.sem || 'Sem 1';
+      
+      // Determine exactly which semester the student was in when the event happened!
+      const computed = computeStudentYearSem(student, ev.date);
+      const sem = computed.sem !== '—' ? computed.sem : (student.sem || 'Sem 1');
+      
       if (attended) {
         student.points = (student.points || 0) + pts;
         student.pointsBySem[sem] = (student.pointsBySem[sem] || 0) + pts;
