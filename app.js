@@ -460,6 +460,79 @@ function quickLogin(role) {
   handleLogin();
 }
 
+/* ── ID Card Barcode Scanner ── */
+window._scannedData = { student: null, admin: null, authority: null };
+window._html5QrcodeScanner = null;
+
+window.startScanner = function(role) {
+  const readerId = `reader-${role}`;
+  
+  if (window._html5QrcodeScanner) {
+    window._html5QrcodeScanner.clear().catch(e => console.log(e));
+  }
+  
+  // Use Html5QrcodeScanner
+  window._html5QrcodeScanner = new Html5QrcodeScanner(
+    readerId, 
+    { fps: 10, qrbox: {width: 250, height: 100} },
+    false
+  );
+  
+  window._html5QrcodeScanner.render((decodedText) => {
+    window._html5QrcodeScanner.clear();
+    handleScanSuccess(decodedText, role);
+  }, (errorMessage) => {
+    // ignore frame errors
+  });
+};
+
+function handleScanSuccess(text, role) {
+  const users = getDB('vvce_users');
+  text = text.trim().toUpperCase();
+  
+  if (role === 'student' || role === 'admin') {
+    // Validate USN format (e.g., 4VV21CS001)
+    if (!/^4VV\d{2}[A-Z]{2,3}\d{3}$/i.test(text)) {
+      showAuthMsg('❌ Invalid USN format on ID card.', 'error');
+      return;
+    }
+    
+    // Enforce 1 account per ID card
+    const existing = users.find(u => u.usn === text);
+    if (existing) {
+      showAuthMsg('❌ This ID card (USN) has already been registered!', 'error');
+      return;
+    }
+    
+    window._scannedData[role] = text;
+    if (role === 'student') {
+      document.getElementById('s-usn').value = text;
+      document.getElementById('s-verified-usn').innerText = text;
+      document.getElementById('student-scanner-ui').style.display = 'none';
+      document.getElementById('student-manual-fields').style.display = 'block';
+      
+      const match = text.match(/^4VV\d{2}([A-Z]{2})\d{3}$/i);
+      if (match) {
+         const br = match[1].toUpperCase();
+         const sel = document.getElementById('s-branch');
+         for(let i=0; i<sel.options.length; i++) {
+            if(sel.options[i].value === br) sel.selectedIndex = i;
+         }
+      }
+    } else {
+      document.getElementById('a-usn').value = text;
+      document.getElementById('a-verified-usn').innerText = text;
+      document.getElementById('admin-scanner-ui').style.display = 'none';
+      document.getElementById('admin-manual-fields').style.display = 'block';
+    }
+  } else if (role === 'authority') {
+    window._scannedData[role] = text;
+    document.getElementById('auth-scanner-ui').style.display = 'none';
+    document.getElementById('auth-manual-fields').style.display = 'block';
+  }
+}
+
+
 /* ── Student Signup ── */
 function handleStudentSignup() {
   const name    = document.getElementById('s-name').value.trim();
@@ -473,6 +546,11 @@ function handleStudentSignup() {
   const email   = document.getElementById('s-email').value.trim().toLowerCase();
   const pass    = document.getElementById('s-pass').value;
   const interests = [...document.querySelectorAll('#s-interests .interest-chip.selected')].map(c => c.textContent.trim());
+
+  if (!window._scannedData.student) {
+    showAuthMsg('❌ You must scan your Student ID card first.', 'error');
+    return;
+  }
 
   if (!name || !usn || !email || !pass) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 8) { showAuthMsg('Password must be at least 8 characters.'); return; }
@@ -517,6 +595,11 @@ function handleAdminSignup() {
   const desc      = document.getElementById('a-desc').value.trim();
   const pass      = document.getElementById('a-pass').value;
 
+  if (!window._scannedData.admin) {
+    showAuthMsg('❌ You must scan your Student ID card first.', 'error');
+    return;
+  }
+
   if (!name || !club || !faculty || !email || !pass || !usn) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
   if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
@@ -540,6 +623,11 @@ function handleAuthoritySignup() {
   const desig = document.getElementById('f-designation').value;
   const email = document.getElementById('f-email').value.trim().toLowerCase();
   const pass  = document.getElementById('f-pass').value;
+
+  if (!window._scannedData.authority) {
+    showAuthMsg('❌ You must scan your Faculty ID card first.', 'error');
+    return;
+  }
 
   if (!name || !email || !pass) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 8) { showAuthMsg('Password must be at least 8 characters.'); return; }

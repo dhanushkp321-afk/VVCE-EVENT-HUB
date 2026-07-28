@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VVCE Events Hub — Vidyavardhaka College of Engineering</title>
   <meta name="description" content="VVCE Events Hub — College event management for students, clubs, and faculty.">
+  <!-- Html5-Qrcode for Barcode Scanning -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <!-- Google Identity Services -->
@@ -129,20 +134,6 @@
 
         <!-- ── Student Registration Form ── -->
         <div id="form-student">
-          <div class="reg-two-col">
-            <div class="auth-field-group">
-              <label class="auth-label">Full Name</label>
-              <input class="auth-input" type="text" id="s-name" placeholder="YOUR NAME">
-            </div>
-            <div class="auth-field-group">
-              <label class="auth-label">USN</label>
-              <input class="auth-input" type="text" id="s-usn" placeholder="1VV21CS001">
-            </div>
-          </div>
-          <div class="reg-two-col">
-            <div class="auth-field-group">
-              <label class="auth-label">Branch</label>
-              <select class="auth-input" id="s-branch">
                 <option value="CS">CS</option>
                 <option value="CS AI/ML">CS AI/ML</option>
                 <option value="IS">IS</option>
@@ -224,13 +215,28 @@
             </div>
           </div>
           <button class="btn-dark-register" onclick="handleStudentSignup()">Create Student Account →</button>
+          </div> <!-- /student-manual-fields -->
         </div>
 
         <!-- ── Club Admin Registration Form ── -->
         <div id="form-admin" style="display:none;">
-          <div class="auth-notice-info">
-            ⏳ Club accounts require <strong>Dean Student Welfare approval</strong> before you can log in.
+          <div id="admin-scanner-ui">
+            <div class="auth-notice-info" style="margin-bottom:15px; text-align:center;">
+              <div style="font-size:24px; margin-bottom:10px;">📷</div>
+              <strong>ID Verification Required</strong><br>
+              The Club Representative must scan their VVCE Student ID card barcode to proceed.
+            </div>
+            <div id="reader-admin" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid rgba(99,102,241,0.3); margin-bottom:15px;"></div>
+            <button class="btn-dark-register" id="btn-scan-admin" onclick="startScanner('admin')">Start Camera to Scan ID</button>
           </div>
+
+          <div id="admin-manual-fields" style="display:none;">
+            <div class="auth-notice-success" style="margin-bottom:15px; padding:12px; background:rgba(34,197,94,0.1); color:#4ade80; border:1px solid rgba(34,197,94,0.3); border-radius:8px; display:flex; align-items:center; gap:10px;">
+              <span style="font-size:20px;">✅</span> <strong>ID Verified:</strong> <span id="a-verified-usn"></span>
+            </div>
+            <div class="auth-notice-info">
+              ⏳ Club accounts require <strong>Dean Student Welfare approval</strong> before you can log in.
+            </div>
           <div class="auth-field-group">
             <label class="auth-label">Your Full Name</label>
             <input class="auth-input" type="text" id="a-name" placeholder="Club representative name">
@@ -268,8 +274,8 @@
               </select>
             </div>
             <div class="auth-field-group">
-              <label class="auth-label">Club Representative USN</label>
-              <input class="auth-input" type="text" id="a-usn" placeholder="e.g. 4VV21CS001">
+              <label class="auth-label">Club Representative USN (Auto-filled)</label>
+              <input class="auth-input" type="text" id="a-usn" placeholder="e.g. 4VV21CS001" readonly style="opacity:0.7; cursor:not-allowed;">
             </div>
           </div>
 
@@ -299,14 +305,29 @@
             <input class="auth-input" type="password" id="a-pass" placeholder="••••••••">
           </div>
           <button class="btn-dark-register" onclick="handleAdminSignup()">Create Club Account →</button>
+          </div> <!-- /admin-manual-fields -->
         </div>
 
         <!-- ── Authority Registration Form ── -->
         <div id="form-authority" style="display:none;">
-          <div class="auth-field-group">
-            <label class="auth-label">Full Name</label>
-            <input class="auth-input" type="text" id="f-name" placeholder="Dr. / Prof. Name">
+          <div id="auth-scanner-ui">
+            <div class="auth-notice-info" style="margin-bottom:15px; text-align:center;">
+              <div style="font-size:24px; margin-bottom:10px;">📷</div>
+              <strong>Faculty ID Verification</strong><br>
+              Please scan your Faculty ID barcode to securely unlock registration.
+            </div>
+            <div id="reader-authority" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid rgba(99,102,241,0.3); margin-bottom:15px;"></div>
+            <button class="btn-dark-register" id="btn-scan-authority" onclick="startScanner('authority')">Start Camera to Scan ID</button>
           </div>
+
+          <div id="auth-manual-fields" style="display:none;">
+            <div class="auth-notice-success" style="margin-bottom:15px; padding:12px; background:rgba(34,197,94,0.1); color:#4ade80; border:1px solid rgba(34,197,94,0.3); border-radius:8px; display:flex; align-items:center; gap:10px;">
+              <span style="font-size:20px;">✅</span> <strong>Faculty ID Verified</strong>
+            </div>
+            <div class="auth-field-group">
+              <label class="auth-label">Full Name</label>
+              <input class="auth-input" type="text" id="f-name" placeholder="Dr. / Prof. Name">
+            </div>
           <div class="auth-field-group">
             <label class="auth-label">Designation</label>
             <select class="auth-input" id="f-designation">
@@ -328,6 +349,7 @@
           </div>
           <button class="btn-dark-register" onclick="handleAuthoritySignup()">Create Authority Account →</button>
           <p class="auth-verify-note">Check your VVCE email to verify your account.</p>
+          </div> <!-- /auth-manual-fields -->
         </div>
 
       </div><!-- /panel-register -->
