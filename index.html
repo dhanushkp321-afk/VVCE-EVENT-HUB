@@ -134,14 +134,43 @@
 
         <!-- ── Student Registration Form ── -->
         <div id="form-student">
-                <option value="CS">CS</option>
-                <option value="CS AI/ML">CS AI/ML</option>
-                <option value="IS">IS</option>
-                <option value="EC">EC</option>
-                <option value="ME">ME</option>
-                <option value="EEE">EEE</option>
-                <option value="CV">CV</option>
-              </select>
+          <div id="student-scanner-ui">
+            <div class="auth-notice-info" style="margin-bottom:15px; text-align:center;">
+              <div style="font-size:24px; margin-bottom:10px;">📷</div>
+              <strong>ID Verification Required</strong><br>
+              Please scan your student ID barcode.
+            </div>
+            <div id="reader-student" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid rgba(99,102,241,0.3); margin-bottom:15px;"></div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn-dark-register" style="flex:1;" id="btn-scan-student" onclick="startScanner('student')">📷 Start Camera</button>
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer;">
+                📁 Upload Photo
+                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'student')">
+              </label>
+            </div>
+          </div>
+          
+          <div id="student-manual-fields" style="display:none;">
+            <div class="auth-notice-success" style="margin-bottom:15px; padding:12px; background:rgba(34,197,94,0.1); color:#4ade80; border:1px solid rgba(34,197,94,0.3); border-radius:8px; display:flex; align-items:center; gap:10px;">
+              <span style="font-size:20px;">✅</span> <strong>Verified USN:</strong> <span id="s-verified-usn"></span>
+            </div>
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Full Name</label>
+                <input class="auth-input" type="text" id="s-name" placeholder="John Doe">
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Branch</label>
+                <select class="auth-input" id="s-branch">
+                  <option value="CS">CS</option>
+                  <option value="CS AI/ML">CS AI/ML</option>
+                  <option value="IS">IS</option>
+                  <option value="EC">EC</option>
+                  <option value="ME">ME</option>
+                  <option value="EEE">EEE</option>
+                  <option value="CV">CV</option>
+                </select>
+              </div>
             </div>
             <div class="auth-field-group">
               <label class="auth-label">Section</label>
@@ -154,67 +183,66 @@
                 <option value="F">F</option>
               </select>
             </div>
-          </div>
-          <div class="reg-two-col">
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Year</label>
+                <select class="auth-input" id="s-year">
+                  <option value="1st Year">1st Year</option>
+                  <option value="2nd Year">2nd Year</option>
+                  <option value="3rd Year">3rd Year</option>
+                  <option value="4th Year">4th Year</option>
+                </select>
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Semester</label>
+                <select class="auth-input" id="s-sem">
+                  <option value="Sem 1">Sem 1</option>
+                  <option value="Sem 2">Sem 2</option>
+                  <option value="Sem 3">Sem 3</option>
+                  <option value="Sem 4">Sem 4</option>
+                  <option value="Sem 5">Sem 5</option>
+                  <option value="Sem 6">Sem 6</option>
+                  <option value="Sem 7">Sem 7</option>
+                  <option value="Sem 8">Sem 8</option>
+                </select>
+              </div>
+            </div>
             <div class="auth-field-group">
-              <label class="auth-label">Year</label>
-              <select class="auth-input" id="s-year">
-                <option value="1st Year">1st Year</option>
-                <option value="2nd Year">2nd Year</option>
-                <option value="3rd Year">3rd Year</option>
-                <option value="4th Year">4th Year</option>
+              <label class="auth-label">Department</label>
+              <select class="auth-input" id="s-dept">
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Science">Information Science</option>
+                <option value="Electronics &amp; Communication">Electronics &amp; Communication</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Electrical &amp; Electronics">Electrical &amp; Electronics</option>
+                <option value="Civil">Civil</option>
               </select>
             </div>
             <div class="auth-field-group">
-              <label class="auth-label">Semester</label>
-              <select class="auth-input" id="s-sem">
-                <option value="Sem 1">Sem 1</option>
-                <option value="Sem 2">Sem 2</option>
-                <option value="Sem 3">Sem 3</option>
-                <option value="Sem 4">Sem 4</option>
-                <option value="Sem 5">Sem 5</option>
-                <option value="Sem 6">Sem 6</option>
-                <option value="Sem 7">Sem 7</option>
-                <option value="Sem 8">Sem 8</option>
-              </select>
+              <label class="auth-label">Phone Number</label>
+              <input class="auth-input" type="tel" id="s-phone" placeholder="+91 98765 43210">
             </div>
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Department</label>
-            <select class="auth-input" id="s-dept">
-              <option value="Computer Science">Computer Science</option>
-              <option value="Information Science">Information Science</option>
-              <option value="Electronics &amp; Communication">Electronics &amp; Communication</option>
-              <option value="Mechanical">Mechanical</option>
-              <option value="Electrical &amp; Electronics">Electrical &amp; Electronics</option>
-              <option value="Civil">Civil</option>
-            </select>
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Phone Number</label>
-            <input class="auth-input" type="tel" id="s-phone" placeholder="+91 98765 43210">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">VVCE Email</label>
-            <input class="auth-input" type="email" id="s-email" placeholder="yourname@vvce.ac.in">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Password (min 8 chars)</label>
-            <input class="auth-input" type="password" id="s-pass" placeholder="••••••••">
-          </div>
-          <!-- Interests -->
-          <div class="auth-field-group">
-            <label class="auth-label">Interests (select all that apply)</label>
-            <div class="interest-grid" id="s-interests">
-              <span class="interest-chip selected" onclick="toggleChip(this)">Technical</span>
-              <span class="interest-chip" onclick="toggleChip(this)">Cultural</span>
-              <span class="interest-chip" onclick="toggleChip(this)">Sports</span>
-              <span class="interest-chip selected" onclick="toggleChip(this)">Workshop</span>
-              <span class="interest-chip" onclick="toggleChip(this)">Management</span>
-              <span class="interest-chip" onclick="toggleChip(this)">Social</span>
+            <div class="auth-field-group">
+              <label class="auth-label">VVCE Email</label>
+              <input class="auth-input" type="email" id="s-email" placeholder="yourname@vvce.ac.in">
             </div>
-          </div>
-          <button class="btn-dark-register" onclick="handleStudentSignup()">Create Student Account →</button>
+            <div class="auth-field-group">
+              <label class="auth-label">Password (min 8 chars)</label>
+              <input class="auth-input" type="password" id="s-pass" placeholder="••••••••">
+            </div>
+            <!-- Interests -->
+            <div class="auth-field-group">
+              <label class="auth-label">Interests (select all that apply)</label>
+              <div class="interest-grid" id="s-interests">
+                <span class="interest-chip selected" onclick="toggleChip(this)">Technical</span>
+                <span class="interest-chip" onclick="toggleChip(this)">Cultural</span>
+                <span class="interest-chip" onclick="toggleChip(this)">Sports</span>
+                <span class="interest-chip selected" onclick="toggleChip(this)">Workshop</span>
+                <span class="interest-chip" onclick="toggleChip(this)">Management</span>
+                <span class="interest-chip" onclick="toggleChip(this)">Social</span>
+              </div>
+            </div>
+            <button class="btn-dark-register" onclick="handleStudentSignup()">Create Student Account →</button>
           </div> <!-- /student-manual-fields -->
         </div>
 
@@ -227,7 +255,13 @@
               The Club Representative must scan their VVCE Student ID card barcode to proceed.
             </div>
             <div id="reader-admin" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid rgba(99,102,241,0.3); margin-bottom:15px;"></div>
-            <button class="btn-dark-register" id="btn-scan-admin" onclick="startScanner('admin')">Start Camera to Scan ID</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn-dark-register" style="flex:1;" id="btn-scan-admin" onclick="startScanner('admin')">📷 Start Camera</button>
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer;">
+                📁 Upload Photo
+                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'admin')">
+              </label>
+            </div>
           </div>
 
           <div id="admin-manual-fields" style="display:none;">
@@ -317,7 +351,13 @@
               Please scan your Faculty ID barcode to securely unlock registration.
             </div>
             <div id="reader-authority" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid rgba(99,102,241,0.3); margin-bottom:15px;"></div>
-            <button class="btn-dark-register" id="btn-scan-authority" onclick="startScanner('authority')">Start Camera to Scan ID</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn-dark-register" style="flex:1;" id="btn-scan-authority" onclick="startScanner('authority')">📷 Start Camera</button>
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer;">
+                📁 Upload Photo
+                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'authority')">
+              </label>
+            </div>
           </div>
 
           <div id="auth-manual-fields" style="display:none;">
