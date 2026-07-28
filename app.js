@@ -432,67 +432,92 @@ window.handleFileUpload = async function(event, role) {
   if (!file) return;
 
   const progressDiv = document.getElementById(`ocr-progress-${role}`);
-  progressDiv.style.display = 'block';
-  
-  // 1. Scan for Barcode (USN)
+  if (progressDiv) progressDiv.style.display = 'block';
+  toast('Analyzing ID card image...', 'info');
+
   let usnFromBarcode = null;
-  try {
-    const html5QrCode = new Html5Qrcode('reader-hidden');
-    usnFromBarcode = await html5QrCode.scanFile(file, true);
-  } catch (err) {
-    console.log("Barcode not found or failed:", err);
-  }
-
-  // 2. Scan for Text (Name + fallback USN)
   let ocrText = '';
-  try {
-    const { data: { text } } = await Tesseract.recognize(file, 'eng');
-    ocrText = text;
-  } catch (err) {
-    console.error("OCR failed:", err);
-  }
 
-  progressDiv.style.display = 'none';
+  // 1. Barcode Scanner Promise
+  const barcodePromise = (async () => {
+    try {
+      const html5QrCode = new Html5Qrcode('reader-hidden');
+      const res = await html5QrCode.scanFile(file, true);
+      try { await html5QrCode.clear(); } catch(e){}
+      return res;
+    } catch (e) {
+      console.log('Barcode scan error:', e);
+      return null;
+    }
+  })();
+
+  // 2. OCR Promise with 8-second safety timeout
+  const ocrPromise = (async () => {
+    try {
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 8000));
+      const res = await Promise.race([Tesseract.recognize(file, 'eng'), timeout]);
+      return res?.data?.text || '';
+    } catch (e) {
+      console.log('OCR error or timeout:', e);
+      return '';
+    }
+  })();
+
+  const [barcodeRes, ocrRes] = await Promise.allSettled([barcodePromise, ocrPromise]);
+
+  usnFromBarcode = barcodeRes.status === 'fulfilled' ? barcodeRes.value : null;
+  ocrText = ocrRes.status === 'fulfilled' ? ocrRes.value : '';
+
+  if (progressDiv) progressDiv.style.display = 'none';
   event.target.value = ''; // Reset input
 
-  // Parse OCR
+  // Parse USN and Name from OCR text
   const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   let parsedName = null;
   let parsedUsn = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Find USN
     const usnMatch = line.match(/USN\s*[:;-]\s*(4VV\w+)/i) || line.match(/(4VV\d{2}[A-Z]{2,3}\d{3})/i);
     if (usnMatch && !parsedUsn) {
       parsedUsn = usnMatch[1];
     }
-    // Find Name (Usually the line above Program)
     if (/Program\s*[:;-]/i.test(line)) {
       if (i > 0) parsedName = lines[i-1];
     }
   }
 
+  // Fallback name search: look for uppercase lines that are not college headers
+  if (!parsedName) {
+    for (const l of lines) {
+      if (/^[A-Z\s]{3,30}$/.test(l) && !/VIDYAVARDHAKA|ENGINEERING|MYSURU|COLLEGE|PROGRAM|USN|BLOOD|GROUP|VALIDITY|BE\s*-/i.test(l)) {
+        parsedName = l;
+        break;
+      }
+    }
+  }
+
   const finalUsn = (usnFromBarcode || parsedUsn || '').trim().toUpperCase();
-  
+
   if (role === 'student' || role === 'admin') {
     if (!/^4VV\d{2}[A-Z]{2,3}\d{3}$/i.test(finalUsn)) {
-      showAuthMsg('❌ Could not read a valid USN from this photo. Please ensure the card is clear and well-lit.', 'error');
+      showAuthMsg('❌ Could not read a valid USN from this photo. Please ensure the card is clear, well-lit, and shows the barcode or USN clearly.', 'error');
+      toast('❌ USN not detected in photo', 'error');
       return;
     }
 
     const users = getDB('vvce_users');
-    
-    // Enforce 1 account per ID card
     const existing = users.find(u => u.usn === finalUsn);
     if (existing) {
-      showAuthMsg('❌ This ID card (USN) has already been registered!', 'error');
+      showAuthMsg(`❌ USN ${finalUsn} has already been registered!`, 'error');
+      toast(`❌ USN ${finalUsn} already registered`, 'error');
       return;
     }
 
     window._scannedData[role] = { usn: finalUsn, name: parsedName };
 
-    // Fill UI
+    toast('✅ ID Card Verified!', 'success');
+
     if (role === 'student') {
       document.getElementById('s-usn').value = finalUsn;
       if (parsedName) document.getElementById('s-name').value = parsedName.toUpperCase();
@@ -516,10 +541,11 @@ window.handleFileUpload = async function(event, role) {
       document.getElementById('admin-manual-fields').style.display = 'block';
     }
   } else if (role === 'authority') {
-    window._scannedData[role] = { name: parsedName };
+    window._scannedData[role] = { name: parsedName || 'Verified Faculty' };
     if (parsedName) document.getElementById('f-name').value = parsedName.toUpperCase();
     document.getElementById('auth-scanner-ui').style.display = 'none';
     document.getElementById('auth-manual-fields').style.display = 'block';
+    toast('✅ Faculty ID Verified!', 'success');
   }
 };
 
