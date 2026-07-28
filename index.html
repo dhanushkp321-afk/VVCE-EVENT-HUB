@@ -7,6 +7,8 @@
   <meta name="description" content="VVCE Events Hub — College event management for students, clubs, and faculty.">
   <!-- Html5-Qrcode for Barcode Scanning -->
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- Tesseract.js for OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -138,26 +140,27 @@
             <div class="auth-notice-info" style="margin-bottom:15px; text-align:center;">
               <div style="font-size:24px; margin-bottom:10px;">📷</div>
               <strong>ID Verification Required</strong><br>
-              Please scan your student ID barcode.
+              Please take a clear photo of your student ID card.
             </div>
-            <div id="reader-student" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid rgba(99,102,241,0.3); margin-bottom:15px;"></div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="btn-dark-register" style="flex:1;" id="btn-scan-student" onclick="startScanner('student')">📷 Start Camera</button>
-              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer;">
-                📁 Upload Photo
-                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'student')">
+            <div style="display:flex; justify-content:center;">
+              <label class="btn-dark-register" style="width:100%; text-align:center; background:#4f46e5; cursor:pointer; font-size:18px; padding:15px;">
+                📷 Scan ID Card
+                <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleFileUpload(event, 'student')">
               </label>
+            </div>
+            <div id="ocr-progress-student" style="display:none; text-align:center; margin-top:15px; color:#4f46e5; font-weight:600;">
+              Analyzing ID Card... <span class="spinner" style="display:inline-block; animation:spin 1s linear infinite;">⏳</span>
             </div>
           </div>
           
           <div id="student-manual-fields" style="display:none;">
             <div class="auth-notice-success" style="margin-bottom:15px; padding:12px; background:rgba(34,197,94,0.1); color:#4ade80; border:1px solid rgba(34,197,94,0.3); border-radius:8px; display:flex; align-items:center; gap:10px;">
-              <span style="font-size:20px;">✅</span> <strong>Verified USN:</strong> <span id="s-verified-usn"></span>
+              <span style="font-size:20px;">✅</span> <strong>Verified:</strong> <span id="s-verified-usn"></span>
             </div>
             <div class="reg-two-col">
               <div class="auth-field-group">
-                <label class="auth-label">Full Name</label>
-                <input class="auth-input" type="text" id="s-name" placeholder="John Doe">
+                <label class="auth-label">Full Name (Auto-filled)</label>
+                <input class="auth-input" type="text" id="s-name" placeholder="John Doe" readonly style="opacity:0.7; cursor:not-allowed;">
               </div>
               <div class="auth-field-group">
                 <label class="auth-label">Branch</label>
@@ -252,28 +255,29 @@
             <div class="auth-notice-info" style="margin-bottom:15px; text-align:center;">
               <div style="font-size:24px; margin-bottom:10px;">📷</div>
               <strong>ID Verification Required</strong><br>
-              The Club Representative must scan their VVCE Student ID card barcode to proceed.
+              The Club Representative must take a clear photo of their VVCE Student ID card to proceed.
             </div>
-            <div id="reader-admin" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid rgba(99,102,241,0.3); margin-bottom:15px;"></div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="btn-dark-register" style="flex:1;" id="btn-scan-admin" onclick="startScanner('admin')">📷 Start Camera</button>
-              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer;">
-                📁 Upload Photo
-                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'admin')">
+            <div style="display:flex; justify-content:center;">
+              <label class="btn-dark-register" style="width:100%; text-align:center; background:#4f46e5; cursor:pointer; font-size:18px; padding:15px;">
+                📷 Scan ID Card
+                <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleFileUpload(event, 'admin')">
               </label>
+            </div>
+            <div id="ocr-progress-admin" style="display:none; text-align:center; margin-top:15px; color:#4f46e5; font-weight:600;">
+              Analyzing ID Card... <span class="spinner" style="display:inline-block; animation:spin 1s linear infinite;">⏳</span>
             </div>
           </div>
 
           <div id="admin-manual-fields" style="display:none;">
             <div class="auth-notice-success" style="margin-bottom:15px; padding:12px; background:rgba(34,197,94,0.1); color:#4ade80; border:1px solid rgba(34,197,94,0.3); border-radius:8px; display:flex; align-items:center; gap:10px;">
-              <span style="font-size:20px;">✅</span> <strong>ID Verified:</strong> <span id="a-verified-usn"></span>
+              <span style="font-size:20px;">✅</span> <strong>Verified:</strong> <span id="a-verified-usn"></span>
             </div>
             <div class="auth-notice-info">
               ⏳ Club accounts require <strong>Dean Student Welfare approval</strong> before you can log in.
             </div>
           <div class="auth-field-group">
-            <label class="auth-label">Your Full Name</label>
-            <input class="auth-input" type="text" id="a-name" placeholder="Club representative name">
+            <label class="auth-label">Your Full Name (Auto-filled)</label>
+            <input class="auth-input" type="text" id="a-name" placeholder="Club representative name" readonly style="opacity:0.7; cursor:not-allowed;">
           </div>
           <div class="reg-two-col">
             <div class="auth-field-group">
@@ -348,15 +352,16 @@
             <div class="auth-notice-info" style="margin-bottom:15px; text-align:center;">
               <div style="font-size:24px; margin-bottom:10px;">📷</div>
               <strong>Faculty ID Verification</strong><br>
-              Please scan your Faculty ID barcode to securely unlock registration.
+              Please take a clear photo of your Faculty ID to securely unlock registration.
             </div>
-            <div id="reader-authority" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid rgba(99,102,241,0.3); margin-bottom:15px;"></div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="btn-dark-register" style="flex:1;" id="btn-scan-authority" onclick="startScanner('authority')">📷 Start Camera</button>
-              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer;">
-                📁 Upload Photo
-                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'authority')">
+            <div style="display:flex; justify-content:center;">
+              <label class="btn-dark-register" style="width:100%; text-align:center; background:#4f46e5; cursor:pointer; font-size:18px; padding:15px;">
+                📷 Scan Faculty ID
+                <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleFileUpload(event, 'authority')">
               </label>
+            </div>
+            <div id="ocr-progress-authority" style="display:none; text-align:center; margin-top:15px; color:#4f46e5; font-weight:600;">
+              Analyzing ID Card... <span class="spinner" style="display:inline-block; animation:spin 1s linear infinite;">⏳</span>
             </div>
           </div>
 
@@ -398,6 +403,8 @@
   </div><!-- /auth-outer -->
 </div><!-- /auth-screen -->
 
+<!-- Hidden div for Html5Qrcode internal use -->
+<div id="reader-hidden" style="display:none;"></div>
 
 <!-- ═══════════════════════════════════ MAIN APP ═══════════════════════════════════ -->
 <div id="app" style="display:none;">

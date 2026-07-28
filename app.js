@@ -424,6 +424,105 @@ function clearAuthMsg() {
   if (el) { el.style.display = 'none'; el.textContent = ''; }
 }
 
+/* ── Login ── *//* ── ID Card Photo Scanner (OCR & Barcode) ── */
+window._scannedData = { student: null, admin: null, authority: null };
+
+window.handleFileUpload = async function(event, role) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const progressDiv = document.getElementById(`ocr-progress-${role}`);
+  progressDiv.style.display = 'block';
+  
+  // 1. Scan for Barcode (USN)
+  let usnFromBarcode = null;
+  try {
+    const html5QrCode = new Html5Qrcode('reader-hidden');
+    usnFromBarcode = await html5QrCode.scanFile(file, true);
+  } catch (err) {
+    console.log("Barcode not found or failed:", err);
+  }
+
+  // 2. Scan for Text (Name + fallback USN)
+  let ocrText = '';
+  try {
+    const { data: { text } } = await Tesseract.recognize(file, 'eng');
+    ocrText = text;
+  } catch (err) {
+    console.error("OCR failed:", err);
+  }
+
+  progressDiv.style.display = 'none';
+  event.target.value = ''; // Reset input
+
+  // Parse OCR
+  const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  let parsedName = null;
+  let parsedUsn = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Find USN
+    const usnMatch = line.match(/USN\s*[:;-]\s*(4VV\w+)/i) || line.match(/(4VV\d{2}[A-Z]{2,3}\d{3})/i);
+    if (usnMatch && !parsedUsn) {
+      parsedUsn = usnMatch[1];
+    }
+    // Find Name (Usually the line above Program)
+    if (/Program\s*[:;-]/i.test(line)) {
+      if (i > 0) parsedName = lines[i-1];
+    }
+  }
+
+  const finalUsn = (usnFromBarcode || parsedUsn || '').trim().toUpperCase();
+  
+  if (role === 'student' || role === 'admin') {
+    if (!/^4VV\d{2}[A-Z]{2,3}\d{3}$/i.test(finalUsn)) {
+      showAuthMsg('❌ Could not read a valid USN from this photo. Please ensure the card is clear and well-lit.', 'error');
+      return;
+    }
+
+    const users = getDB('vvce_users');
+    
+    // Enforce 1 account per ID card
+    const existing = users.find(u => u.usn === finalUsn);
+    if (existing) {
+      showAuthMsg('❌ This ID card (USN) has already been registered!', 'error');
+      return;
+    }
+
+    window._scannedData[role] = { usn: finalUsn, name: parsedName };
+
+    // Fill UI
+    if (role === 'student') {
+      document.getElementById('s-usn').value = finalUsn;
+      if (parsedName) document.getElementById('s-name').value = parsedName.toUpperCase();
+      document.getElementById('s-verified-usn').innerText = finalUsn + (parsedName ? ` (${parsedName.toUpperCase()})` : '');
+      document.getElementById('student-scanner-ui').style.display = 'none';
+      document.getElementById('student-manual-fields').style.display = 'block';
+
+      const match = finalUsn.match(/^4VV\d{2}([A-Z]{2})\d{3}$/i);
+      if (match) {
+         const br = match[1].toUpperCase();
+         const sel = document.getElementById('s-branch');
+         for(let i=0; i<sel.options.length; i++) {
+            if(sel.options[i].value === br) sel.selectedIndex = i;
+         }
+      }
+    } else {
+      document.getElementById('a-usn').value = finalUsn;
+      if (parsedName) document.getElementById('a-name').value = parsedName.toUpperCase();
+      document.getElementById('a-verified-usn').innerText = finalUsn + (parsedName ? ` (${parsedName.toUpperCase()})` : '');
+      document.getElementById('admin-scanner-ui').style.display = 'none';
+      document.getElementById('admin-manual-fields').style.display = 'block';
+    }
+  } else if (role === 'authority') {
+    window._scannedData[role] = { name: parsedName };
+    if (parsedName) document.getElementById('f-name').value = parsedName.toUpperCase();
+    document.getElementById('auth-scanner-ui').style.display = 'none';
+    document.getElementById('auth-manual-fields').style.display = 'block';
+  }
+};
+
 /* ── Login ── */
 function handleLogin() {
   const email = document.getElementById('login-email').value.trim().toLowerCase();
@@ -460,78 +559,6 @@ function quickLogin(role) {
   document.getElementById('login-email').value = maps[role] || maps.student;
   document.getElementById('login-pass').value  = 'demo1234';
   handleLogin();
-}
-
-/* ── ID Card Barcode Scanner ── */
-window._scannedData = { student: null, admin: null, authority: null };
-window._html5QrcodeScanner = null;
-
-window.startScanner = function(role) {
-  const readerId = `reader-${role}`;
-  
-  if (window._html5QrcodeScanner) {
-    window._html5QrcodeScanner.clear().catch(e => console.log(e));
-  }
-  
-  // Use Html5QrcodeScanner
-  window._html5QrcodeScanner = new Html5QrcodeScanner(
-    readerId, 
-    { fps: 10, qrbox: {width: 250, height: 100} },
-    false
-  );
-  
-  window._html5QrcodeScanner.render((decodedText) => {
-    window._html5QrcodeScanner.clear();
-    handleScanSuccess(decodedText, role);
-  }, (errorMessage) => {
-    // ignore frame errors
-  });
-};
-
-function handleScanSuccess(text, role) {
-  const users = getDB('vvce_users');
-  text = text.trim().toUpperCase();
-  
-  if (role === 'student' || role === 'admin') {
-    // Validate USN format (e.g., 4VV21CS001)
-    if (!/^4VV\d{2}[A-Z]{2,3}\d{3}$/i.test(text)) {
-      showAuthMsg('❌ Invalid USN format on ID card.', 'error');
-      return;
-    }
-    
-    // Enforce 1 account per ID card
-    const existing = users.find(u => u.usn === text);
-    if (existing) {
-      showAuthMsg('❌ This ID card (USN) has already been registered!', 'error');
-      return;
-    }
-    
-    window._scannedData[role] = text;
-    if (role === 'student') {
-      document.getElementById('s-usn').value = text;
-      document.getElementById('s-verified-usn').innerText = text;
-      document.getElementById('student-scanner-ui').style.display = 'none';
-      document.getElementById('student-manual-fields').style.display = 'block';
-      
-      const match = text.match(/^4VV\d{2}([A-Z]{2})\d{3}$/i);
-      if (match) {
-         const br = match[1].toUpperCase();
-         const sel = document.getElementById('s-branch');
-         for(let i=0; i<sel.options.length; i++) {
-            if(sel.options[i].value === br) sel.selectedIndex = i;
-         }
-      }
-    } else {
-      document.getElementById('a-usn').value = text;
-      document.getElementById('a-verified-usn').innerText = text;
-      document.getElementById('admin-scanner-ui').style.display = 'none';
-      document.getElementById('admin-manual-fields').style.display = 'block';
-    }
-  } else if (role === 'authority') {
-    window._scannedData[role] = text;
-    document.getElementById('auth-scanner-ui').style.display = 'none';
-    document.getElementById('auth-manual-fields').style.display = 'block';
-  }
 }
 
 
