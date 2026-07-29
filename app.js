@@ -430,21 +430,20 @@ window._scannedData = { student: null, admin: null, authority: null };
 function extractUSNFuzzy(text) {
   if (!text) return null;
   const raw = text.toUpperCase();
-  const usnRegex = /(?:USN\s*[:;-]?\s*)?([4A][VW]{1,2}\s*\d{2}\s*[A-Z]{2,4}\s*[\dO]{3,4})/i;
+  const usnRegex = /(?:USN\s*[:;-]?\s*)?(4[A-Z]{2}\s*\d{2}\s*[A-Z]{2,4}\s*[\dO]{3,4})/i;
   const match = raw.match(usnRegex);
   
   if (match) {
     let candidate = match[1].replace(/\s+/g, '');
-    candidate = candidate.replace(/^[4A][VW]{1,2}/, '4VV');
     const prefixPart = candidate.slice(0, 7);
     const digitsPart = candidate.slice(7).replace(/O/g, '0');
     candidate = prefixPart + digitsPart;
-    if (/^4VV\d{2}[A-Z]{2,4}\d{3,4}$/.test(candidate)) {
+    if (/^4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4}$/.test(candidate)) {
       return candidate;
     }
   }
 
-  const directMatch = raw.replace(/\s+/g, '').match(/(4VV\d{2}[A-Z]{2,4}\d{3,4})/);
+  const directMatch = raw.replace(/\s+/g, '').match(/(4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4})/);
   if (directMatch) return directMatch[1];
   return null;
 }
@@ -570,7 +569,7 @@ window.handleFileUpload = async function(event, role) {
       if (manualUi) manualUi.style.display = 'block';
 
       if (finalUsn) {
-        const match = finalUsn.match(/^4VV\d{2}([A-Z]{2,3})\d{3,4}$/i);
+        const match = finalUsn.match(/^4[A-Z]{2}\d{2}([A-Z]{2,4})\d{3,4}$/i);
         if (match) {
            const br = match[1].toUpperCase();
            const sel = document.getElementById('s-branch');
@@ -679,6 +678,10 @@ function handleStudentSignup() {
   }
 
   if (!name || !usn || !email || !pass) { showAuthMsg('Please fill all required fields.'); return; }
+  if (!/^4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4}$/i.test(usn)) {
+    showAuthMsg('❌ Invalid USN format (e.g. 4EV25CS053 or 4VV25CS047).', 'error');
+    return;
+  }
   if (pass.length < 8) { showAuthMsg('Password must be at least 8 characters.'); return; }
   if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
