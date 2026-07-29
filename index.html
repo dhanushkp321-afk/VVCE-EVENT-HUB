@@ -142,10 +142,14 @@
               <strong>ID Verification Required</strong><br>
               Please take a clear photo of your student ID card.
             </div>
-            <div style="display:flex; justify-content:center;">
-              <label class="btn-dark-register" style="width:100%; text-align:center; background:#4f46e5; cursor:pointer; font-size:18px; padding:15px;">
-                📷 Scan ID Card
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer; font-size:15px; padding:14px 10px;">
+                📷 Take Photo
                 <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleFileUpload(event, 'student')">
+              </label>
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#3730a3; cursor:pointer; font-size:15px; padding:14px 10px;">
+                📁 Upload ID Photo
+                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'student')">
               </label>
             </div>
             <div id="ocr-progress-student" style="display:none; text-align:center; margin-top:15px; color:#4f46e5; font-weight:600;">
@@ -269,10 +273,14 @@
               <strong>ID Verification Required</strong><br>
               The Club Representative must take a clear photo of their VVCE Student ID card to proceed.
             </div>
-            <div style="display:flex; justify-content:center;">
-              <label class="btn-dark-register" style="width:100%; text-align:center; background:#4f46e5; cursor:pointer; font-size:18px; padding:15px;">
-                📷 Scan ID Card
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer; font-size:15px; padding:14px 10px;">
+                📷 Take Photo
                 <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleFileUpload(event, 'admin')">
+              </label>
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#3730a3; cursor:pointer; font-size:15px; padding:14px 10px;">
+                📁 Upload ID Photo
+                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'admin')">
               </label>
             </div>
             <div id="ocr-progress-admin" style="display:none; text-align:center; margin-top:15px; color:#4f46e5; font-weight:600;">
@@ -366,10 +374,14 @@
               <strong>Faculty ID Verification</strong><br>
               Please take a clear photo of your Faculty ID to securely unlock registration.
             </div>
-            <div style="display:flex; justify-content:center;">
-              <label class="btn-dark-register" style="width:100%; text-align:center; background:#4f46e5; cursor:pointer; font-size:18px; padding:15px;">
-                📷 Scan Faculty ID
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#4f46e5; cursor:pointer; font-size:15px; padding:14px 10px;">
+                📷 Take Photo
                 <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handleFileUpload(event, 'authority')">
+              </label>
+              <label class="btn-dark-register" style="flex:1; text-align:center; background:#3730a3; cursor:pointer; font-size:15px; padding:14px 10px;">
+                📁 Upload Faculty ID Photo
+                <input type="file" accept="image/*" style="display:none;" onchange="handleFileUpload(event, 'authority')">
               </label>
             </div>
             <div id="ocr-progress-authority" style="display:none; text-align:center; margin-top:15px; color:#4f46e5; font-weight:600;">
