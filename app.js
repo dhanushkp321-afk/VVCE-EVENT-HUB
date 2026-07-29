@@ -569,17 +569,41 @@ window.handleFileUpload = async function(event, role) {
       if (manualUi) manualUi.style.display = 'block';
 
       if (finalUsn) {
-        const match = finalUsn.match(/^4[A-Z]{2}\d{2}([A-Z]{2,4})\d{3,4}$/i);
+        const match = finalUsn.match(/^4[A-Z]{2}(\d{2})([A-Z]{2,4})\d{3,4}$/i);
         if (match) {
-           const br = match[1].toUpperCase();
+           const yrCode = parseInt(match[1]);
+           const br = match[2].toUpperCase();
+           
+           // Auto-select Branch
            const sel = document.getElementById('s-branch');
            if (sel) {
              for(let i=0; i<sel.options.length; i++) {
-                if(sel.options[i].value === br || sel.options[i].value.startsWith(br)) {
+                if(sel.options[i].value === br || sel.options[i].value.startsWith(br) || (br === 'CS' && sel.options[i].value === 'CS')) {
                   sel.selectedIndex = i;
                   break;
                 }
              }
+           }
+
+           // Auto-select Year & Semester from USN Admission Year
+           if (yrCode > 0) {
+             const admissionYear = 2000 + yrCode;
+             const now = new Date();
+             const curMonth = now.getMonth() + 1;
+             const curAcadYear = curMonth >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+             const diff = curAcadYear - admissionYear;
+
+             let yearVal = '1st Year';
+             let semVal = 'Sem 1';
+             if (diff === 1) { yearVal = '2nd Year'; semVal = 'Sem 3'; }
+             else if (diff === 2) { yearVal = '3rd Year'; semVal = 'Sem 5'; }
+             else if (diff >= 3) { yearVal = '4th Year'; semVal = 'Sem 7'; }
+
+             const yearSel = document.getElementById('s-year');
+             if (yearSel) yearSel.value = yearVal;
+
+             const semSel = document.getElementById('s-sem');
+             if (semSel) semSel.value = semVal;
            }
         }
       }
