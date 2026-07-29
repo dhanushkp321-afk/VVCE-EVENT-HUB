@@ -512,7 +512,22 @@ window.handleFileUpload = async function(event, role) {
     }
   }
 
-  const finalUsn = extractUSNFuzzy(usnFromBarcode) || extractUSNFuzzy(ocrText);
+  const usnFromBC = extractUSNFuzzy(usnFromBarcode);
+  const usnFromOCR = extractUSNFuzzy(ocrText);
+  let finalUsn = null;
+
+  if (usnFromBC && usnFromOCR) {
+    if (usnFromBC === usnFromOCR) {
+      finalUsn = usnFromBC;
+      console.log('✅ Security check passed: Barcode USN matches Printed USN (' + finalUsn + ')');
+    } else {
+      showAuthMsg(`❌ Security Alert: ID card tampering detected! The barcode USN (${usnFromBC}) does not match the printed text USN (${usnFromOCR}).`, 'error');
+      toast('❌ ID Tampering Detected!', 'error');
+      return;
+    }
+  } else {
+    finalUsn = usnFromBC || usnFromOCR;
+  }
 
   if (role === 'student' || role === 'admin') {
     const users = getDB('vvce_users');
