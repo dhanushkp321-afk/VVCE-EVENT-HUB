@@ -427,6 +427,28 @@ function clearAuthMsg() {
 /* ── Login ── *//* ── ID Card Photo Scanner (OCR & Barcode) ── */
 window._scannedData = { student: null, admin: null, authority: null };
 
+function extractUSNFuzzy(text) {
+  if (!text) return null;
+  const raw = text.toUpperCase();
+  const usnRegex = /(?:USN\s*[:;-]?\s*)?([4A][VW]{1,2}\s*\d{2}\s*[A-Z]{2,4}\s*[\dO]{3,4})/i;
+  const match = raw.match(usnRegex);
+  
+  if (match) {
+    let candidate = match[1].replace(/\s+/g, '');
+    candidate = candidate.replace(/^[4A][VW]{1,2}/, '4VV');
+    const prefixPart = candidate.slice(0, 7);
+    const digitsPart = candidate.slice(7).replace(/O/g, '0');
+    candidate = prefixPart + digitsPart;
+    if (/^4VV\d{2}[A-Z]{2,4}\d{3,4}$/.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  const directMatch = raw.replace(/\s+/g, '').match(/(4VV\d{2}[A-Z]{2,4}\d{3,4})/);
+  if (directMatch) return directMatch[1];
+  return null;
+}
+
 window.handleFileUpload = async function(event, role) {
   const file = event.target.files[0];
   if (!file) return;
@@ -471,23 +493,17 @@ window.handleFileUpload = async function(event, role) {
   if (progressDiv) progressDiv.style.display = 'none';
   event.target.value = ''; // Reset input
 
-  // Parse USN and Name from OCR text
+  // Parse USN and Name using fuzzy logic
   const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   let parsedName = null;
-  let parsedUsn = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const usnMatch = line.match(/USN\s*[:;-]\s*(4VV\w+)/i) || line.match(/(4VV\d{2}[A-Z]{2,3}\d{3})/i);
-    if (usnMatch && !parsedUsn) {
-      parsedUsn = usnMatch[1];
-    }
     if (/Program\s*[:;-]/i.test(line)) {
       if (i > 0) parsedName = lines[i-1];
     }
   }
 
-  // Fallback name search: look for uppercase lines that are not college headers
   if (!parsedName) {
     for (const l of lines) {
       if (/^[A-Z\s]{3,30}$/.test(l) && !/VIDYAVARDHAKA|ENGINEERING|MYSURU|COLLEGE|PROGRAM|USN|BLOOD|GROUP|VALIDITY|BE\s*-/i.test(l)) {
@@ -497,19 +513,13 @@ window.handleFileUpload = async function(event, role) {
     }
   }
 
-  const finalUsn = (usnFromBarcode || parsedUsn || '').trim().toUpperCase();
+  const finalUsn = extractUSNFuzzy(usnFromBarcode) || extractUSNFuzzy(ocrText);
 
   if (role === 'student' || role === 'admin') {
-    if (!/^4VV\d{2}[A-Z]{2,3}\d{3}$/i.test(finalUsn)) {
-      showAuthMsg('❌ Could not read a valid USN from this photo. Please ensure the card is clear, well-lit, and shows the barcode or USN clearly.', 'error');
-      toast('❌ USN not detected in photo', 'error');
-      return;
-    }
-
     const users = getDB('vvce_users');
     
-    // Enforce 1 student account per ID card (Club Admins are allowed to scan the same ID card)
-    if (role === 'student') {
+    // Check if auto-extracted USN is already registered
+    if (finalUsn && role === 'student') {
       const existing = users.find(u => u.type === 'student' && u.usn === finalUsn);
       if (existing) {
         showAuthMsg(`❌ A student account with USN ${finalUsn} has already been registered!`, 'error');
@@ -518,19 +528,40 @@ window.handleFileUpload = async function(event, role) {
       }
     }
 
-    window._scannedData[role] = { usn: finalUsn, name: parsedName };
+    window._scannedData[role] = { usn: finalUsn, name: parsedName, photoAttached: true };
 
-    toast('✅ ID Card Verified!', 'success');
+    if (finalUsn) {
+      toast('✅ ID Card Verified & Auto-Filled!', 'success');
+    } else {
+      toast('ℹ️ Photo attached! Please enter your USN below.', 'info');
+    }
 
     if (role === 'student') {
       const usnEl = document.getElementById('s-usn');
-      if (usnEl) usnEl.value = finalUsn;
+      if (usnEl) {
+        if (finalUsn) {
+          usnEl.value = finalUsn;
+          usnEl.readOnly = true;
+          usnEl.style.opacity = '0.7';
+          usnEl.style.cursor = 'not-allowed';
+        } else {
+          usnEl.value = '';
+          usnEl.readOnly = false;
+          usnEl.style.opacity = '1';
+          usnEl.style.cursor = 'text';
+          usnEl.placeholder = 'Enter USN e.g. 4VV25CS047';
+        }
+      }
 
       const nameEl = document.getElementById('s-name');
       if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
 
       const verEl = document.getElementById('s-verified-usn');
-      if (verEl) verEl.innerText = finalUsn + (parsedName ? ` (${parsedName.toUpperCase()})` : '');
+      if (verEl) {
+        verEl.innerText = finalUsn 
+          ? `${finalUsn}${parsedName ? ' (' + parsedName.toUpperCase() + ')' : ''}`
+          : 'ID Photo Attached (Enter USN below)';
+      }
 
       const scanUi = document.getElementById('student-scanner-ui');
       if (scanUi) scanUi.style.display = 'none';
@@ -538,28 +569,41 @@ window.handleFileUpload = async function(event, role) {
       const manualUi = document.getElementById('student-manual-fields');
       if (manualUi) manualUi.style.display = 'block';
 
-      const match = finalUsn.match(/^4VV\d{2}([A-Z]{2,3})\d{3}$/i);
-      if (match) {
-         const br = match[1].toUpperCase();
-         const sel = document.getElementById('s-branch');
-         if (sel) {
-           for(let i=0; i<sel.options.length; i++) {
-              if(sel.options[i].value === br || sel.options[i].value.startsWith(br)) {
-                sel.selectedIndex = i;
-                break;
-              }
+      if (finalUsn) {
+        const match = finalUsn.match(/^4VV\d{2}([A-Z]{2,3})\d{3,4}$/i);
+        if (match) {
+           const br = match[1].toUpperCase();
+           const sel = document.getElementById('s-branch');
+           if (sel) {
+             for(let i=0; i<sel.options.length; i++) {
+                if(sel.options[i].value === br || sel.options[i].value.startsWith(br)) {
+                  sel.selectedIndex = i;
+                  break;
+                }
+             }
            }
-         }
+        }
       }
     } else {
       const usnEl = document.getElementById('a-usn');
-      if (usnEl) usnEl.value = finalUsn;
+      if (usnEl) {
+        if (finalUsn) {
+          usnEl.value = finalUsn;
+          usnEl.readOnly = true;
+          usnEl.style.opacity = '0.7';
+        } else {
+          usnEl.value = '';
+          usnEl.readOnly = false;
+          usnEl.style.opacity = '1';
+          usnEl.placeholder = 'Enter USN e.g. 4VV21CS001';
+        }
+      }
 
       const nameEl = document.getElementById('a-name');
       if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
 
       const verEl = document.getElementById('a-verified-usn');
-      if (verEl) verEl.innerText = finalUsn + (parsedName ? ` (${parsedName.toUpperCase()})` : '');
+      if (verEl) verEl.innerText = finalUsn || 'ID Photo Attached';
 
       const scanUi = document.getElementById('admin-scanner-ui');
       if (scanUi) scanUi.style.display = 'none';
@@ -568,11 +612,11 @@ window.handleFileUpload = async function(event, role) {
       if (manualUi) manualUi.style.display = 'block';
     }
   } else if (role === 'authority') {
-    window._scannedData[role] = { name: parsedName || 'Verified Faculty' };
+    window._scannedData[role] = { name: parsedName || 'Verified Faculty', photoAttached: true };
     if (parsedName) document.getElementById('f-name').value = parsedName.toUpperCase();
     document.getElementById('auth-scanner-ui').style.display = 'none';
     document.getElementById('auth-manual-fields').style.display = 'block';
-    toast('✅ Faculty ID Verified!', 'success');
+    toast('✅ Faculty ID Photo Attached!', 'success');
   }
 };
 
