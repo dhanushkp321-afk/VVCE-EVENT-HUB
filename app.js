@@ -749,26 +749,48 @@ function handleStudentSignup() {
   setTimeout(() => launchApp(newUser), 1000);
 }
 
+/* ── Club Logo Upload Handler ── */
+window._clubLogoBase64 = null;
+window.handleClubLogoUpload = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    window._clubLogoBase64 = e.target.result;
+    const preview = document.getElementById('a-logo-preview');
+    if (preview) {
+      preview.innerHTML = `<img src="${e.target.result}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">`;
+    }
+    toast('Club logo uploaded!', 'success');
+  };
+  reader.readAsDataURL(file);
+};
+
 /* ── Club Admin Signup ── */
 function handleAdminSignup() {
+  const faculty   = document.getElementById('a-faculty').value.trim();
   const name      = document.getElementById('a-name').value.trim();
   const club      = document.getElementById('a-club').value.trim();
   const domain    = document.getElementById('a-domain').value;
   const branch    = document.getElementById('a-branch').value;
   const usn       = document.getElementById('a-usn').value.trim().toUpperCase();
-  const faculty   = document.getElementById('a-faculty').value.trim();
   const clubEmail = document.getElementById('a-club-email').value.trim().toLowerCase();
   const email     = document.getElementById('a-email').value.trim().toLowerCase();
   const phone     = document.getElementById('a-phone').value.trim();
   const desc      = document.getElementById('a-desc').value.trim();
   const pass      = document.getElementById('a-pass').value;
 
+  if (!faculty) {
+    showAuthMsg('❌ Please enter the Faculty Coordinator Name (First Priority).', 'error');
+    return;
+  }
+
   if (!window._scannedData.admin) {
     showAuthMsg('❌ You must scan your Student ID card first.', 'error');
     return;
   }
 
-  if (!name || !club || !faculty || !email || !pass || !usn) { showAuthMsg('Please fill all required fields.'); return; }
+  if (!name || !club || !email || !pass || !usn) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
   if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
@@ -778,6 +800,8 @@ function handleAdminSignup() {
   const newUser = {
     id: genId('u'), type: 'admin', name: name.toUpperCase(), email, pass,
     clubName: club, clubEmail, domain, branch, usn, faculty, phone, desc, approved: false,
+    clubLogo: window._clubLogoBase64 || null,
+    profilePhoto: window._clubLogoBase64 || null,
     notifs: [{ id: genId('n'), msg: 'Club registration submitted! Pending Dean SW approval.', time: 'Just now', read: false, icon: '⏳' }]
   };
   users.push(newUser);
@@ -2138,21 +2162,32 @@ function renderProfilePage() {
 function renderAuthorityProfile() {
   const user = STATE.user;
   const isClubAdmin = user.type === 'admin';
+  const displayLogo = user.clubLogo || user.profilePhoto;
   return `
     <div class="profile-head-card">
       <div class="prof-head-row">
         <div class="prof-avatar-wrap" onclick="triggerPhotoUpload()">
-          <div class="prof-avatar">${user.profilePhoto?`<img src="${user.profilePhoto}">`:`<span>${avatar(user.name)}</span>`}</div>
+          <div class="prof-avatar">${displayLogo?`<img src="${displayLogo}">`:`<span>${isClubAdmin?'🏛️':avatar(user.name)}</span>`}</div>
           <div class="photo-edit-overlay">📷</div>
           <input type="file" id="photo-upload" style="display:none;" accept="image/*" onchange="handlePhotoUpload(this)">
         </div>
         <div class="prof-info" style="flex:1;">
-          <h2>${titleCase(user.name)}</h2>
-          ${isClubAdmin
-            ? `<div class="prof-meta-row" style="color:#f59e0b;font-weight:700;font-size:15px;">🏛️ ${user.clubName||'Club Admin'}</div>`
-            : `<div class="prof-meta-row" style="color:#6b7280;">${titleCase(user.designation||'')} &nbsp;•&nbsp; ${user.dept||''}</div>`
-          }
-          <div class="prof-meta-row" style="font-size:12px;color:#9ca3af;">${user.email}</div>
+          ${isClubAdmin ? `
+            <h2 style="font-size:22px; font-weight:800; color:#111827; margin:0;">${user.clubName || 'Club Admin'}</h2>
+            <div class="prof-meta-row" style="color:#4f46e5; font-weight:700; font-size:14px; margin-top:4px;">
+              👤 Representative: ${titleCase(user.name)}
+            </div>
+            <div class="prof-meta-row" style="color:#059669; font-weight:600; font-size:13px; margin-top:2px;">
+              👩‍🏫 Faculty Coordinator: ${user.faculty || '—'}
+            </div>
+            <div class="prof-meta-row" style="color:#6b7280; font-size:12px; margin-top:2px;">
+              🏛️ ${user.domain || 'General'} Domain &nbsp;•&nbsp; ${user.dept || user.branch || '—'} Department
+            </div>
+          ` : `
+            <h2>${titleCase(user.name)}</h2>
+            <div class="prof-meta-row" style="color:#6b7280;">${titleCase(user.designation||'')} &nbsp;•&nbsp; ${user.dept||''}</div>
+            <div class="prof-meta-row" style="font-size:12px;color:#9ca3af;">${user.email}</div>
+          `}
         </div>
         <button class="btn btn-gold" onclick="openProfileEdit()" style="align-self:flex-start;white-space:nowrap;">✏️ Edit Profile</button>
       </div>

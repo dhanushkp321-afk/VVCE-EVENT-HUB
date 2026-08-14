@@ -295,74 +295,99 @@
             <div class="auth-notice-info">
               ⏳ Club accounts require <strong>Dean Student Welfare approval</strong> before you can log in.
             </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Your Full Name</label>
-            <input class="auth-input" type="text" id="a-name" placeholder="Club representative name">
-          </div>
-          <div class="reg-two-col">
-            <div class="auth-field-group">
-              <label class="auth-label">Club Name</label>
-              <input class="auth-input" type="text" id="a-club" placeholder="CSE Club">
-            </div>
-            <div class="auth-field-group">
-              <label class="auth-label">Category</label>
-              <select class="auth-input" id="a-domain">
-                <option value="Technical">Technical</option>
-                <option value="Cultural">Cultural</option>
-                <option value="Sports">Sports</option>
-                <option value="Management">Management</option>
-                <option value="Social">Social</option>
-                <option value="Workshop">Workshop</option>
-              </select>
-            </div>
-          </div>
 
-          <!-- Branch & USN row -->
-          <div class="reg-two-col">
+            <!-- Priority 1: Faculty Coordinator Name -->
+            <div class="auth-field-group" style="background:rgba(99,102,241,0.08); padding:14px; border-radius:12px; border:1px solid rgba(99,102,241,0.25); margin-bottom:15px;">
+              <label class="auth-label" style="color:#a5b4fc; font-weight:700; font-size:14px;">👩‍🏫 Faculty Coordinator Name (First Priority) *</label>
+              <input class="auth-input" type="text" id="a-faculty" placeholder="Dr. / Prof. Name (e.g. Dr. Ramesh Kumar)" style="background:rgba(15,23,42,0.6); border-color:rgba(99,102,241,0.4);">
+            </div>
+
+            <!-- Club Logo Upload -->
+            <div class="auth-field-group" style="margin-bottom:15px;">
+              <label class="auth-label">Club Logo (Optional)</label>
+              <div style="display:flex; align-items:center; gap:15px;">
+                <div id="a-logo-preview" style="width:54px; height:54px; border-radius:12px; background:rgba(99,102,241,0.15); border:2px dashed rgba(99,102,241,0.4); display:flex; align-items:center; justify-content:center; font-size:24px; color:#a5b4fc; overflow:hidden; flex-shrink:0;">
+                  🏛️
+                </div>
+                <label class="btn-dark-register" style="margin:0; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); cursor:pointer; font-size:13px; padding:10px 14px;">
+                  📷 Upload Club Logo
+                  <input type="file" id="a-logo-file" accept="image/*" style="display:none;" onchange="handleClubLogoUpload(event)">
+                </label>
+              </div>
+            </div>
+
+            <!-- Club Name & Category -->
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Club Name *</label>
+                <input class="auth-input" type="text" id="a-club" placeholder="e.g. CSE Club">
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Category *</label>
+                <select class="auth-input" id="a-domain">
+                  <option value="Technical">Technical</option>
+                  <option value="Cultural">Cultural</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Management">Management</option>
+                  <option value="Social">Social</option>
+                  <option value="Workshop">Workshop</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Representative Name & USN -->
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Representative Full Name *</label>
+                <input class="auth-input" type="text" id="a-name" placeholder="Club representative name">
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Representative USN (Verified) *</label>
+                <input class="auth-input" type="text" id="a-usn" placeholder="e.g. 4VV21CS001" readonly style="opacity:0.7; cursor:not-allowed;">
+              </div>
+            </div>
+
+            <!-- Branch & Club Email -->
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Department / Branch *</label>
+                <select class="auth-input" id="a-branch">
+                  <option value="CSE">CSE — Computer Science &amp; Engineering</option>
+                  <option value="CSE/AIML">CSE / AI&amp;ML — Artificial Intelligence &amp; ML</option>
+                  <option value="ECE">ECE — Electronics &amp; Communication</option>
+                  <option value="ME">ME — Mechanical Engineering</option>
+                  <option value="EEE">EEE — Electrical &amp; Electronics</option>
+                  <option value="CV">CV — Civil Engineering</option>
+                  <option value="ISE">ISE — Information Science &amp; Engineering</option>
+                </select>
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Club Email</label>
+                <input class="auth-input" type="email" id="a-club-email" placeholder="cseclub@vvce.ac.in">
+              </div>
+            </div>
+
+            <!-- Representative Email & Phone -->
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Your VVCE Email *</label>
+                <input class="auth-input" type="email" id="a-email" placeholder="yourname@vvce.ac.in">
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Phone Number *</label>
+                <input class="auth-input" type="tel" id="a-phone" placeholder="+91 98765 43210">
+              </div>
+            </div>
+
             <div class="auth-field-group">
-              <label class="auth-label">Department / Branch</label>
-              <select class="auth-input" id="a-branch">
-                <option value="CSE">CSE — Computer Science &amp; Engineering</option>
-                <option value="CSE/AIML">CSE / AI&amp;ML — Artificial Intelligence &amp; ML</option>
-                <option value="ECE">ECE — Electronics &amp; Communication</option>
-                <option value="ME">ME — Mechanical Engineering</option>
-                <option value="EEE">EEE — Electrical &amp; Electronics</option>
-                <option value="CV">CV — Civil Engineering</option>
-                <option value="ISE">ISE — Information Science &amp; Engineering</option>
-              </select>
+              <label class="auth-label">Club Description</label>
+              <textarea class="auth-input" id="a-desc" rows="2" placeholder="Brief description of club activities..."></textarea>
             </div>
             <div class="auth-field-group">
-              <label class="auth-label">Club Representative USN (Auto-filled)</label>
-              <input class="auth-input" type="text" id="a-usn" placeholder="e.g. 4VV21CS001" readonly style="opacity:0.7; cursor:not-allowed;">
+              <label class="auth-label">Password *</label>
+              <input class="auth-input" type="password" id="a-pass" placeholder="••••••••">
             </div>
-          </div>
-
-          <div class="auth-field-group">
-            <label class="auth-label">Faculty Coordinator Name</label>
-            <input class="auth-input" type="text" id="a-faculty" placeholder="Dr. / Prof. Name">
-          </div>
-
-          <div class="auth-field-group">
-            <label class="auth-label">Club Email</label>
-            <input class="auth-input" type="email" id="a-club-email" placeholder="cseclub@vvce.ac.in">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Your VVCE Email</label>
-            <input class="auth-input" type="email" id="a-email" placeholder="yourname@vvce.ac.in">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Phone Number</label>
-            <input class="auth-input" type="tel" id="a-phone" placeholder="+91 98765 43210">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Club Description</label>
-            <textarea class="auth-input" id="a-desc" rows="2" placeholder="Brief description of club activities..."></textarea>
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Password</label>
-            <input class="auth-input" type="password" id="a-pass" placeholder="••••••••">
-          </div>
-          <button class="btn-dark-register" onclick="handleAdminSignup()">Create Club Account →</button>
+            <button class="btn-dark-register" onclick="handleAdminSignup()">Create Club Account →</button>
           </div> <!-- /admin-manual-fields -->
         </div>
 
