@@ -566,7 +566,12 @@ window.handleFileUpload = async function(event, role) {
     if (role === 'student') {
       const usnEl = document.getElementById('s-usn');
       if (usnEl) {
-        if (finalUsn) usnEl.value = finalUsn;
+        if (finalUsn) {
+          usnEl.value = finalUsn;
+          usnEl.setAttribute('value', finalUsn);
+          usnEl.dispatchEvent(new Event('input', { bubbles: true }));
+          usnEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
         usnEl.readOnly = false;
         usnEl.style.opacity = '1';
         usnEl.style.cursor = 'text';
@@ -576,6 +581,9 @@ window.handleFileUpload = async function(event, role) {
       const nameEl = document.getElementById('s-name');
       if (nameEl && parsedName) {
         nameEl.value = parsedName.toUpperCase();
+        nameEl.setAttribute('value', parsedName.toUpperCase());
+        nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+        nameEl.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
       const verEl = document.getElementById('s-verified-usn');
@@ -604,6 +612,7 @@ window.handleFileUpload = async function(event, role) {
                 const optVal = sel.options[i].value.toUpperCase();
                 if(optVal === br || optVal.startsWith(br) || (br === 'CS' && (optVal === 'CSE' || optVal === 'CS'))) {
                   sel.selectedIndex = i;
+                  sel.dispatchEvent(new Event('change', { bubbles: true }));
                   break;
                 }
              }
@@ -624,17 +633,28 @@ window.handleFileUpload = async function(event, role) {
              else if (diff >= 3) { yearVal = '4th Year'; semVal = 'Sem 7'; }
 
              const yearSel = document.getElementById('s-year');
-             if (yearSel) yearSel.value = yearVal;
+             if (yearSel) {
+               yearSel.value = yearVal;
+               yearSel.dispatchEvent(new Event('change', { bubbles: true }));
+             }
 
              const semSel = document.getElementById('s-sem');
-             if (semSel) semSel.value = semVal;
+             if (semSel) {
+               semSel.value = semVal;
+               semSel.dispatchEvent(new Event('change', { bubbles: true }));
+             }
            }
         }
       }
     } else {
       const usnEl = document.getElementById('a-usn');
       if (usnEl) {
-        if (finalUsn) usnEl.value = finalUsn;
+        if (finalUsn) {
+          usnEl.value = finalUsn;
+          usnEl.setAttribute('value', finalUsn);
+          usnEl.dispatchEvent(new Event('input', { bubbles: true }));
+          usnEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
         usnEl.readOnly = false;
         usnEl.style.opacity = '1';
         usnEl.style.cursor = 'text';
@@ -644,6 +664,9 @@ window.handleFileUpload = async function(event, role) {
       const nameEl = document.getElementById('a-name');
       if (nameEl && parsedName) {
         nameEl.value = parsedName.toUpperCase();
+        nameEl.setAttribute('value', parsedName.toUpperCase());
+        nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+        nameEl.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
       const verEl = document.getElementById('a-verified-usn');
@@ -663,6 +686,7 @@ window.handleFileUpload = async function(event, role) {
                 const optVal = sel.options[i].value.toUpperCase();
                 if(optVal === br || optVal.startsWith(br) || (br === 'CS' && (optVal === 'CSE' || optVal === 'CS'))) {
                   sel.selectedIndex = i;
+                  sel.dispatchEvent(new Event('change', { bubbles: true }));
                   break;
                 }
              }
