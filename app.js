@@ -781,7 +781,7 @@ function handleAdminSignup() {
   const pass      = document.getElementById('a-pass').value;
 
   if (!faculty) {
-    showAuthMsg('❌ Please enter the Faculty Coordinator Name (First Priority).', 'error');
+    showAuthMsg('❌ Please enter the Faculty Coordinator Name.', 'error');
     return;
   }
 
