@@ -480,8 +480,8 @@ function parseProgramToBranch(ocrText, usn) {
   return null;
 }
 
-/* Generates canvas versions rotated 0°, 90°, 270°, 180° for multi-orientation OCR/Barcode detection */
-function rotateImageCanvas(file, angle) {
+/* High-accuracy canvas preprocessor for rotated, out-of-focus, or low-contrast camera photos */
+function rotateImageCanvas(file, angle, binarize = true) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -491,8 +491,8 @@ function rotateImageCanvas(file, angle) {
       let height = img.height;
 
       const maxDim = Math.max(width, height);
-      if (maxDim < 1200) {
-        const scale = 1200 / maxDim;
+      if (maxDim < 1400) {
+        const scale = 1400 / maxDim;
         width = Math.round(width * scale);
         height = Math.round(height * scale);
       }
@@ -512,7 +512,32 @@ function rotateImageCanvas(file, angle) {
       } else {
         canvas.width = width;
         canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
+        if (angle !== 0) {
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angle * Math.PI) / 180);
+          ctx.drawImage(img, -width / 2, -height / 2, width, height);
+        } else {
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+      }
+
+      if (binarize) {
+        try {
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+          const contrast = 1.8;
+
+          for (let i = 0; i < data.length; i += 4) {
+            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            gray = (gray - 128) * contrast + 128;
+            gray = gray > 150 ? 255 : (gray < 90 ? 0 : gray);
+
+            data[i]     = gray;
+            data[i + 1] = gray;
+            data[i + 2] = gray;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        } catch (e) {}
       }
 
       canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.95);
@@ -569,40 +594,48 @@ window.handleFileUpload = async function(event, role) {
   let finalUsn = null;
   let parsedName = null;
 
-  // Multi-orientation angles: 0°, 90°, 270°, 180°
-  const angles = [0, 90, 270, 180];
+  // Multi-orientation angles: 0°, 90°, 270°, 180°, 15°, -15°
+  const angles = [0, 90, 270, 180, 15, -15];
 
   for (const angle of angles) {
     try {
-      const canvasBlob = await rotateImageCanvas(file, angle);
+      // Try both clean canvas and contrast-sharpened canvas
+      const canvasBlobs = [
+        await rotateImageCanvas(file, angle, true),  // High-contrast Binarized
+        await rotateImageCanvas(file, angle, false)  // Natural Rotated
+      ];
 
-      // 1. Try Barcode scan on rotated image
-      let usnFromBC = null;
-      try {
-        const html5QrCode = new Html5Qrcode('reader-hidden');
-        const res = await html5QrCode.scanFile(canvasBlob, true);
-        try { await html5QrCode.clear(); } catch(e){}
-        usnFromBC = extractUSNFuzzy(res);
-      } catch(e) {}
+      for (const canvasBlob of canvasBlobs) {
+        // 1. Try Barcode scan
+        let usnFromBC = null;
+        try {
+          const html5QrCode = new Html5Qrcode('reader-hidden');
+          const res = await html5QrCode.scanFile(canvasBlob, true);
+          try { await html5QrCode.clear(); } catch(e){}
+          usnFromBC = extractUSNFuzzy(res);
+        } catch(e) {}
 
-      // 2. Try OCR scan on rotated image (6s timeout per angle)
-      let ocrText = '';
-      try {
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 6000));
-        const res = await Promise.race([Tesseract.recognize(canvasBlob, 'eng'), timeout]);
-        ocrText = res?.data?.text || '';
-      } catch(e) {}
+        // 2. Try OCR scan
+        let ocrText = '';
+        try {
+          const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 5000));
+          const res = await Promise.race([Tesseract.recognize(canvasBlob, 'eng'), timeout]);
+          ocrText = res?.data?.text || '';
+        } catch(e) {}
 
-      const usnFromOCR = extractUSNFuzzy(ocrText);
-      const candidateUsn = usnFromBC || usnFromOCR;
-      const candidateName = parseNameFromOCRText(ocrText);
+        const usnFromOCR = extractUSNFuzzy(ocrText);
+        const candidateUsn = usnFromBC || usnFromOCR;
+        const candidateName = parseNameFromOCRText(ocrText);
 
-      if (candidateUsn || candidateName) {
-        if (!finalUsn && candidateUsn) finalUsn = candidateUsn;
-        if (!parsedName && candidateName) parsedName = candidateName;
+        if (candidateUsn || candidateName) {
+          if (!finalUsn && candidateUsn) finalUsn = candidateUsn;
+          if (!parsedName && candidateName) parsedName = candidateName;
+        }
+
+        if (finalUsn && parsedName) break;
       }
 
-      if (finalUsn && parsedName) break; // Fully extracted USN and Name, stop angle search!
+      if (finalUsn && parsedName) break;
     } catch (e) {
       console.log(`Angle ${angle}° scan attempt error:`, e);
     }
