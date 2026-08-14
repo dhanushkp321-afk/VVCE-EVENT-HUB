@@ -480,107 +480,75 @@ function parseProgramToBranch(ocrText, usn) {
   return null;
 }
 
-/* High-accuracy canvas preprocessor for rotated, out-of-focus, or low-contrast camera photos */
-function rotateImageCanvas(file, angle, binarize = true) {
+/* Universal Multi-Scale, Multi-Position & Multi-Angle Canvas Generator */
+async function getUniversalScanVariants(file) {
   return new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      let width = img.width;
-      let height = img.height;
+    img.onload = async () => {
+      const variants = [];
+      const scales = [1000, 1600];
+      const angles = [0, 90, 270, 180, 45, 135];
 
-      const maxDim = Math.max(width, height);
-      if (maxDim < 1400) {
-        const scale = 1400 / maxDim;
-        width = Math.round(width * scale);
-        height = Math.round(height * scale);
-      }
+      for (const scaleWidth of scales) {
+        for (const angle of angles) {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          let w = img.width;
+          let h = img.height;
+          const scale = scaleWidth / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
 
-      if (angle === 90 || angle === 270) {
-        canvas.width = height;
-        canvas.height = width;
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((angle * Math.PI) / 180);
-        ctx.drawImage(img, -width / 2, -height / 2, width, height);
-      } else if (angle === 180) {
-        canvas.width = width;
-        canvas.height = height;
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((angle * Math.PI) / 180);
-        ctx.drawImage(img, -width / 2, -height / 2, width, height);
-      } else {
-        canvas.width = width;
-        canvas.height = height;
-        if (angle !== 0) {
-          ctx.translate(canvas.width / 2, canvas.height / 2);
-          ctx.rotate((angle * Math.PI) / 180);
-          ctx.drawImage(img, -width / 2, -height / 2, width, height);
-        } else {
-          ctx.drawImage(img, 0, 0, width, height);
+          if (angle === 90 || angle === 270) {
+            canvas.width = h;
+            canvas.height = w;
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate((angle * Math.PI) / 180);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          } else if (angle === 180) {
+            canvas.width = w;
+            canvas.height = h;
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate((angle * Math.PI) / 180);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          } else {
+            canvas.width = w;
+            canvas.height = h;
+            if (angle !== 0) {
+              ctx.translate(canvas.width / 2, canvas.height / 2);
+              ctx.rotate((angle * Math.PI) / 180);
+              ctx.drawImage(img, -w / 2, -h / 2, w, h);
+            } else {
+              ctx.drawImage(img, 0, 0, w, h);
+            }
+          }
+
+          const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+          if (blob) variants.push(blob);
+
+          // Binarized variant for blurry/low-contrast photos
+          try {
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+            const contrast = 1.8;
+            for (let i = 0; i < data.length; i += 4) {
+              let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+              gray = (gray - 128) * contrast + 128;
+              gray = gray > 150 ? 255 : (gray < 90 ? 0 : gray);
+              data[i] = data[i + 1] = data[i + 2] = gray;
+            }
+            ctx.putImageData(imgData, 0, 0);
+            const binBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+            if (binBlob) variants.push(binBlob);
+          } catch(e) {}
         }
       }
-
-      if (binarize) {
-        try {
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imgData.data;
-          const contrast = 1.8;
-
-          for (let i = 0; i < data.length; i += 4) {
-            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            gray = (gray - 128) * contrast + 128;
-            gray = gray > 150 ? 255 : (gray < 90 ? 0 : gray);
-
-            data[i]     = gray;
-            data[i + 1] = gray;
-            data[i + 2] = gray;
-          }
-          ctx.putImageData(imgData, 0, 0);
-        } catch (e) {}
-      }
-
-      canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.95);
+      resolve(variants);
     };
-    img.onerror = () => resolve(file);
+    img.onerror = () => resolve([]);
     img.src = URL.createObjectURL(file);
   });
-}
-
-function parseNameFromOCRText(ocrText) {
-  if (!ocrText) return null;
-  const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  
-  // Rule 1: Explicit "Name: XXX" label
-  for (const line of lines) {
-    const nameMatch = line.match(/(?:Name|Student Name)\s*[:;-]\s*([A-Z\s.]{3,35})/i);
-    if (nameMatch && nameMatch[1].trim().length >= 3) {
-      return nameMatch[1].trim().toUpperCase();
-    }
-  }
-
-  // Rule 2: Line immediately preceding "Program:", "BE -", "Branch:", or "Course:"
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/(?:Program|BE\s*-|BE\s*:|Branch\s*:|Course\s*:)/i.test(line)) {
-      if (i > 0) {
-        const prev = lines[i-1].replace(/[^A-Z\s.]/gi, '').trim();
-        if (prev.length >= 3 && !/VIDYAVARDHAKA|COLLEGE|ENGINEERING|MYSURU|AUTONOMOUS|WVCE|VVCE/i.test(prev)) {
-          return prev.toUpperCase();
-        }
-      }
-    }
-  }
-
-  // Rule 3: Standalone name matcher ignoring institution headers
-  const ignoreRegex = /VIDYAVARDHAKA|ENGINEERING|MYSURU|COLLEGE|PROGRAM|USN|BLOOD|GROUP|VALIDITY|BE\s*-|AUTONOMOUS|INSTITUTION|AFFILIATED|VTU|BELAGAVI|KARNATAKA|INDIA|CARD|IDENTITY|STUDENT|SIGNATURE|PRINCIPAL|WVCE|VVCE/i;
-  for (const l of lines) {
-    const clean = l.replace(/[^A-Z\s.]/gi, '').trim();
-    if (clean.length >= 3 && clean.length <= 35 && !ignoreRegex.test(clean)) {
-      return clean.toUpperCase();
-    }
-  }
-  return null;
 }
 
 window.handleFileUpload = async function(event, role) {
@@ -593,53 +561,56 @@ window.handleFileUpload = async function(event, role) {
 
   let finalUsn = null;
   let parsedName = null;
+  let ocrTextCombined = '';
 
-  // Multi-orientation angles: 0°, 90°, 270°, 180°, 15°, -15°
-  const angles = [0, 90, 270, 180, 15, -15];
+  // Generate universal scale, rotation & position variants
+  const scanVariants = await getUniversalScanVariants(file);
 
-  for (const angle of angles) {
+  // If variants array is empty, fallback to raw file
+  if (scanVariants.length === 0) scanVariants.push(file);
+
+  for (const variantBlob of scanVariants) {
     try {
-      // Try both clean canvas and contrast-sharpened canvas
-      const canvasBlobs = [
-        await rotateImageCanvas(file, angle, true),  // High-contrast Binarized
-        await rotateImageCanvas(file, angle, false)  // Natural Rotated
-      ];
+      // 1. Try Barcode Scan
+      let usnFromBC = null;
+      try {
+        const html5QrCode = new Html5Qrcode('reader-hidden');
+        const res = await html5QrCode.scanFile(variantBlob, true);
+        try { await html5QrCode.clear(); } catch(e){}
+        usnFromBC = extractUSNFuzzy(res);
+      } catch(e) {}
 
-      for (const canvasBlob of canvasBlobs) {
-        // 1. Try Barcode scan
-        let usnFromBC = null;
-        try {
-          const html5QrCode = new Html5Qrcode('reader-hidden');
-          const res = await html5QrCode.scanFile(canvasBlob, true);
-          try { await html5QrCode.clear(); } catch(e){}
-          usnFromBC = extractUSNFuzzy(res);
-        } catch(e) {}
+      // 2. Try OCR Scan (4.5s max timeout per variant)
+      let ocrText = '';
+      try {
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 4500));
+        const res = await Promise.race([Tesseract.recognize(variantBlob, 'eng'), timeout]);
+        ocrText = res?.data?.text || '';
+        if (ocrText) ocrTextCombined += '\n' + ocrText;
+      } catch(e) {}
 
-        // 2. Try OCR scan
-        let ocrText = '';
-        try {
-          const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 5000));
-          const res = await Promise.race([Tesseract.recognize(canvasBlob, 'eng'), timeout]);
-          ocrText = res?.data?.text || '';
-        } catch(e) {}
+      const usnFromOCR = extractUSNFuzzy(ocrText);
+      const candidateUsn = usnFromBC || usnFromOCR;
+      const candidateName = parseNameFromOCRText(ocrText);
 
-        const usnFromOCR = extractUSNFuzzy(ocrText);
-        const candidateUsn = usnFromBC || usnFromOCR;
-        const candidateName = parseNameFromOCRText(ocrText);
-
-        if (candidateUsn || candidateName) {
-          if (!finalUsn && candidateUsn) finalUsn = candidateUsn;
-          if (!parsedName && candidateName) parsedName = candidateName;
-        }
-
-        if (finalUsn && parsedName) break;
+      if (candidateUsn || candidateName) {
+        if (!finalUsn && candidateUsn) finalUsn = candidateUsn;
+        if (!parsedName && candidateName) parsedName = candidateName;
       }
 
-      if (finalUsn && parsedName) break;
+      if (finalUsn && parsedName) break; // Found both, exit loop!
     } catch (e) {
-      console.log(`Angle ${angle}° scan attempt error:`, e);
+      console.log('Variant scan error:', e);
     }
   }
+
+  // Fallback name extraction from combined OCR text if needed
+  if (!parsedName && ocrTextCombined) {
+    parsedName = parseNameFromOCRText(ocrTextCombined);
+  }
+
+  if (progressDiv) progressDiv.style.display = 'none';
+  event.target.value = ''; // Reset input
 
   if (progressDiv) progressDiv.style.display = 'none';
   event.target.value = ''; // Reset input
