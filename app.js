@@ -641,7 +641,24 @@ window.handleFileUpload = async function(event, role) {
       if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
 
       const verEl = document.getElementById('a-verified-usn');
-      if (verEl) verEl.innerText = finalUsn || 'ID Photo Attached';
+      if (verEl) verEl.innerText = finalUsn ? `${finalUsn}${parsedName ? ' (' + parsedName.toUpperCase() + ')' : ''}` : 'ID Photo Attached';
+
+      if (finalUsn) {
+        const match = finalUsn.match(/^4[A-Z]{2}(\d{2})([A-Z]{2,4})\d{3,4}$/i);
+        if (match) {
+           const br = match[2].toUpperCase();
+           const sel = document.getElementById('a-branch');
+           if (sel) {
+             for(let i=0; i<sel.options.length; i++) {
+                const optVal = sel.options[i].value.toUpperCase();
+                if(optVal === br || optVal.startsWith(br) || (br === 'CS' && (optVal === 'CSE' || optVal === 'CS'))) {
+                  sel.selectedIndex = i;
+                  break;
+                }
+             }
+           }
+        }
+      }
 
       const scanUi = document.getElementById('admin-scanner-ui');
       if (scanUi) scanUi.style.display = 'none';
