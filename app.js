@@ -492,21 +492,42 @@ window.handleFileUpload = async function(event, role) {
   if (progressDiv) progressDiv.style.display = 'none';
   event.target.value = ''; // Reset input
 
-  // Parse USN and Name using fuzzy logic
+  // Parse USN and Name using multi-rule fuzzy logic
   const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   let parsedName = null;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/Program\s*[:;-]/i.test(line)) {
-      if (i > 0) parsedName = lines[i-1];
+  // Rule 1: Explicit "Name: XXX" label
+  for (const line of lines) {
+    const nameMatch = line.match(/(?:Name|Student Name)\s*[:;-]\s*([A-Z\s.]{3,35})/i);
+    if (nameMatch && nameMatch[1].trim().length >= 3) {
+      parsedName = nameMatch[1].trim().toUpperCase();
+      break;
     }
   }
 
+  // Rule 2: Line immediately preceding "Program:", "BE -", "Branch:", or "Course:"
   if (!parsedName) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/(?:Program|BE\s*-|BE\s*:|Branch\s*:|Course\s*:)/i.test(line)) {
+        if (i > 0) {
+          const prev = lines[i-1].replace(/[^A-Z\s.]/gi, '').trim();
+          if (prev.length >= 3 && !/VIDYAVARDHAKA|COLLEGE|ENGINEERING|MYSURU|AUTONOMOUS/i.test(prev)) {
+            parsedName = prev.toUpperCase();
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Rule 3: Fallback clean line matcher ignoring institution header words
+  if (!parsedName) {
+    const ignoreRegex = /VIDYAVARDHAKA|ENGINEERING|MYSURU|COLLEGE|PROGRAM|USN|BLOOD|GROUP|VALIDITY|BE\s*-|AUTONOMOUS|INSTITUTION|AFFILIATED|VTU|BELAGAVI|KARNATAKA|INDIA|CARD|IDENTITY|STUDENT|SIGNATURE/i;
     for (const l of lines) {
-      if (/^[A-Z\s]{3,30}$/.test(l) && !/VIDYAVARDHAKA|ENGINEERING|MYSURU|COLLEGE|PROGRAM|USN|BLOOD|GROUP|VALIDITY|BE\s*-/i.test(l)) {
-        parsedName = l;
+      const clean = l.replace(/[^A-Z\s.]/gi, '').trim();
+      if (clean.length >= 3 && clean.length <= 35 && !ignoreRegex.test(clean)) {
+        parsedName = clean.toUpperCase();
         break;
       }
     }
