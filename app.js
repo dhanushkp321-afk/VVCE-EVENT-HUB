@@ -448,6 +448,35 @@ function extractUSNFuzzy(text) {
   return null;
 }
 
+/* Helper to upscale and sharpen image for high accuracy Barcode & OCR extraction */
+function preprocessImageCanvas(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      let width = img.width;
+      let height = img.height;
+
+      if (width < 1200) {
+        const scale = 1200 / width;
+        width = 1200;
+        height = Math.round(height * scale);
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob((blob) => {
+        resolve(blob || file);
+      }, 'image/jpeg', 0.95);
+    };
+    img.onerror = () => resolve(file);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 window.handleFileUpload = async function(event, role) {
   const file = event.target.files[0];
   if (!file) return;
@@ -459,11 +488,19 @@ window.handleFileUpload = async function(event, role) {
   let usnFromBarcode = null;
   let ocrText = '';
 
-  // 1. Barcode Scanner Promise
+  // Preprocess file on canvas for high-accuracy barcode and text recognition
+  const processedFile = await preprocessImageCanvas(file);
+
+  // 1. Barcode Scanner Promise (tries processed file first, falls back to raw file)
   const barcodePromise = (async () => {
     try {
       const html5QrCode = new Html5Qrcode('reader-hidden');
-      const res = await html5QrCode.scanFile(file, true);
+      let res = null;
+      try {
+        res = await html5QrCode.scanFile(processedFile, true);
+      } catch(e) {
+        res = await html5QrCode.scanFile(file, true);
+      }
       try { await html5QrCode.clear(); } catch(e){}
       return res;
     } catch (e) {
@@ -472,11 +509,11 @@ window.handleFileUpload = async function(event, role) {
     }
   })();
 
-  // 2. OCR Promise with 8-second safety timeout
+  // 2. OCR Promise with 10-second safety timeout
   const ocrPromise = (async () => {
     try {
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 8000));
-      const res = await Promise.race([Tesseract.recognize(file, 'eng'), timeout]);
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 10000));
+      const res = await Promise.race([Tesseract.recognize(processedFile, 'eng'), timeout]);
       return res?.data?.text || '';
     } catch (e) {
       console.log('OCR error or timeout:', e);
