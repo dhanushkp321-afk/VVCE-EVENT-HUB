@@ -642,7 +642,7 @@ window.handleFileUpload = async function(event, role) {
            const yrCode = parseInt(match[1]);
            const br = match[2].toUpperCase();
            
-           // Auto-select Branch
+           // Auto-select Branch & Department
            const sel = document.getElementById('s-branch');
            if (sel) {
              for(let i=0; i<sel.options.length; i++) {
@@ -652,6 +652,23 @@ window.handleFileUpload = async function(event, role) {
                   sel.dispatchEvent(new Event('change', { bubbles: true }));
                   break;
                 }
+             }
+           }
+
+           const deptSel = document.getElementById('s-dept');
+           if (deptSel) {
+             const deptMap = {
+               'CS': 'Computer Science',
+               'IS': 'Information Science',
+               'EC': 'Electronics & Communication',
+               'ME': 'Mechanical',
+               'EE': 'Electrical & Electronics',
+               'EEE': 'Electrical & Electronics',
+               'CV': 'Civil'
+             };
+             if (deptMap[br]) {
+               deptSel.value = deptMap[br];
+               deptSel.dispatchEvent(new Event('change', { bubbles: true }));
              }
            }
 
