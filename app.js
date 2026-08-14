@@ -448,8 +448,8 @@ function extractUSNFuzzy(text) {
   return null;
 }
 
-/* Helper to upscale and sharpen image for high accuracy Barcode & OCR extraction */
-function preprocessImageCanvas(file) {
+/* Generates canvas versions rotated 0°, 90°, 270°, 180° for multi-orientation OCR/Barcode detection */
+function rotateImageCanvas(file, angle) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -458,23 +458,72 @@ function preprocessImageCanvas(file) {
       let width = img.width;
       let height = img.height;
 
-      if (width < 1200) {
-        const scale = 1200 / width;
-        width = 1200;
+      const maxDim = Math.max(width, height);
+      if (maxDim < 1200) {
+        const scale = 1200 / maxDim;
+        width = Math.round(width * scale);
         height = Math.round(height * scale);
       }
 
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(img, 0, 0, width, height);
+      if (angle === 90 || angle === 270) {
+        canvas.width = height;
+        canvas.height = width;
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((angle * Math.PI) / 180);
+        ctx.drawImage(img, -width / 2, -height / 2, width, height);
+      } else if (angle === 180) {
+        canvas.width = width;
+        canvas.height = height;
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((angle * Math.PI) / 180);
+        ctx.drawImage(img, -width / 2, -height / 2, width, height);
+      } else {
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+      }
 
-      canvas.toBlob((blob) => {
-        resolve(blob || file);
-      }, 'image/jpeg', 0.95);
+      canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.95);
     };
     img.onerror = () => resolve(file);
     img.src = URL.createObjectURL(file);
   });
+}
+
+function parseNameFromOCRText(ocrText) {
+  if (!ocrText) return null;
+  const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  
+  // Rule 1: Explicit "Name: XXX" label
+  for (const line of lines) {
+    const nameMatch = line.match(/(?:Name|Student Name)\s*[:;-]\s*([A-Z\s.]{3,35})/i);
+    if (nameMatch && nameMatch[1].trim().length >= 3) {
+      return nameMatch[1].trim().toUpperCase();
+    }
+  }
+
+  // Rule 2: Line immediately preceding "Program:", "BE -", "Branch:", or "Course:"
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/(?:Program|BE\s*-|BE\s*:|Branch\s*:|Course\s*:)/i.test(line)) {
+      if (i > 0) {
+        const prev = lines[i-1].replace(/[^A-Z\s.]/gi, '').trim();
+        if (prev.length >= 3 && !/VIDYAVARDHAKA|COLLEGE|ENGINEERING|MYSURU|AUTONOMOUS|WVCE|VVCE/i.test(prev)) {
+          return prev.toUpperCase();
+        }
+      }
+    }
+  }
+
+  // Rule 3: Standalone name matcher ignoring institution headers
+  const ignoreRegex = /VIDYAVARDHAKA|ENGINEERING|MYSURU|COLLEGE|PROGRAM|USN|BLOOD|GROUP|VALIDITY|BE\s*-|AUTONOMOUS|INSTITUTION|AFFILIATED|VTU|BELAGAVI|KARNATAKA|INDIA|CARD|IDENTITY|STUDENT|SIGNATURE|PRINCIPAL|WVCE|VVCE/i;
+  for (const l of lines) {
+    const clean = l.replace(/[^A-Z\s.]/gi, '').trim();
+    if (clean.length >= 3 && clean.length <= 35 && !ignoreRegex.test(clean)) {
+      return clean.toUpperCase();
+    }
+  }
+  return null;
 }
 
 window.handleFileUpload = async function(event, role) {
@@ -483,48 +532,49 @@ window.handleFileUpload = async function(event, role) {
 
   const progressDiv = document.getElementById(`ocr-progress-${role}`);
   if (progressDiv) progressDiv.style.display = 'block';
-  toast('Analyzing ID card image...', 'info');
+  toast('Analyzing ID card photo...', 'info');
 
-  let usnFromBarcode = null;
-  let ocrText = '';
+  let finalUsn = null;
+  let parsedName = null;
 
-  // Preprocess file on canvas for high-accuracy barcode and text recognition
-  const processedFile = await preprocessImageCanvas(file);
+  // Multi-orientation angles: 0°, 90°, 270°, 180°
+  const angles = [0, 90, 270, 180];
 
-  // 1. Barcode Scanner Promise (tries processed file first, falls back to raw file)
-  const barcodePromise = (async () => {
+  for (const angle of angles) {
     try {
-      const html5QrCode = new Html5Qrcode('reader-hidden');
-      let res = null;
+      const canvasBlob = await rotateImageCanvas(file, angle);
+
+      // 1. Try Barcode scan on rotated image
+      let usnFromBC = null;
       try {
-        res = await html5QrCode.scanFile(processedFile, true);
-      } catch(e) {
-        res = await html5QrCode.scanFile(file, true);
+        const html5QrCode = new Html5Qrcode('reader-hidden');
+        const res = await html5QrCode.scanFile(canvasBlob, true);
+        try { await html5QrCode.clear(); } catch(e){}
+        usnFromBC = extractUSNFuzzy(res);
+      } catch(e) {}
+
+      // 2. Try OCR scan on rotated image (6s timeout per angle)
+      let ocrText = '';
+      try {
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 6000));
+        const res = await Promise.race([Tesseract.recognize(canvasBlob, 'eng'), timeout]);
+        ocrText = res?.data?.text || '';
+      } catch(e) {}
+
+      const usnFromOCR = extractUSNFuzzy(ocrText);
+      const candidateUsn = usnFromBC || usnFromOCR;
+      const candidateName = parseNameFromOCRText(ocrText);
+
+      if (candidateUsn || candidateName) {
+        if (!finalUsn && candidateUsn) finalUsn = candidateUsn;
+        if (!parsedName && candidateName) parsedName = candidateName;
       }
-      try { await html5QrCode.clear(); } catch(e){}
-      return res;
+
+      if (finalUsn && parsedName) break; // Fully extracted USN and Name, stop angle search!
     } catch (e) {
-      console.log('Barcode scan error:', e);
-      return null;
+      console.log(`Angle ${angle}° scan attempt error:`, e);
     }
-  })();
-
-  // 2. OCR Promise with 10-second safety timeout
-  const ocrPromise = (async () => {
-    try {
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 10000));
-      const res = await Promise.race([Tesseract.recognize(processedFile, 'eng'), timeout]);
-      return res?.data?.text || '';
-    } catch (e) {
-      console.log('OCR error or timeout:', e);
-      return '';
-    }
-  })();
-
-  const [barcodeRes, ocrRes] = await Promise.allSettled([barcodePromise, ocrPromise]);
-
-  usnFromBarcode = barcodeRes.status === 'fulfilled' ? barcodeRes.value : null;
-  ocrText = ocrRes.status === 'fulfilled' ? ocrRes.value : '';
+  }
 
   if (progressDiv) progressDiv.style.display = 'none';
   event.target.value = ''; // Reset input
