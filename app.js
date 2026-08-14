@@ -448,6 +448,38 @@ function extractUSNFuzzy(text) {
   return null;
 }
 
+/* Helper to map "Program: BE - CS&E" text or USN branch code to Branch dropdown selection */
+function parseProgramToBranch(ocrText, usn) {
+  if (ocrText) {
+    const progMatch = ocrText.match(/Program\s*[:;-]?\s*BE\s*[-:]?\s*([A-Z&\s]+)/i) || ocrText.match(/BE\s*[-:]\s*([A-Z&\s]+)/i);
+    if (progMatch) {
+      const p = progMatch[1].toUpperCase().replace(/\s+/g, '');
+      if (p.includes('CS&E') || p.includes('CSE') || p.includes('CS')) return 'CS';
+      if (p.includes('AI') || p.includes('ML')) return 'CS AI/ML';
+      if (p.includes('IS&E') || p.includes('ISE') || p.includes('IS')) return 'IS';
+      if (p.includes('EC&E') || p.includes('ECE') || p.includes('EC')) return 'EC';
+      if (p.includes('ME')) return 'ME';
+      if (p.includes('EE') || p.includes('EEE')) return 'EEE';
+      if (p.includes('CV') || p.includes('CIVIL')) return 'CV';
+    }
+  }
+
+  if (usn) {
+    const match = usn.match(/^4[A-Z]{2}\d{2}([A-Z]{2,4})\d{3,4}$/i);
+    if (match) {
+      const br = match[1].toUpperCase();
+      if (br === 'CS' || br === 'CSE') return 'CS';
+      if (br === 'AI' || br === 'AIML') return 'CS AI/ML';
+      if (br === 'IS' || br === 'ISE') return 'IS';
+      if (br === 'EC' || br === 'ECE') return 'EC';
+      if (br === 'ME') return 'ME';
+      if (br === 'EE' || br === 'EEE') return 'EEE';
+      if (br === 'CV') return 'CV';
+    }
+  }
+  return null;
+}
+
 /* Generates canvas versions rotated 0°, 90°, 270°, 180° for multi-orientation OCR/Barcode detection */
 function rotateImageCanvas(file, angle) {
   return new Promise((resolve) => {
@@ -686,43 +718,42 @@ window.handleFileUpload = async function(event, role) {
       const manualUi = document.getElementById('student-manual-fields');
       if (manualUi) manualUi.style.display = 'block';
 
+      const targetBranch = parseProgramToBranch(ocrText, finalUsn);
+      if (targetBranch) {
+        const sel = document.getElementById('s-branch');
+        if (sel) {
+          for(let i = 0; i < sel.options.length; i++) {
+            const optVal = sel.options[i].value.toUpperCase();
+            if (optVal === targetBranch || optVal.startsWith(targetBranch) || (targetBranch === 'CS' && optVal === 'CS')) {
+              sel.selectedIndex = i;
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        }
+
+        const deptSel = document.getElementById('s-dept');
+        if (deptSel) {
+          const deptMap = {
+            'CS': 'Computer Science',
+            'CS AI/ML': 'Computer Science',
+            'IS': 'Information Science',
+            'EC': 'Electronics & Communication',
+            'ME': 'Mechanical',
+            'EEE': 'Electrical & Electronics',
+            'CV': 'Civil'
+          };
+          if (deptMap[targetBranch]) {
+            deptSel.value = deptMap[targetBranch];
+            deptSel.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      }
+
       if (finalUsn) {
         const match = finalUsn.match(/^4[A-Z]{2}(\d{2})([A-Z]{2,4})\d{3,4}$/i);
         if (match) {
            const yrCode = parseInt(match[1]);
-           const br = match[2].toUpperCase();
-           
-           // Auto-select Branch & Department
-           const sel = document.getElementById('s-branch');
-           if (sel) {
-             for(let i=0; i<sel.options.length; i++) {
-                const optVal = sel.options[i].value.toUpperCase();
-                if(optVal === br || optVal.startsWith(br) || (br === 'CS' && (optVal === 'CSE' || optVal === 'CS'))) {
-                  sel.selectedIndex = i;
-                  sel.dispatchEvent(new Event('change', { bubbles: true }));
-                  break;
-                }
-             }
-           }
-
-           const deptSel = document.getElementById('s-dept');
-           if (deptSel) {
-             const deptMap = {
-               'CS': 'Computer Science',
-               'IS': 'Information Science',
-               'EC': 'Electronics & Communication',
-               'ME': 'Mechanical',
-               'EE': 'Electrical & Electronics',
-               'EEE': 'Electrical & Electronics',
-               'CV': 'Civil'
-             };
-             if (deptMap[br]) {
-               deptSel.value = deptMap[br];
-               deptSel.dispatchEvent(new Event('change', { bubbles: true }));
-             }
-           }
-
-           // Auto-select Year & Semester from USN Admission Year
            if (yrCode > 0) {
              const admissionYear = 2000 + yrCode;
              const now = new Date();
@@ -780,21 +811,18 @@ window.handleFileUpload = async function(event, role) {
           : 'ID Photo Attached';
       }
 
-      if (finalUsn) {
-        const match = finalUsn.match(/^4[A-Z]{2}(\d{2})([A-Z]{2,4})\d{3,4}$/i);
-        if (match) {
-           const br = match[2].toUpperCase();
-           const sel = document.getElementById('a-branch');
-           if (sel) {
-             for(let i=0; i<sel.options.length; i++) {
-                const optVal = sel.options[i].value.toUpperCase();
-                if(optVal === br || optVal.startsWith(br) || (br === 'CS' && (optVal === 'CSE' || optVal === 'CS'))) {
-                  sel.selectedIndex = i;
-                  sel.dispatchEvent(new Event('change', { bubbles: true }));
-                  break;
-                }
-             }
-           }
+      const targetBranchAdmin = parseProgramToBranch(ocrText, finalUsn);
+      if (targetBranchAdmin) {
+        const sel = document.getElementById('a-branch');
+        if (sel) {
+          for(let i = 0; i < sel.options.length; i++) {
+            const optVal = sel.options[i].value.toUpperCase();
+            if (optVal.includes(targetBranchAdmin) || (targetBranchAdmin === 'CS' && optVal.includes('CSE'))) {
+              sel.selectedIndex = i;
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
         }
       }
 
