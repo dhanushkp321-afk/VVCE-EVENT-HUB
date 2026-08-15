@@ -486,11 +486,14 @@ async function getUniversalScanVariants(file) {
     const img = new Image();
     img.onload = async () => {
       const variants = [];
-      const scales = [1000, 1600];
-      const angles = [0, 90, 270, 180, 45, 135];
+      const scales = [1200, 1600];
+      
+      // Smart angle prioritization: Vertical/Portrait photos prioritize 90° and 270° first!
+      const isPortrait = img.height > img.width;
+      const angles = isPortrait ? [90, 270, 0, 180] : [0, 180, 90, 270];
 
-      for (const scaleWidth of scales) {
-        for (const angle of angles) {
+      for (const angle of angles) {
+        for (const scaleWidth of scales) {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           
@@ -610,60 +613,7 @@ window.handleFileUpload = async function(event, role) {
   }
 
   if (progressDiv) progressDiv.style.display = 'none';
-  event.target.value = ''; // Reset input
-
-  if (progressDiv) progressDiv.style.display = 'none';
-  event.target.value = ''; // Reset input
-
-  // Parse USN and Name using multi-rule fuzzy logic
-  const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  let parsedName = null;
-
-  // Rule 1: Explicit "Name: XXX" label
-  for (const line of lines) {
-    const nameMatch = line.match(/(?:Name|Student Name)\s*[:;-]\s*([A-Z\s.]{3,35})/i);
-    if (nameMatch && nameMatch[1].trim().length >= 3) {
-      parsedName = nameMatch[1].trim().toUpperCase();
-      break;
-    }
-  }
-
-  // Rule 2: Line immediately preceding "Program:", "BE -", "Branch:", or "Course:"
-  if (!parsedName) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (/(?:Program|BE\s*-|BE\s*:|Branch\s*:|Course\s*:)/i.test(line)) {
-        if (i > 0) {
-          const prev = lines[i-1].replace(/[^A-Z\s.]/gi, '').trim();
-          if (prev.length >= 3 && !/VIDYAVARDHAKA|COLLEGE|ENGINEERING|MYSURU|AUTONOMOUS/i.test(prev)) {
-            parsedName = prev.toUpperCase();
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  // Rule 3: Fallback clean line matcher ignoring institution header words
-  if (!parsedName) {
-    const ignoreRegex = /VIDYAVARDHAKA|ENGINEERING|MYSURU|COLLEGE|PROGRAM|USN|BLOOD|GROUP|VALIDITY|BE\s*-|AUTONOMOUS|INSTITUTION|AFFILIATED|VTU|BELAGAVI|KARNATAKA|INDIA|CARD|IDENTITY|STUDENT|SIGNATURE/i;
-    for (const l of lines) {
-      const clean = l.replace(/[^A-Z\s.]/gi, '').trim();
-      if (clean.length >= 3 && clean.length <= 35 && !ignoreRegex.test(clean)) {
-        parsedName = clean.toUpperCase();
-        break;
-      }
-    }
-  }
-
-  const usnFromBC = extractUSNFuzzy(usnFromBarcode);
-  const usnFromOCR = extractUSNFuzzy(ocrText);
-  let finalUsn = usnFromBC || usnFromOCR;
-
-  if (usnFromBC && usnFromOCR && usnFromBC !== usnFromOCR) {
-    console.warn(`Barcode USN (${usnFromBC}) preferred over OCR USN (${usnFromOCR})`);
-    finalUsn = usnFromBC;
-  }
+  event.target.value = ''; // Reset input element
 
   if (role === 'student' || role === 'admin') {
     const users = getDB('vvce_users');
