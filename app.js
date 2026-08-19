@@ -567,12 +567,14 @@ window.handleFileUpload = async function(event, role) {
 
   // 3. Target OCR Pass (Runs Tesseract ONLY on best canvas or prioritized variants)
   const ocrCandidates = bestCanvasObj ? [bestCanvasObj] : variants;
+  let ocrTextCombined = '';
 
   for (const v of ocrCandidates) {
     try {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 3000));
       const res = await Promise.race([Tesseract.recognize(v.blob, 'eng'), timeout]);
       const ocrText = res?.data?.text || '';
+      if (ocrText) ocrTextCombined += '\n' + ocrText;
 
       if (!finalUsn) {
         const ocrUsn = extractUSNFuzzy(ocrText);
@@ -650,7 +652,7 @@ window.handleFileUpload = async function(event, role) {
       const manualUi = document.getElementById('student-manual-fields');
       if (manualUi) manualUi.style.display = 'block';
 
-      const targetBranch = parseProgramToBranch(ocrText, finalUsn);
+      const targetBranch = parseProgramToBranch(ocrTextCombined, finalUsn);
       if (targetBranch) {
         const sel = document.getElementById('s-branch');
         if (sel) {
