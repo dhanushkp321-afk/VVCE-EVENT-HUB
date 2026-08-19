@@ -565,16 +565,12 @@ window.handleFileUpload = async function(event, role) {
     } catch(e) {}
   }
 
-  // 3. Target OCR Pass (Runs Tesseract ONLY on best canvas or prioritized variants)
-  const ocrCandidates = bestCanvasObj ? [bestCanvasObj] : variants;
-  let ocrTextCombined = '';
-
-  for (const v of ocrCandidates) {
+  // 3. Target OCR Pass across variants until both USN AND Name are found
+  for (const v of variants) {
     try {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 3000));
       const res = await Promise.race([Tesseract.recognize(v.blob, 'eng'), timeout]);
       const ocrText = res?.data?.text || '';
-      if (ocrText) ocrTextCombined += '\n' + ocrText;
 
       if (!finalUsn) {
         const ocrUsn = extractUSNFuzzy(ocrText);
@@ -586,7 +582,7 @@ window.handleFileUpload = async function(event, role) {
         if (nameCandidate) parsedName = nameCandidate;
       }
 
-      if (finalUsn && parsedName) break;
+      if (finalUsn && parsedName) break; // Found both USN and Name, exit!
     } catch(e) {
       console.log('OCR error:', e);
     }
