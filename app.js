@@ -480,72 +480,52 @@ function parseProgramToBranch(ocrText, usn) {
   return null;
 }
 
-/* Universal Multi-Scale, Multi-Position & Multi-Angle Canvas Generator */
-async function getUniversalScanVariants(file) {
+/* Fast 4-Angle Canvas Generator for ID Card Processing */
+async function getFastCanvasVariants(file) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = async () => {
       const variants = [];
-      const scales = [1200, 1600];
-      
-      // Smart angle prioritization: Vertical/Portrait photos prioritize 90° and 270° first!
+      const targetWidth = 1200; // Optimal resolution for sharp OCR & Barcode
       const isPortrait = img.height > img.width;
       const angles = isPortrait ? [90, 270, 0, 180] : [0, 180, 90, 270];
 
       for (const angle of angles) {
-        for (const scaleWidth of scales) {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          
-          let w = img.width;
-          let h = img.height;
-          const scale = scaleWidth / Math.max(w, h);
-          w = Math.round(w * scale);
-          h = Math.round(h * scale);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let w = img.width;
+        let h = img.height;
+        const scale = targetWidth / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
 
-          if (angle === 90 || angle === 270) {
-            canvas.width = h;
-            canvas.height = w;
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate((angle * Math.PI) / 180);
-            ctx.drawImage(img, -w / 2, -h / 2, w, h);
-          } else if (angle === 180) {
-            canvas.width = w;
-            canvas.height = h;
+        if (angle === 90 || angle === 270) {
+          canvas.width = h;
+          canvas.height = w;
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angle * Math.PI) / 180);
+          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        } else if (angle === 180) {
+          canvas.width = w;
+          canvas.height = h;
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angle * Math.PI) / 180);
+          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        } else {
+          canvas.width = w;
+          canvas.height = h;
+          if (angle !== 0) {
             ctx.translate(canvas.width / 2, canvas.height / 2);
             ctx.rotate((angle * Math.PI) / 180);
             ctx.drawImage(img, -w / 2, -h / 2, w, h);
           } else {
-            canvas.width = w;
-            canvas.height = h;
-            if (angle !== 0) {
-              ctx.translate(canvas.width / 2, canvas.height / 2);
-              ctx.rotate((angle * Math.PI) / 180);
-              ctx.drawImage(img, -w / 2, -h / 2, w, h);
-            } else {
-              ctx.drawImage(img, 0, 0, w, h);
-            }
+            ctx.drawImage(img, 0, 0, w, h);
           }
-
-          const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
-          if (blob) variants.push(blob);
-
-          // Binarized variant for blurry/low-contrast photos
-          try {
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imgData.data;
-            const contrast = 1.8;
-            for (let i = 0; i < data.length; i += 4) {
-              let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-              gray = (gray - 128) * contrast + 128;
-              gray = gray > 150 ? 255 : (gray < 90 ? 0 : gray);
-              data[i] = data[i + 1] = data[i + 2] = gray;
-            }
-            ctx.putImageData(imgData, 0, 0);
-            const binBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
-            if (binBlob) variants.push(binBlob);
-          } catch(e) {}
         }
+
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.90));
+        if (blob) variants.push({ blob, angle });
       }
       resolve(variants);
     };
@@ -564,52 +544,50 @@ window.handleFileUpload = async function(event, role) {
 
   let finalUsn = null;
   let parsedName = null;
-  let ocrTextCombined = '';
+  let bestCanvasObj = null;
 
-  // Generate universal scale, rotation & position variants
-  const scanVariants = await getUniversalScanVariants(file);
+  // 1. Generate 4 rotated canvas variants (takes ~50ms)
+  const variants = await getFastCanvasVariants(file);
 
-  // If variants array is empty, fallback to raw file
-  if (scanVariants.length === 0) scanVariants.push(file);
-
-  for (const variantBlob of scanVariants) {
+  // 2. Ultra-Fast Barcode Pass (<150ms total)
+  // Scans Html5Qrcode across rotated variants to instantly locate barcode and rotation angle!
+  for (const v of variants) {
     try {
-      // 1. Try Barcode Scan
-      let usnFromBC = null;
-      try {
-        const html5QrCode = new Html5Qrcode('reader-hidden');
-        const res = await html5QrCode.scanFile(variantBlob, true);
-        try { await html5QrCode.clear(); } catch(e){}
-        usnFromBC = extractUSNFuzzy(res);
-      } catch(e) {}
-
-      // 2. Try OCR Scan (4.5s max timeout per variant)
-      let ocrText = '';
-      try {
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 4500));
-        const res = await Promise.race([Tesseract.recognize(variantBlob, 'eng'), timeout]);
-        ocrText = res?.data?.text || '';
-        if (ocrText) ocrTextCombined += '\n' + ocrText;
-      } catch(e) {}
-
-      const usnFromOCR = extractUSNFuzzy(ocrText);
-      const candidateUsn = usnFromBC || usnFromOCR;
-      const candidateName = parseNameFromOCRText(ocrText);
-
-      if (candidateUsn || candidateName) {
-        if (!finalUsn && candidateUsn) finalUsn = candidateUsn;
-        if (!parsedName && candidateName) parsedName = candidateName;
+      const html5QrCode = new Html5Qrcode('reader-hidden');
+      const res = await html5QrCode.scanFile(v.blob, true);
+      try { await html5QrCode.clear(); } catch(e){}
+      const bcUsn = extractUSNFuzzy(res);
+      if (bcUsn) {
+        finalUsn = bcUsn;
+        bestCanvasObj = v;
+        break; // Barcode & correct rotation angle found instantly!
       }
-
-      if (finalUsn && parsedName) break; // Found both, exit loop!
-    } catch (e) {
-      console.log('Variant scan error:', e);
-    }
+    } catch(e) {}
   }
 
-  // Fallback name extraction from combined OCR text if needed
-  if (!parsedName && ocrTextCombined) {
-    parsedName = parseNameFromOCRText(ocrTextCombined);
+  // 3. Target OCR Pass (Runs Tesseract ONLY on best canvas or prioritized variants)
+  const ocrCandidates = bestCanvasObj ? [bestCanvasObj] : variants;
+
+  for (const v of ocrCandidates) {
+    try {
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 3000));
+      const res = await Promise.race([Tesseract.recognize(v.blob, 'eng'), timeout]);
+      const ocrText = res?.data?.text || '';
+
+      if (!finalUsn) {
+        const ocrUsn = extractUSNFuzzy(ocrText);
+        if (ocrUsn) finalUsn = ocrUsn;
+      }
+
+      if (!parsedName) {
+        const nameCandidate = parseNameFromOCRText(ocrText);
+        if (nameCandidate) parsedName = nameCandidate;
+      }
+
+      if (finalUsn && parsedName) break;
+    } catch(e) {
+      console.log('OCR error:', e);
+    }
   }
 
   if (progressDiv) progressDiv.style.display = 'none';
