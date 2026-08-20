@@ -524,8 +524,29 @@ async function getFastCanvasVariants(file) {
           }
         }
 
-        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.90));
-        if (blob) variants.push({ blob, angle });
+        // 1. Save Natural variant
+        const naturalBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.90));
+        if (naturalBlob) {
+          variants.push({ blob: naturalBlob, angle, binarized: false });
+        }
+
+        // 2. Save High-Contrast Binarized variant for blurry/low-contrast photos
+        try {
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+          const contrast = 1.8;
+          for (let i = 0; i < data.length; i += 4) {
+            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            gray = (gray - 128) * contrast + 128;
+            gray = gray > 150 ? 255 : (gray < 90 ? 0 : gray);
+            data[i] = data[i + 1] = data[i + 2] = gray;
+          }
+          ctx.putImageData(imgData, 0, 0);
+          const binarizedBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.90));
+          if (binarizedBlob) {
+            variants.push({ blob: binarizedBlob, angle, binarized: true });
+          }
+        } catch(e) {}
       }
       resolve(variants);
     };
