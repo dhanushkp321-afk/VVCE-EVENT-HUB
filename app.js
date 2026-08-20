@@ -741,7 +741,7 @@ window.handleFileUpload = async function(event, role) {
           : 'ID Photo Attached';
       }
 
-      const targetBranchAdmin = parseProgramToBranch(ocrText, finalUsn);
+      const targetBranchAdmin = parseProgramToBranch(ocrTextCombined, finalUsn);
       if (targetBranchAdmin) {
         const sel = document.getElementById('a-branch');
         if (sel) {
