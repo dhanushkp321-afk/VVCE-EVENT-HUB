@@ -33,8 +33,30 @@ const STATE = {
   rejectEventId: null,
 };
 
-import { supabase } from './js/supabaseClient.js';
+const supabaseUrl = 'https://nkugbdencpvhhvgqybgi.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdWdiZGVuY3B2aGh2Z3F5YmdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4OTY3MzMsImV4cCI6MjA5NjQ3MjczM30.YFFnsWBymu4R59aMHTEq6ogwI0xb4xjbavpto1FrVWY';
 
+function getSupabaseClient() {
+  if (window.supabase && typeof window.supabase.from === 'function') {
+    return window.supabase;
+  }
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    window.supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    return window.supabase;
+  }
+  if (typeof createClient === 'function') {
+    window.supabase = createClient(supabaseUrl, supabaseKey);
+    return window.supabase;
+  }
+  return null;
+}
+
+const DEFAULT_USERS = [
+  { id: 'u1', type: 'student', name: 'Akash Sharma', email: 'akash@vvce.ac.in', pass: 'demo1234', usn: '4VV21CS001', branch: 'CS', section: 'A', year: '4th Year', sem: 'Sem 8', admissionYear: 2021, dept: 'Computer Science', phone: '+91 98765 43210', interests: ['Technical', 'Workshop'], skills: [], bio: '', linkedin: '', github: '', achievements: [], profilePhoto: null, resume: null, points: 120, pointsBySem: { 'Sem 1': 20, 'Sem 2': 20, 'Sem 3': 20, 'Sem 4': 20, 'Sem 5': 20, 'Sem 6': 20, 'Sem 7': 0, 'Sem 8': 0 }, notifs: [] },
+  { id: 'u2', type: 'admin', name: 'Harshill M Gowda', email: 'harshill@vvce.ac.in', pass: 'demo1234', clubName: 'CSE Club', clubEmail: 'cseclub@vvce.ac.in', domain: 'Technical', branch: 'CSE', usn: '4VV21CS045', faculty: 'Dr. Ramesh Kumar', phone: '+91 98765 43211', desc: 'Official Computer Science Club of VVCE', approved: true, notifs: [] },
+  { id: 'u3', type: 'authority', name: 'Dr. Priya Nair', email: 'dean.sw@vvce.ac.in', pass: 'demo1234', designation: 'dean', dept: 'Student Welfare', phone: '+91 98765 43212', notifs: [] },
+  { id: 'u4', type: 'authority', name: 'Prof. Vijay Rao', email: 'principal@vvce.ac.in', pass: 'demo1234', designation: 'principal', dept: 'Administration', phone: '+91 98765 43213', notifs: [] }
+];
 
 const SUPABASE_CACHE = {
   vvce_users: [],
@@ -47,55 +69,89 @@ const SUPABASE_CACHE = {
 const PENDING_SCREENSHOTS = {};
 
 function getDB(key, def = []) {
-  return SUPABASE_CACHE[key] || def;
+  if (SUPABASE_CACHE[key] && Array.isArray(SUPABASE_CACHE[key]) && SUPABASE_CACHE[key].length > 0) {
+    return SUPABASE_CACHE[key];
+  }
+  try {
+    const local = localStorage.getItem(key);
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        SUPABASE_CACHE[key] = parsed;
+        return parsed;
+      }
+    }
+  } catch (e) {}
+  if (key === 'vvce_users') {
+    SUPABASE_CACHE['vvce_users'] = DEFAULT_USERS.slice();
+    try { localStorage.setItem('vvce_users', JSON.stringify(SUPABASE_CACHE['vvce_users'])); } catch(e){}
+    return SUPABASE_CACHE['vvce_users'];
+  }
+  return def;
 }
 
 function getDBObj(key, def = {}) {
-  return SUPABASE_CACHE[key] || def;
+  if (SUPABASE_CACHE[key] && Object.keys(SUPABASE_CACHE[key]).length > 0) {
+    return SUPABASE_CACHE[key];
+  }
+  try {
+    const local = localStorage.getItem(key);
+    if (local) {
+      const parsed = JSON.parse(local);
+      SUPABASE_CACHE[key] = parsed;
+      return parsed;
+    }
+  } catch (e) {}
+  return def;
 }
 
 async function setDB(key, val) {
   SUPABASE_CACHE[key] = val;
-  if (!window.supabase) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {}
+
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.from !== 'function') return;
 
   try {
     if (key === 'vvce_events') {
       const mapped = val.map(e => ({
         id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments, attended_students: e.attendedStudents || []
       }));
-      await window.supabase.from('events').upsert(mapped);
+      await sb.from('events').upsert(mapped);
     } else if (key === 'vvce_users') {
       const mapped = val.map(u => ({
         id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admission_year: u.admissionYear, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profile_photo: u.profilePhoto, resume: u.resume, points: u.points, points_by_sem: u.pointsBySem, notifs: u.notifs, club_name: u.clubName, club_email: u.clubEmail, domain: u.domain, faculty: u.faculty, approved: u.approved, "desc": u.desc, designation: u.designation
       }));
-      await window.supabase.from('users').upsert(mapped);
+      await sb.from('users').upsert(mapped);
     } else if (key === 'vvce_certs') {
       const mapped = val.map(c => ({
         id: c.id, "userId": c.userId, title: c.title, issuer: c.issuer, date: c.date, position: c.position, points: c.points, type: c.type, verified: c.verified, auto_generated: c.autoGenerated || false, event_id: c.eventId || null
       }));
       const activeIds = mapped.map(c => c.id);
       if (activeIds.length > 0) {
-        await window.supabase.from('vvce_certs').delete().not('id', 'in', `(${activeIds.join(',')})`);
+        await sb.from('vvce_certs').delete().not('id', 'in', `(${activeIds.join(',')})`);
       } else {
-        await window.supabase.from('vvce_certs').delete().neq('id', '_none_');
+        await sb.from('vvce_certs').delete().neq('id', '_none_');
       }
-      await window.supabase.from('vvce_certs').upsert(mapped);
+      await sb.from('vvce_certs').upsert(mapped);
     } else if (key === 'vvce_academic') {
       const mapped = val.map(a => ({
         id: a.id, date: a.date, type: a.type, "desc": a.desc
       }));
-      await window.supabase.from('academic').upsert(mapped);
+      await sb.from('academic').upsert(mapped);
     } else if (key === 'vvce_principal_status') {
       const mapped = { id: 'status', text: val.text, note: val.note, updated: val.updated, color: val.color, icon: val.icon };
-      await window.supabase.from('principal_status').upsert([mapped]);
+      await sb.from('principal_status').upsert([mapped]);
     } else if (key === 'vvce_principal_schedule') {
       const mapped = val.map(s => ({ id: s.id, date: s.date, start_time: s.startTime, end_time: s.endTime, title: s.title, "desc": s.desc }));
-      await window.supabase.from('principal_schedules').delete().neq('id', '0');
-      if (mapped.length > 0) await window.supabase.from('principal_schedules').insert(mapped);
+      await sb.from('principal_schedules').delete().neq('id', '0');
+      if (mapped.length > 0) await sb.from('principal_schedules').insert(mapped);
     } else if (key === 'vvce_princ_attend') {
       const mapped = val.map(id => ({ event_id: id }));
-      await window.supabase.from('princ_attend').delete().neq('event_id', '0');
-      if (mapped.length > 0) await window.supabase.from('princ_attend').insert(mapped);
+      await sb.from('princ_attend').delete().neq('event_id', '0');
+      if (mapped.length > 0) await sb.from('princ_attend').insert(mapped);
     }
   } catch (err) {
     console.error('Failed to sync to Supabase:', err);
@@ -170,14 +226,14 @@ function handleRealtimeUpdate(key, payload) {
       SUPABASE_CACHE[key] = cache.filter(item => item.id !== oldRecord.id);
     } else if (eventType === 'INSERT') {
       const exists = cache.some(item => item.id === newRecord.id);
-      if (!exists) {
+      if (!exists && mapper) {
         cache.push(mapper(newRecord));
       }
     } else if (eventType === 'UPDATE') {
       const idx = cache.findIndex(item => item.id === newRecord.id);
-      if (idx !== -1) {
+      if (idx !== -1 && mapper) {
         cache[idx] = mapper(newRecord);
-      } else {
+      } else if (mapper) {
         cache.push(mapper(newRecord));
       }
     }
@@ -216,10 +272,11 @@ function handleRealtimeUpdate(key, payload) {
 
 let realtimeChannel = null;
 function setupRealtimeSync() {
-  if (!window.supabase) return;
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.channel !== 'function') return;
   if (realtimeChannel) return; // already setup
 
-  realtimeChannel = window.supabase.channel('db-changes')
+  realtimeChannel = sb.channel('db-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
       handleRealtimeUpdate('vvce_users', payload);
     })
@@ -245,36 +302,52 @@ function setupRealtimeSync() {
 }
 
 async function bootApp() {
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.from !== 'function') {
+    console.warn('Supabase client not ready yet, working in persistent local mode.');
+    return;
+  }
+
   try {
     const [uRes, eRes, cRes, aRes, psRes, pscRes, paRes] = await Promise.all([
-      window.supabase.from('users').select('*'),
-      window.supabase.from('events').select('*'),
-      window.supabase.from('vvce_certs').select('*'),
-      window.supabase.from('academic').select('*'),
-      window.supabase.from('principal_status').select('*'),
-      window.supabase.from('principal_schedules').select('*'),
-      window.supabase.from('princ_attend').select('*')
+      sb.from('users').select('*'),
+      sb.from('events').select('*'),
+      sb.from('vvce_certs').select('*'),
+      sb.from('academic').select('*'),
+      sb.from('principal_status').select('*'),
+      sb.from('principal_schedules').select('*'),
+      sb.from('princ_attend').select('*')
     ]);
 
-    if (uRes.data) {
-      SUPABASE_CACHE.vvce_users = uRes.data.map(u => ({
-        id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points, pointsBySem: u.points_by_sem, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation
-      }));
+    if (uRes && uRes.data) {
+      const remoteUsers = uRes.data.map(mapUser);
+      const localUsers = getDB('vvce_users', []);
+      const mergedUsers = [...remoteUsers];
+      localUsers.forEach(lu => {
+        if (!mergedUsers.some(ru => ru.email.toLowerCase() === lu.email.toLowerCase())) {
+          mergedUsers.push(lu);
+          // Sync missing user to Supabase
+          sb.from('users').upsert([{
+            id: lu.id, type: lu.type, name: lu.name, email: lu.email, pass: lu.pass, usn: lu.usn, branch: lu.branch, section: lu.section, year: lu.year, sem: lu.sem, admission_year: lu.admissionYear, dept: lu.dept, phone: lu.phone, interests: lu.interests, skills: lu.skills, bio: lu.bio, linkedin: lu.linkedin, github: lu.github, achievements: lu.achievements, profile_photo: lu.profilePhoto, resume: lu.resume, points: lu.points, points_by_sem: lu.pointsBySem, notifs: lu.notifs, club_name: lu.clubName, club_email: lu.clubEmail, domain: lu.domain, faculty: lu.faculty, approved: lu.approved, "desc": lu.desc, designation: lu.designation
+          }]).then(() => {});
+        }
+      });
+      SUPABASE_CACHE.vvce_users = mergedUsers;
+      try { localStorage.setItem('vvce_users', JSON.stringify(mergedUsers)); } catch(e){}
     }
-    if (eRes.data) {
-      SUPABASE_CACHE.vvce_events = eRes.data.map(e => ({
-        id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time, venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, adminUpiId: e.admin_upi_id || '', points: e.points, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || []
-      }));
+    if (eRes && eRes.data && eRes.data.length > 0) {
+      SUPABASE_CACHE.vvce_events = eRes.data.map(mapEvent);
+      try { localStorage.setItem('vvce_events', JSON.stringify(SUPABASE_CACHE.vvce_events)); } catch(e){}
     }
-    if (cRes.data) {
-      SUPABASE_CACHE.vvce_certs = cRes.data.map(c => ({
-        id: c.id, userId: c.userId, title: c.title, issuer: c.issuer, date: c.date, position: c.position, points: c.points, type: c.type, verified: c.verified, autoGenerated: c.auto_generated || false, eventId: c.event_id || null
-      }));
+    if (cRes && cRes.data && cRes.data.length > 0) {
+      SUPABASE_CACHE.vvce_certs = cRes.data.map(mapCert);
+      try { localStorage.setItem('vvce_certs', JSON.stringify(SUPABASE_CACHE.vvce_certs)); } catch(e){}
     }
-    if (aRes.data) {
+    if (aRes && aRes.data && aRes.data.length > 0) {
       SUPABASE_CACHE.vvce_academic = aRes.data.map(a => ({
         id: a.id, date: a.date, type: a.type, desc: a.desc
       }));
+      try { localStorage.setItem('vvce_academic', JSON.stringify(SUPABASE_CACHE.vvce_academic)); } catch(e){}
     }
     if (psRes && psRes.data && psRes.data.length > 0) {
       const s = psRes.data[0];
@@ -298,6 +371,7 @@ async function bootApp() {
   } catch (err) {
     console.error('Failed to load from Supabase:', err);
   }
+}
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -798,7 +872,7 @@ window.handleFileUpload = async function(event, role) {
 };
 
 /* ── Login ── */
-function handleLogin() {
+async function handleLogin() {
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   const pass  = document.getElementById('login-pass').value;
   if (!email || !pass) { showAuthMsg('Please enter your email and password.'); return; }
@@ -806,16 +880,40 @@ function handleLogin() {
     showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed to sign in.', 'error'); return;
   }
 
-  const users = getDB('vvce_users');
-  if (users.length === 0) {
-    showAuthMsg('Connecting to database, please try again in a moment...', 'info');
+  let users = getDB('vvce_users');
+  let user = users.find(u => u.email.toLowerCase() === email && u.pass === pass);
+
+  // If not found in local cache, do a direct Supabase lookup as an immediate fallback
+  if (!user) {
+    const sb = getSupabaseClient();
+    if (sb && typeof sb.from === 'function') {
+      try {
+        const { data } = await sb.from('users').select('*').ilike('email', email);
+        if (data && data.length > 0) {
+          const remoteUser = mapUser(data[0]);
+          if (remoteUser.pass === pass) {
+            user = remoteUser;
+            // Update cache
+            if (!users.some(u => u.id === user.id)) {
+              users.push(user);
+              SUPABASE_CACHE.vvce_users = users;
+              try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Supabase direct login check failed:', err);
+      }
+    }
+  }
+
+  if (!user) {
+    showAuthMsg('Invalid email or password. Please verify your credentials or register an account.');
     return;
   }
-  const user  = users.find(u => u.email.toLowerCase() === email && u.pass === pass);
-  if (!user) { showAuthMsg('Invalid email or password. Try the quick demo buttons below.'); return; }
 
   if (user.type === 'admin' && !user.approved) {
-    showAuthMsg('Your club account is pending Dean approval. Please wait.', 'warning');
+    showAuthMsg('Your club account is pending Dean Student Welfare approval. Please wait.', 'warning');
     return;
   }
 
