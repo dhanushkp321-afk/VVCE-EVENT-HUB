@@ -475,28 +475,34 @@ function switchMainTab(tab) {
   clearAuthMsg();
 
   if (tab === 'signin') {
-    panelSignin.style.display   = '';
-    panelRegister.style.display = 'none';
-    tabSignin.classList.add('active');
-    tabRegister.classList.remove('active');
+    if (panelSignin) panelSignin.style.display   = 'block';
+    if (panelRegister) panelRegister.style.display = 'none';
+    if (tabSignin) tabSignin.classList.add('active');
+    if (tabRegister) tabRegister.classList.remove('active');
   } else {
-    panelSignin.style.display   = 'none';
-    panelRegister.style.display = '';
-    tabSignin.classList.remove('active');
-    tabRegister.classList.add('active');
+    if (panelSignin) panelSignin.style.display   = 'none';
+    if (panelRegister) panelRegister.style.display = 'block';
+    if (tabSignin) tabSignin.classList.remove('active');
+    if (tabRegister) tabRegister.classList.add('active');
+    selectRegRole(STATE.regRole || 'student');
   }
 }
+window.switchMainTab = switchMainTab;
 
 function selectRegRole(role) {
   STATE.regRole = role;
   ['student','admin','authority'].forEach(r => {
-    document.getElementById(`rcard-${r}`).classList.toggle('active', r === role);
-    document.getElementById(`form-${r}`).style.display = r === role ? '' : 'none';
+    const card = document.getElementById(`rcard-${r}`);
+    const form = document.getElementById(`form-${r}`);
+    if (card) card.classList.toggle('active', r === role);
+    if (form) form.style.display = r === role ? 'block' : 'none';
   });
   clearAuthMsg();
 }
+window.selectRegRole = selectRegRole;
 
 function toggleChip(el) { el.classList.toggle('selected'); }
+window.toggleChip = toggleChip;
 
 function showAuthMsg(msg, type = 'error') {
   const el = document.getElementById('auth-msg');
