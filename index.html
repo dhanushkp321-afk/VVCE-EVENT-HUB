@@ -41,8 +41,8 @@
 
       <!-- Tab switcher: Sign In / Register -->
       <div class="auth-tab-row">
-        <button class="auth-main-tab active" id="tab-signin" onclick="switchMainTab('signin')">Sign In</button>
-        <button class="auth-main-tab" id="tab-register" onclick="switchMainTab('register')">Register</button>
+        <button type="button" class="auth-main-tab active" id="tab-signin" onclick="if(window.switchMainTab) { switchMainTab('signin'); } else { document.getElementById('panel-signin').style.display='block'; document.getElementById('panel-register').style.display='none'; this.classList.add('active'); document.getElementById('tab-register').classList.remove('active'); }">Sign In</button>
+        <button type="button" class="auth-main-tab" id="tab-register" onclick="if(window.switchMainTab) { switchMainTab('register'); } else { document.getElementById('panel-signin').style.display='none'; document.getElementById('panel-register').style.display='block'; this.classList.add('active'); document.getElementById('tab-signin').classList.remove('active'); }">Register</button>
       </div>
 
       <!-- Feedback -->
@@ -824,6 +824,6 @@
 <!-- Toast Container -->
 <div id="toast-wrap"></div>
 
-  <script type="module" src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
