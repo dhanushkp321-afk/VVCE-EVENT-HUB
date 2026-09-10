@@ -372,7 +372,6 @@ async function bootApp() {
     console.error('Failed to load from Supabase:', err);
   }
 }
-}
 
 /* ─────────────────────────────────────────────────────────────
    UTILITY FUNCTIONS
