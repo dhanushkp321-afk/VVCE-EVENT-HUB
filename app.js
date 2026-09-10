@@ -448,8 +448,20 @@ function toast(msg, type = 'success', dur = 3200) {
 }
 
 /* Modal helpers */
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.add('open');
+    el.style.display = 'flex';
+  }
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.remove('open');
+    el.style.display = 'none';
+  }
+}
 
 /* ─────────────────────────────────────────────────────────────
    AUTH — LOGIN / SIGNUP
@@ -488,10 +500,13 @@ function toggleChip(el) { el.classList.toggle('selected'); }
 
 function showAuthMsg(msg, type = 'error') {
   const el = document.getElementById('auth-msg');
-  el.textContent = msg;
-  el.className = `auth-msg ${type}`;
-  el.style.display = '';
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (el) {
+    el.textContent = msg;
+    el.className = `auth-msg ${type}`;
+    el.style.display = '';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  toast(msg, type, 4500);
 }
 function clearAuthMsg() {
   const el = document.getElementById('auth-msg');
@@ -1187,7 +1202,7 @@ function handleStudentSignup() {
     showAuthMsg('❌ Invalid USN format (e.g. 4EV25CS053 or 4VV25CS047).', 'error');
     return;
   }
-  if (pass.length < 8) { showAuthMsg('Password must be at least 8 characters.'); return; }
+  if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
   if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
   const users = getDB('vvce_users');
