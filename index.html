@@ -781,6 +781,46 @@
   </div>
 </div>
 
+<!-- Email OTP Verification Modal -->
+<div class="modal-overlay" id="modal-otp">
+  <div class="modal-box" style="max-width:420px; text-align:center; padding:24px; border-radius:16px;">
+    <div style="font-size:42px; margin-bottom:8px;">📧</div>
+    <h2 style="font-size:20px; font-weight:800; color:#111827; margin-bottom:6px;">Verify Your VVCE Email</h2>
+    <p style="font-size:13px; color:#6b7280; margin-bottom:16px; line-height:1.5;">
+      We have dispatched a 6-digit security code to<br>
+      <strong id="otp-target-email" style="color:#4f46e5; font-size:14px; font-weight:700;">yourname@vvce.ac.in</strong>
+    </p>
+
+    <!-- Quick test banner / notification banner -->
+    <div id="otp-demo-banner" style="background:#eef2ff; border:1px dashed #6366f1; border-radius:10px; padding:10px 14px; margin-bottom:18px; font-size:13px; color:#4338ca; display:flex; align-items:center; justify-content:space-between;">
+      <span>🔑 Passcode: <strong id="otp-demo-code" style="font-size:16px; letter-spacing:2px; color:#1e1b4b;">123456</strong></span>
+      <button type="button" onclick="autoFillOtp()" style="background:#4f46e5; color:#fff; border:none; padding:4px 10px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700; transition:all 0.2s;">Auto-Fill</button>
+    </div>
+
+    <!-- OTP Input Group -->
+    <div class="otp-inputs-row" style="display:flex; justify-content:center; gap:8px; margin-bottom:16px;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d1" oninput="handleOtpInput(1, event)" onkeydown="handleOtpKey(1, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d2" oninput="handleOtpInput(2, event)" onkeydown="handleOtpKey(2, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d3" oninput="handleOtpInput(3, event)" onkeydown="handleOtpKey(3, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d4" oninput="handleOtpInput(4, event)" onkeydown="handleOtpKey(4, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d5" oninput="handleOtpInput(5, event)" onkeydown="handleOtpKey(5, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d6" oninput="handleOtpInput(6, event)" onkeydown="handleOtpKey(6, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+    </div>
+
+    <div id="otp-error-msg" style="color:#ef4444; font-size:12px; font-weight:600; margin-bottom:12px; display:none;"></div>
+
+    <button class="btn-dark-register" onclick="verifyRegistrationOtp()" style="width:100%; padding:13px; font-size:15px; font-weight:700; background:linear-gradient(135deg, #4f46e5, #4338ca); border-radius:10px; margin-bottom:14px; cursor:pointer;">
+      Verify &amp; Create Account →
+    </button>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#6b7280; padding:0 4px;">
+      <span id="otp-timer">Resend code in <strong id="otp-countdown">60</strong>s</span>
+      <button id="btn-resend-otp" onclick="resendRegistrationOtp()" style="background:none; border:none; color:#4f46e5; font-weight:700; cursor:pointer; padding:0; display:none;">Resend Code</button>
+      <button onclick="closeModal('modal-otp')" style="background:none; border:none; color:#9ca3af; cursor:pointer; padding:0;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast Container -->
 <div id="toast-wrap"></div>
 

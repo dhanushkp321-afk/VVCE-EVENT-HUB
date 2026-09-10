@@ -934,6 +934,215 @@ function quickLogin(role) {
 }
 
 
+/* ─────────────────────────────────────────────────────────────
+   EMAIL OTP VERIFICATION SYSTEM
+───────────────────────────────────────────────────────────────*/
+let otpTimerInterval = null;
+
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function startOtpCountdown(seconds = 60) {
+  if (otpTimerInterval) clearInterval(otpTimerInterval);
+  let remaining = seconds;
+  const countdownEl = document.getElementById('otp-countdown');
+  const timerWrapEl = document.getElementById('otp-timer');
+  const resendBtnEl = document.getElementById('btn-resend-otp');
+
+  if (timerWrapEl) timerWrapEl.style.display = '';
+  if (resendBtnEl) resendBtnEl.style.display = 'none';
+  if (countdownEl) countdownEl.textContent = remaining;
+
+  otpTimerInterval = setInterval(() => {
+    remaining--;
+    if (countdownEl) countdownEl.textContent = remaining;
+    if (remaining <= 0) {
+      clearInterval(otpTimerInterval);
+      if (timerWrapEl) timerWrapEl.style.display = 'none';
+      if (resendBtnEl) resendBtnEl.style.display = '';
+    }
+  }, 1000);
+}
+
+function sendRegistrationOtp(role, userPayload) {
+  const otp = generateOtp();
+  STATE.pendingOtpData = {
+    role,
+    userPayload,
+    otp,
+    expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
+  };
+
+  const emailEl = document.getElementById('otp-target-email');
+  if (emailEl) emailEl.textContent = userPayload.email;
+
+  const demoCodeEl = document.getElementById('otp-demo-code');
+  if (demoCodeEl) demoCodeEl.textContent = otp;
+
+  const errEl = document.getElementById('otp-error-msg');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  // Clear inputs
+  for (let i = 1; i <= 6; i++) {
+    const d = document.getElementById(`otp-d${i}`);
+    if (d) d.value = '';
+  }
+
+  openModal('modal-otp');
+  startOtpCountdown(60);
+
+  // Auto-focus first input
+  setTimeout(() => {
+    const d1 = document.getElementById('otp-d1');
+    if (d1) d1.focus();
+  }, 200);
+
+  toast(`📧 Verification code sent to ${userPayload.email}! (Code: ${otp})`, 'info', 6000);
+
+  // Background dispatch via Supabase Auth OTP if configured
+  const sb = getSupabaseClient();
+  if (sb && sb.auth && typeof sb.auth.signInWithOtp === 'function') {
+    sb.auth.signInWithOtp({ email: userPayload.email }).catch(() => {});
+  }
+}
+
+function handleOtpInput(index, event) {
+  const val = event.target.value;
+  // If user pasted a multi-digit string
+  if (val.length > 1) {
+    const digits = val.replace(/\D/g, '').slice(0, 6);
+    for (let i = 0; i < digits.length; i++) {
+      const d = document.getElementById(`otp-d${i + 1}`);
+      if (d) d.value = digits[i];
+    }
+    const nextIdx = Math.min(digits.length + 1, 6);
+    const nextEl = document.getElementById(`otp-d${nextIdx}`);
+    if (nextEl) nextEl.focus();
+    return;
+  }
+
+  // Auto-advance
+  if (val && index < 6) {
+    const nextEl = document.getElementById(`otp-d${index + 1}`);
+    if (nextEl) nextEl.focus();
+  }
+}
+
+function handleOtpKey(index, event) {
+  if (event.key === 'Backspace' && !event.target.value && index > 1) {
+    const prevEl = document.getElementById(`otp-d${index - 1}`);
+    if (prevEl) {
+      prevEl.focus();
+      prevEl.value = '';
+    }
+  } else if (event.key === 'Enter') {
+    verifyRegistrationOtp();
+  }
+}
+
+function autoFillOtp() {
+  if (!STATE.pendingOtpData || !STATE.pendingOtpData.otp) return;
+  const otp = STATE.pendingOtpData.otp;
+  for (let i = 0; i < 6; i++) {
+    const d = document.getElementById(`otp-d${i + 1}`);
+    if (d) d.value = otp[i] || '';
+  }
+  const d6 = document.getElementById('otp-d6');
+  if (d6) d6.focus();
+}
+
+function resendRegistrationOtp() {
+  if (!STATE.pendingOtpData) {
+    closeModal('modal-otp');
+    return;
+  }
+  const newOtp = generateOtp();
+  STATE.pendingOtpData.otp = newOtp;
+  STATE.pendingOtpData.expiresAt = Date.now() + 5 * 60 * 1000;
+
+  const demoCodeEl = document.getElementById('otp-demo-code');
+  if (demoCodeEl) demoCodeEl.textContent = newOtp;
+
+  const errEl = document.getElementById('otp-error-msg');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  for (let i = 1; i <= 6; i++) {
+    const d = document.getElementById(`otp-d${i}`);
+    if (d) d.value = '';
+  }
+
+  startOtpCountdown(60);
+  const d1 = document.getElementById('otp-d1');
+  if (d1) d1.focus();
+
+  toast(`📧 New verification code sent to ${STATE.pendingOtpData.userPayload.email}! (Code: ${newOtp})`, 'info', 6000);
+}
+
+function verifyRegistrationOtp() {
+  const errEl = document.getElementById('otp-error-msg');
+  let entered = '';
+  for (let i = 1; i <= 6; i++) {
+    const d = document.getElementById(`otp-d${i}`);
+    entered += (d ? d.value.trim() : '');
+  }
+
+  if (entered.length < 6) {
+    if (errEl) {
+      errEl.textContent = '❌ Please enter the full 6-digit verification code.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (!STATE.pendingOtpData) {
+    closeModal('modal-otp');
+    showAuthMsg('Session expired. Please fill the registration form again.', 'error');
+    return;
+  }
+
+  if (Date.now() > STATE.pendingOtpData.expiresAt) {
+    if (errEl) {
+      errEl.textContent = '❌ Verification code expired. Please click Resend Code.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (entered !== STATE.pendingOtpData.otp) {
+    if (errEl) {
+      errEl.textContent = '❌ Invalid verification code. Please check and try again.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  // OTP verified successfully!
+  if (errEl) { errEl.style.display = 'none'; }
+  if (otpTimerInterval) clearInterval(otpTimerInterval);
+  closeModal('modal-otp');
+
+  const { role, userPayload } = STATE.pendingOtpData;
+  STATE.pendingOtpData = null;
+
+  finalizeRegistration(role, userPayload);
+}
+
+function finalizeRegistration(role, newUser) {
+  const users = getDB('vvce_users');
+  users.push(newUser);
+  setDB('vvce_users', users);
+
+  if (role === 'admin') {
+    showAuthMsg('🎉 Email verified! Club registration submitted. Awaiting Dean Student Welfare approval.', 'success');
+    toast('✅ Email verified! Club account submitted for approval.', 'success');
+  } else {
+    showAuthMsg('🎉 Email verified! Account created successfully! Signing you in…', 'success');
+    toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
+    setTimeout(() => launchApp(newUser), 1000);
+  }
+}
+
 /* ── Student Signup ── */
 function handleStudentSignup() {
   const name    = document.getElementById('s-name').value.trim();
@@ -980,10 +1189,8 @@ function handleStudentSignup() {
     points: 0, pointsBySem: { 'Sem 1':0, 'Sem 2':0, 'Sem 3':0, 'Sem 4':0, 'Sem 5':0, 'Sem 6':0, 'Sem 7':0, 'Sem 8':0 },
     notifs: [{ id: genId('n'), msg: 'Welcome to VVCE Events Hub! Start exploring events.', time: 'Just now', read: false, icon: '🎉' }]
   };
-  users.push(newUser);
-  setDB('vvce_users', users);
-  showAuthMsg('Account created successfully! Signing you in…', 'success');
-  setTimeout(() => launchApp(newUser), 1000);
+
+  sendRegistrationOtp('student', newUser);
 }
 
 /* ── Club Logo Upload Handler ── */
@@ -1041,9 +1248,8 @@ function handleAdminSignup() {
     profilePhoto: window._clubLogoBase64 || null,
     notifs: [{ id: genId('n'), msg: 'Club registration submitted! Pending Dean SW approval.', time: 'Just now', read: false, icon: '⏳' }]
   };
-  users.push(newUser);
-  setDB('vvce_users', users);
-  showAuthMsg('Club registration submitted! Awaiting Dean Student Welfare approval.', 'success');
+
+  sendRegistrationOtp('admin', newUser);
 }
 
 /* ── Authority Signup ── */
@@ -1081,10 +1287,8 @@ function handleAuthoritySignup() {
     designation: desig, dept: 'Administration',
     notifs: [{ id: genId('n'), msg: 'Authority account created successfully.', time: 'Just now', read: false, icon: '✅' }]
   };
-  users.push(newUser);
-  setDB('vvce_users', users);
-  showAuthMsg('Authority account created! Signing you in…', 'success');
-  setTimeout(() => launchApp(newUser), 1000);
+
+  sendRegistrationOtp('authority', newUser);
 }
 
 /* ── Forgot Password ── */
@@ -4258,4 +4462,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Expose all functions to window for inline onclick handlers in HTML
-window.addNotif = addNotif; window.addNotifToUser = addNotifToUser; window.applyAttendanceRewards = applyAttendanceRewards; window.approveClub = approveClub; window.approveEvent = approveEvent; window.avatar = avatar; window.changeMonth = changeMonth; window.checkClashCount = checkClashCount; window.clearAuthMsg = clearAuthMsg; window.closeModal = closeModal; window.completeRegistration = completeRegistration; window.computeStudentYearSem = computeStudentYearSem; window.confirmReject = confirmReject; window.deanApprovalsContent = deanApprovalsContent; window.deanApproveClub = deanApproveClub; window.deanClashContent = deanClashContent; window.deanDashboardContent = deanDashboardContent; window.deanEventApprovalsContent = deanEventApprovalsContent; window.deanEventsContent = deanEventsContent; window.deanFilterEvents = deanFilterEvents; window.deanRejectClub = deanRejectClub; window.detailChip = detailChip; window.drawCalendar = drawCalendar; window.eventCard = eventCard; window.filterClubs = filterClubs; window.filterEvents = filterEvents; window.formatDate = formatDate; window.formatTime = formatTime; window.genId = genId; window.getDB = getDB; window.getDBObj = getDBObj; window.getGreeting = getGreeting; window.getRelativeTime = getRelativeTime; window.goBack = goBack; window.googleLoginByEmail = googleLoginByEmail; window.handleAdminSignup = handleAdminSignup; window.handleAuthoritySignup = handleAuthoritySignup; window.handleDeanPortalNav = handleDeanPortalNav; window.handleForgotPassword = handleForgotPassword; window.handleLogin = handleLogin; window.handlePhotoUpload = handlePhotoUpload; window.handlePosterUpload = handlePosterUpload; window.handlePrincipalPortalNav = handlePrincipalPortalNav; window.handleResumeUpload = handleResumeUpload; window.handleStudentSignup = handleStudentSignup; window.initGoogleAuth = initGoogleAuth; window.launchApp = launchApp; window.lockDeanPortal = lockDeanPortal; window.lockPrincipalPortal = lockPrincipalPortal; window.logout = logout; window.manualGoogleEmailEntry = manualGoogleEmailEntry; window.markAllRead = markAllRead; window.navItem = navItem; window.openEventModal = openEventModal; window.openModal = openModal; window.openPaymentModal = openPaymentModal; window.openProfileEdit = openProfileEdit; window.openRejectModal = openRejectModal; window.profField = profField; window.profFieldLink = profFieldLink; window.quickLogin = quickLogin; window.readNotif = readNotif; window.registerEv = registerEv; window.regList = regList; window.renderAcadSchedule = renderAcadSchedule; window.renderAdminDashboard = renderAdminDashboard; window.renderApprovals = renderApprovals; window.renderAttendancePage = renderAttendancePage; window.renderAuthorityDashboard = renderAuthorityDashboard; window.renderAuthorityProfile = renderAuthorityProfile; window.renderCalendarPage = renderCalendarPage; window.renderCertificatesPage = renderCertificatesPage; window.renderClashDetect = renderClashDetect; window.renderClubCards = renderClubCards; window.renderClubMonitor = renderClubMonitor; window.renderCreateEventPage = renderCreateEventPage; window.renderDeanPortal = renderDeanPortal; window.renderEventsPage = renderEventsPage; window.renderManageEventsPage = renderManageEventsPage; window.renderNotifs = renderNotifs; window.renderParticipantsPage = renderParticipantsPage; window.renderParticipantTable = renderParticipantTable; window.renderPrincipalAvailability = renderPrincipalAvailability; window.renderPrincipalPortal = renderPrincipalPortal; window.renderProfilePage = renderProfilePage; window.renderRegistrationsPage = renderRegistrationsPage; window.renderSidebar = renderSidebar; window.renderStudentDashboard = renderStudentDashboard; window.renderTopbarUser = renderTopbarUser; window.revokeClub = revokeClub; window.saveProfileEdit = saveProfileEdit; window.selectRegRole = selectRegRole; window.showAuthMsg = showAuthMsg; window.showCalDateEvents = showCalDateEvents; window.showPage = showPage; window.simulatePayment = simulatePayment; window.statCard = statCard; window.submitCertificate = submitCertificate; window.submitDraftEvent = submitDraftEvent; window.submitEvent = submitEvent; window.switchMainTab = switchMainTab; window.switchRegTab = switchRegTab; window.titleCase = titleCase; window.toast = toast; window.toggleChip = toggleChip; window.toggleNotifPanel = toggleNotifPanel; window.togglePass = togglePass; window.toggleSidebar = toggleSidebar; window.triggerPhotoUpload = triggerPhotoUpload; window.unregisterEv = unregisterEv; window.updateUser = updateUser; window.verifyDeanPassword = verifyDeanPassword; window.verifyPrincipalPassword = verifyPrincipalPassword; window.viewClubDetail = viewClubDetail;
+window.addNotif = addNotif; window.addNotifToUser = addNotifToUser; window.applyAttendanceRewards = applyAttendanceRewards; window.approveClub = approveClub; window.approveEvent = approveEvent; window.autoFillOtp = autoFillOtp; window.avatar = avatar; window.changeMonth = changeMonth; window.checkClashCount = checkClashCount; window.clearAuthMsg = clearAuthMsg; window.closeModal = closeModal; window.completeRegistration = completeRegistration; window.computeStudentYearSem = computeStudentYearSem; window.confirmReject = confirmReject; window.deanApprovalsContent = deanApprovalsContent; window.deanApproveClub = deanApproveClub; window.deanClashContent = deanClashContent; window.deanDashboardContent = deanDashboardContent; window.deanEventApprovalsContent = deanEventApprovalsContent; window.deanEventsContent = deanEventsContent; window.deanFilterEvents = deanFilterEvents; window.deanRejectClub = deanRejectClub; window.detailChip = detailChip; window.drawCalendar = drawCalendar; window.eventCard = eventCard; window.filterClubs = filterClubs; window.filterEvents = filterEvents; window.finalizeRegistration = finalizeRegistration; window.formatDate = formatDate; window.formatTime = formatTime; window.genId = genId; window.getDB = getDB; window.getDBObj = getDBObj; window.getGreeting = getGreeting; window.getRelativeTime = getRelativeTime; window.goBack = goBack; window.googleLoginByEmail = googleLoginByEmail; window.handleAdminSignup = handleAdminSignup; window.handleAuthoritySignup = handleAuthoritySignup; window.handleDeanPortalNav = handleDeanPortalNav; window.handleForgotPassword = handleForgotPassword; window.handleLogin = handleLogin; window.handleOtpInput = handleOtpInput; window.handleOtpKey = handleOtpKey; window.handlePhotoUpload = handlePhotoUpload; window.handlePosterUpload = handlePosterUpload; window.handlePrincipalPortalNav = handlePrincipalPortalNav; window.handleResumeUpload = handleResumeUpload; window.handleStudentSignup = handleStudentSignup; window.initGoogleAuth = initGoogleAuth; window.launchApp = launchApp; window.lockDeanPortal = lockDeanPortal; window.lockPrincipalPortal = lockPrincipalPortal; window.logout = logout; window.manualGoogleEmailEntry = manualGoogleEmailEntry; window.markAllRead = markAllRead; window.navItem = navItem; window.openEventModal = openEventModal; window.openModal = openModal; window.openPaymentModal = openPaymentModal; window.openProfileEdit = openProfileEdit; window.openRejectModal = openRejectModal; window.profField = profField; window.profFieldLink = profFieldLink; window.quickLogin = quickLogin; window.readNotif = readNotif; window.registerEv = registerEv; window.regList = regList; window.renderAcadSchedule = renderAcadSchedule; window.renderAdminDashboard = renderAdminDashboard; window.renderApprovals = renderApprovals; window.renderAttendancePage = renderAttendancePage; window.renderAuthorityDashboard = renderAuthorityDashboard; window.renderAuthorityProfile = renderAuthorityProfile; window.renderCalendarPage = renderCalendarPage; window.renderCertificatesPage = renderCertificatesPage; window.renderClashDetect = renderClashDetect; window.renderClubCards = renderClubCards; window.renderClubMonitor = renderClubMonitor; window.renderCreateEventPage = renderCreateEventPage; window.renderDeanPortal = renderDeanPortal; window.renderEventsPage = renderEventsPage; window.renderManageEventsPage = renderManageEventsPage; window.renderNotifs = renderNotifs; window.renderParticipantsPage = renderParticipantsPage; window.renderParticipantTable = renderParticipantTable; window.renderPrincipalAvailability = renderPrincipalAvailability; window.renderPrincipalPortal = renderPrincipalPortal; window.renderProfilePage = renderProfilePage; window.renderRegistrationsPage = renderRegistrationsPage; window.renderSidebar = renderSidebar; window.renderStudentDashboard = renderStudentDashboard; window.renderTopbarUser = renderTopbarUser; window.resendRegistrationOtp = resendRegistrationOtp; window.revokeClub = revokeClub; window.saveProfileEdit = saveProfileEdit; window.selectRegRole = selectRegRole; window.sendRegistrationOtp = sendRegistrationOtp; window.showAuthMsg = showAuthMsg; window.showCalDateEvents = showCalDateEvents; window.showPage = showPage; window.simulatePayment = simulatePayment; window.statCard = statCard; window.submitCertificate = submitCertificate; window.submitDraftEvent = submitDraftEvent; window.submitEvent = submitEvent; window.switchMainTab = switchMainTab; window.switchRegTab = switchRegTab; window.titleCase = titleCase; window.toast = toast; window.toggleChip = toggleChip; window.toggleNotifPanel = toggleNotifPanel; window.togglePass = togglePass; window.toggleSidebar = toggleSidebar; window.triggerPhotoUpload = triggerPhotoUpload; window.unregisterEv = unregisterEv; window.updateUser = updateUser; window.verifyDeanPassword = verifyDeanPassword; window.verifyPrincipalPassword = verifyPrincipalPassword; window.verifyRegistrationOtp = verifyRegistrationOtp; window.viewClubDetail = viewClubDetail;
