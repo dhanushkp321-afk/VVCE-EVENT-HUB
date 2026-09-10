@@ -977,9 +977,6 @@ function sendRegistrationOtp(role, userPayload) {
   const emailEl = document.getElementById('otp-target-email');
   if (emailEl) emailEl.textContent = userPayload.email;
 
-  const demoCodeEl = document.getElementById('otp-demo-code');
-  if (demoCodeEl) demoCodeEl.textContent = otp;
-
   const errEl = document.getElementById('otp-error-msg');
   if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
@@ -998,9 +995,22 @@ function sendRegistrationOtp(role, userPayload) {
     if (d1) d1.focus();
   }, 200);
 
-  toast(`📧 Verification code sent to ${userPayload.email}! (Code: ${otp})`, 'info', 6000);
+  toast(`📧 Security code dispatched to ${userPayload.email}. Please check your inbox!`, 'info', 5000);
 
-  // Background dispatch via Supabase Auth OTP if configured
+  // 1. Dispatch real email via serverless /api/send-otp
+  try {
+    fetch('/api/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: userPayload.email,
+        otp: otp,
+        name: userPayload.name
+      })
+    }).catch(err => console.warn('API send-otp fetch error:', err));
+  } catch(e) {}
+
+  // 2. Background dispatch via Supabase Auth OTP if configured
   const sb = getSupabaseClient();
   if (sb && sb.auth && typeof sb.auth.signInWithOtp === 'function') {
     sb.auth.signInWithOtp({ email: userPayload.email }).catch(() => {});
@@ -1061,9 +1071,6 @@ function resendRegistrationOtp() {
   STATE.pendingOtpData.otp = newOtp;
   STATE.pendingOtpData.expiresAt = Date.now() + 5 * 60 * 1000;
 
-  const demoCodeEl = document.getElementById('otp-demo-code');
-  if (demoCodeEl) demoCodeEl.textContent = newOtp;
-
   const errEl = document.getElementById('otp-error-msg');
   if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
@@ -1076,7 +1083,20 @@ function resendRegistrationOtp() {
   const d1 = document.getElementById('otp-d1');
   if (d1) d1.focus();
 
-  toast(`📧 New verification code sent to ${STATE.pendingOtpData.userPayload.email}! (Code: ${newOtp})`, 'info', 6000);
+  toast(`📧 A new verification code was sent to ${STATE.pendingOtpData.userPayload.email}!`, 'info', 5000);
+
+  // Dispatch real email via /api/send-otp
+  try {
+    fetch('/api/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: STATE.pendingOtpData.userPayload.email,
+        otp: newOtp,
+        name: STATE.pendingOtpData.userPayload.name
+      })
+    }).catch(err => console.warn('API send-otp fetch error:', err));
+  } catch(e) {}
 }
 
 function verifyRegistrationOtp() {
