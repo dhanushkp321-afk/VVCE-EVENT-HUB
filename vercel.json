@@ -1,5 +1,8 @@
 {
-  "cleanUrls": true,
+  "buildCommand": null,
+  "outputDirectory": ".",
+  "installCommand": "echo skip",
+  "framework": null,
   "rewrites": [
     {
       "source": "/api/(.*)",
