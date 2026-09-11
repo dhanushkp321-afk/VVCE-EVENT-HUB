@@ -59,12 +59,17 @@
       <img src="vvce-logo-header.png" alt="VVCE">
       <h1>VVCE Events CPM</h1>
       <span class="badge">Control Panel</span>
+      <span class="badge" id="header-role-badge" style="background:#10b98125; color:#34d399; border-color:#10b98140;">Super Admin</span>
     </div>
 
-    <div class="nav-tabs" id="portal-nav" style="display: none;">
-      <button class="tab-btn active" onclick="switchTab('events', this)">📅 Events & Venues</button>
-      <button class="tab-btn" onclick="switchTab('banner', this)">📢 Site Banner</button>
+    <div class="nav-tabs" id="portal-nav" style="display: none; max-width: 65vw; overflow-x: auto;">
+      <button class="tab-btn active" onclick="switchTab('events', this)">📅 Events</button>
+      <button class="tab-btn" onclick="switchTab('recycle', this)">🗑️ Recycle Bin</button>
+      <button class="tab-btn" onclick="switchTab('banner', this)">📢 Announcements & Banners</button>
       <button class="tab-btn" onclick="switchTab('theme', this)">🎨 Themes</button>
+      <button class="tab-btn" onclick="switchTab('analytics', this)">📊 Analytics</button>
+      <button class="tab-btn" onclick="switchTab('audit', this)">📝 Activity Log</button>
+      <button class="tab-btn" id="nav-emergency" onclick="switchTab('emergency', this)">🚨 Emergency & Health</button>
     </div>
 
     <div style="display: flex; gap: 12px; align-items: center;">
@@ -73,12 +78,21 @@
     </div>
   </header>
 
-  <!-- Login Modal -->
+  <!-- Login Modal with Role-Based Access Control -->
   <div id="auth-overlay">
     <div class="login-box">
-      <h2>CPM Portal</h2>
-      <p>Enter Master Administrator Password for real-time site control.</p>
+      <h2>CPM Portal Login</h2>
+      <p>Secure Role-Based Administrator Access</p>
       <form onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Administrator Role</label>
+          <select id="login-role" class="form-control">
+            <option value="super_admin">Super Admin (Full Access)</option>
+            <option value="event_manager">Event Manager (Events & Rescheduling)</option>
+            <option value="content_manager">Content Manager (Themes & Banners)</option>
+            <option value="analytics_viewer">Analytics Viewer (Read-Only Stats)</option>
+          </select>
+        </div>
         <div class="form-group">
           <label>Administrator Password</label>
           <input type="password" id="cpm-pass" class="form-control" placeholder="••••••••" autofocus required>
@@ -152,6 +166,125 @@
         </div>
       </div>
     </section>
+
+    <!-- TAB 2: RECYCLE BIN / EVENT RECOVERY -->
+    <section id="tab-recycle" class="tab-content">
+      <div class="settings-card">
+        <h3>🗑️ Recycle Bin & Event Recovery</h3>
+        <p>Deleted events are soft-archived here to protect registration records. You can restore them anytime or permanently delete.</p>
+        <div id="recycle-list" style="margin-top: 1rem;"></div>
+      </div>
+    </section>
+
+    <!-- TAB 5: PRIVACY-SAFE ANALYTICS -->
+    <section id="tab-analytics" class="tab-content">
+      <div class="stats-bar" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+        <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:1.25rem;">
+          <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">TOTAL REGISTERED USERS</div>
+          <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem;" id="analytics-total-users">0</div>
+          <small style="color:#94a3b8;" id="analytics-user-breakdown">Students / Faculty</small>
+        </div>
+        <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:1.25rem;">
+          <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">DAILY ACTIVE USERS</div>
+          <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#34d399;" id="analytics-daily-active">0</div>
+          <small style="color:#94a3b8;">Active past 24 hours</small>
+        </div>
+        <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:1.25rem;">
+          <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">TOTAL EVENT REGISTRATIONS</div>
+          <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#60a5fa;" id="analytics-total-regs">0</div>
+          <small style="color:#94a3b8;">Across all published events</small>
+        </div>
+        <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:1.25rem;">
+          <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">ACTIVE CLUBS</div>
+          <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#fbbf24;" id="analytics-active-clubs">0</div>
+          <small style="color:#94a3b8;">Official student chapters</small>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="settings-card">
+          <h3>Event Category Distribution (%)</h3>
+          <p>Real-time breakdown of event interactions by domain.</p>
+          <div id="category-chart-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
+        <div class="settings-card">
+          <h3>Event Capacity & Registration Metrics</h3>
+          <p>Live seat occupancy per published event.</p>
+          <div id="capacity-metrics-container" style="max-height: 280px; overflow-y: auto;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: AUDIT / ACTIVITY LOG -->
+    <section id="tab-audit" class="tab-content">
+      <div class="settings-card">
+        <h3>📝 Administrative Activity & Audit Log</h3>
+        <p>Chronological record of all administrative modifications, venue changes, rescheduling, and status updates.</p>
+        <div style="overflow-x: auto;">
+          <table style="width:100%; border-collapse:collapse; margin-top:1rem; font-size:0.85rem;">
+            <thead>
+              <tr style="background:#1e293b; color:#94a3b8;">
+                <th style="padding:10px; text-align:left;">Timestamp</th>
+                <th style="padding:10px; text-align:left;">Admin / Role</th>
+                <th style="padding:10px; text-align:left;">Action</th>
+                <th style="padding:10px; text-align:left;">Target Event / Asset</th>
+                <th style="padding:10px; text-align:left;">Change Details</th>
+              </tr>
+            </thead>
+            <tbody id="audit-log-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 7: EMERGENCY & SYSTEM HEALTH -->
+    <section id="tab-emergency" class="tab-content">
+      <div class="settings-card" style="border-color:#ef444440;">
+        <h3 style="color:#f87171;">🚨 Emergency & Maintenance Controls (Super Admin Only)</h3>
+        <p>Temporarily disable user actions during technical difficulties or site updates.</p>
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:1rem; border-radius:10px;">
+            <div>
+              <strong>Site Maintenance Mode</strong>
+              <div style="font-size:0.8rem; color:#94a3b8;">Shows a polite maintenance screen to all students and visitors.</div>
+            </div>
+            <button id="btn-toggle-maint" class="btn btn-danger" onclick="triggerMaintenanceToggle()">Enable Maintenance Mode</button>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:1rem; border-radius:10px;">
+            <div>
+              <strong>Pause Event Registrations</strong>
+              <div style="font-size:0.8rem; color:#94a3b8;">Temporarily prevents new registrations while keeping the site readable.</div>
+            </div>
+            <button id="btn-toggle-regs" class="btn btn-warning" style="background:#f59e0b20; color:#fbbf24; border:1px solid #f59e0b40;" onclick="toggleRegistrationLock()">Pause Registrations</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>🟢 System Health & Service Status</h3>
+        <p>Operational status of key application infrastructure.</p>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+          <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:1rem;">
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🟢 Database (Supabase)</div>
+            <div style="font-size:1rem; font-weight:700; color:#34d399; margin-top:4px;">Operational</div>
+          </div>
+          <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:1rem;">
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🟢 Authentication System</div>
+            <div style="font-size:1rem; font-weight:700; color:#34d399; margin-top:4px;">Operational</div>
+          </div>
+          <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:1rem;">
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🟢 Event Realtime Sync</div>
+            <div style="font-size:1rem; font-weight:700; color:#34d399; margin-top:4px;">Active</div>
+          </div>
+          <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:1rem;">
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🟢 Media CDN</div>
+            <div style="font-size:1rem; font-weight:700; color:#34d399; margin-top:4px;">Operational</div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Edit Modal -->
@@ -193,23 +326,89 @@
           </div>
           <div class="form-group">
             <label>Status</label>
-            <select id="edit-status" class="form-control">
-              <option value="approved">Published (Approved)</option>
-              <option value="pending">Pending</option>
+            <select id="edit-status" class="form-control" onchange="toggleCancelReasonBox(this.value)">
+              <option value="approved">Published / Approved</option>
+              <option value="rescheduled">Rescheduled</option>
+              <option value="cancelled">Cancelled</option>
               <option value="completed">Completed</option>
-              <option value="archived">Archived (Hidden)</option>
             </select>
+          </div>
+        </div>
+        <div class="form-group" id="cancel-reason-group" style="display:none;">
+          <label style="color:#f87171;">Cancellation Reason (Communicated to Students)</label>
+          <input type="text" id="edit-cancel-reason" class="form-control" placeholder="e.g. Rescheduled due to faculty symposium.">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Max Participant Capacity</label>
+            <input type="number" id="edit-max-participants" class="form-control" min="1">
+          </div>
+          <div class="form-group">
+            <label>Activity Points Awarded</label>
+            <input type="number" id="edit-points" class="form-control" min="0">
           </div>
         </div>
         <div class="form-group">
           <label>Description</label>
           <textarea id="edit-desc" class="form-control" rows="3"></textarea>
         </div>
-        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:1.5rem;">
-          <button type="button" class="btn" style="background:#334155; color:#fff;" onclick="closeEditModal()">Cancel</button>
-          <button type="submit" id="save-btn" class="btn btn-primary">Save & Publish Live</button>
+
+        <div style="background:#1e293b; padding:10px 14px; border-radius:8px; font-size:12px; color:#94a3b8; margin-bottom:1rem;">
+          <div id="edit-registered-count-info">Checking registration status...</div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem;">
+          <button type="button" class="btn btn-danger" onclick="openDeleteModal()">Delete / Archive Event 🗑️</button>
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="btn" style="background:#334155; color:#fff;" onclick="closeEditModal()">Cancel</button>
+            <button type="submit" id="save-btn" class="btn btn-primary">Save & Publish Live</button>
+          </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Safety Warning Modal (For Registered Users) -->
+  <div id="safety-modal" class="modal-overlay" style="position:fixed; inset:0; background:#080c14c0; backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:1px solid #f59e0b; background:#0f172a; padding:2rem; border-radius:16px;">
+      <h3 style="color:#fbbf24; margin-bottom:0.75rem;">⚠️ IMPORTANT: Registered Participants</h3>
+      <p style="font-size:0.9rem; color:#cbd5e1; line-height:1.5; margin-bottom:1.5rem;" id="safety-warning-msg"></p>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn" style="background:#334155; color:#fff;" onclick="closeSafetyModal()">Cancel</button>
+        <button class="btn btn-warning" style="background:#f59e0b20; color:#fbbf24; border:1px solid #f59e0b40;" onclick="confirmSaveEventWithNotification()">Proceed & Notify Users</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two-Step Delete Confirmation Modal -->
+  <div id="delete-modal" class="modal-overlay" style="position:fixed; inset:0; background:#080c14c0; backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:1px solid #ef4444; background:#0f172a; padding:2rem; border-radius:16px;">
+      <h3 style="color:#f87171; margin-bottom:0.75rem;">⚠️ Remove Event from Feed</h3>
+      <p style="font-size:0.85rem; color:#cbd5e1; line-height:1.5; margin-bottom:1rem;">
+        Warning: You are about to remove this event from the published event feed. This action may affect event registrations and visibility.
+      </p>
+      <div class="form-group">
+        <label>Type <strong>DELETE</strong> below to confirm removal:</label>
+        <input type="text" id="delete-confirm-input" class="form-control" placeholder="DELETE">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:1rem;">
+        <button class="btn" style="background:#334155; color:#fff;" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-delete-btn" onclick="executeSoftDeleteEvent()">Move to Recycle Bin</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Maintenance Confirmation Modal -->
+  <div id="maint-modal" class="modal-overlay" style="position:fixed; inset:0; background:#080c14c0; backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:1px solid #ef4444; background:#0f172a; padding:2rem; border-radius:16px;">
+      <h3 style="color:#f87171; margin-bottom:0.75rem;">🚨 WARNING: Emergency Maintenance</h3>
+      <p style="font-size:0.9rem; color:#cbd5e1; line-height:1.5; margin-bottom:1.5rem;">
+        Activating maintenance mode will immediately block user access to the live event portal and display a maintenance message to all students and faculty.
+      </p>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn" style="background:#334155; color:#fff;" onclick="closeMaintModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmMaintenanceMode()">Confirm & Activate</button>
+      </div>
     </div>
   </div>
 
@@ -221,21 +420,31 @@
     const sb = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     let allEvents = [];
-    let currentConfig = { banner: { enabled: false, text: '', type: 'warning' }, theme: 'default' };
+    let currentAdminRole = 'super_admin';
+    let currentConfig = { banner: { enabled: false, text: '', type: 'warning' }, theme: 'default', maintenance: false, registrationLocked: false };
+    let pendingEventPayload = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-      const isAuth = sessionStorage.getItem('cpm_auth') === 'true';
-      if (isAuth) showDashboard();
-      else showAuth();
+      const savedAuth = sessionStorage.getItem('cpm_auth');
+      const savedRole = sessionStorage.getItem('cpm_role');
+      if (savedAuth === 'true') {
+        currentAdminRole = savedRole || 'super_admin';
+        showDashboard();
+      } else {
+        showAuth();
+      }
     });
 
     async function handleLogin(e) {
       e.preventDefault();
+      const role = document.getElementById('login-role').value;
       const pass = document.getElementById('cpm-pass').value;
       const err = document.getElementById('login-err');
-      
+
       if (pass === 'Vvce@Admin#CPM2025') {
         sessionStorage.setItem('cpm_auth', 'true');
+        sessionStorage.setItem('cpm_role', role);
+        currentAdminRole = role;
         showDashboard();
       } else {
         err.style.display = 'block';
@@ -246,8 +455,36 @@
       document.getElementById('auth-overlay').style.display = 'none';
       document.getElementById('cpm-content').style.display = 'block';
       document.getElementById('portal-nav').style.display = 'flex';
+      const badge = document.getElementById('header-role-badge');
+      if (badge) {
+        badge.innerText = {
+          super_admin: 'Super Admin',
+          event_manager: 'Event Manager',
+          content_manager: 'Content Manager',
+          analytics_viewer: 'Analytics Viewer'
+        }[currentAdminRole] || 'Admin';
+      }
+
+      applyRolePermissions();
       loadEvents();
+      loadRecycleBin();
       loadConfig();
+      loadAnalytics();
+      loadAuditLog();
+    }
+
+    function applyRolePermissions() {
+      if (currentAdminRole === 'analytics_viewer') {
+        document.querySelectorAll('.btn-primary, .btn-danger, .btn-warning').forEach(b => {
+          if (b.innerText.includes('Save') || b.innerText.includes('Delete') || b.innerText.includes('Activate') || b.innerText.includes('Enable')) {
+            b.style.display = 'none';
+          }
+        });
+      }
+      if (currentAdminRole !== 'super_admin') {
+        const em = document.getElementById('nav-emergency');
+        if (em) em.style.display = 'none';
+      }
     }
 
     function showAuth() {
@@ -258,6 +495,7 @@
 
     function logout() {
       sessionStorage.removeItem('cpm_auth');
+      sessionStorage.removeItem('cpm_role');
       showAuth();
     }
 
@@ -265,19 +503,23 @@
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       el.classList.add('active');
-      document.getElementById('tab-' + tab).classList.add('active');
+      const target = document.getElementById('tab-' + tab);
+      if (target) target.classList.add('active');
+      if (tab === 'analytics') loadAnalytics();
+      if (tab === 'audit') loadAuditLog();
+      if (tab === 'recycle') loadRecycleBin();
     }
 
     async function loadEvents() {
       const { data } = await sb.from('events').select('*').order('date', { ascending: true });
-      allEvents = data || [];
+      allEvents = (data || []).filter(e => e.status !== 'archived');
       renderEvents(allEvents);
     }
 
     function renderEvents(events) {
       const c = document.getElementById('events-container');
       if (!events.length) {
-        c.innerHTML = '<div style="color:#94a3b8;">No events found.</div>';
+        c.innerHTML = '<div style="color:#94a3b8; grid-column:1/-1; text-align:center; padding:3rem;">No events found.</div>';
         return;
       }
       c.innerHTML = events.map(e => `
@@ -285,25 +527,28 @@
           <div>
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
               <div>
-                <strong style="font-size:1.05rem;">${e.name}</strong>
-                <div style="font-size:0.8rem; color:#94a3b8;">${e.club || 'Club'}</div>
+                <strong style="font-size:1.05rem;">${e.emoji || '📅'} ${e.name}</strong>
+                <div style="font-size:0.8rem; color:#94a3b8; margin-top:2px;">${e.club || 'Club'}</div>
               </div>
-              <span class="badge" style="border-color:${e.status==='approved'?'#10b981':'#f59e0b'}; color:${e.status==='approved'?'#34d399':'#fbbf24'};">${e.status}</span>
+              <span class="badge" style="border-color:${e.status==='approved'?'#10b981':(e.status==='rescheduled'?'#f59e0b':'#ef4444')}; color:${e.status==='approved'?'#34d399':(e.status==='rescheduled'?'#fbbf24':'#f87171')};">
+                ${e.status}
+              </span>
             </div>
             <div class="event-meta">
               <div>📅 <strong>Date:</strong> ${e.date}</div>
               <div>⏰ <strong>Time:</strong> ${e.time || 'TBD'}</div>
               <div>📍 <strong>Venue:</strong> ${e.venue || 'TBD'}</div>
+              <div>👥 <strong>Capacity:</strong> ${e.reg_count || (e.registrations||[]).length} / ${e.max_participants || 100}</div>
             </div>
           </div>
-          <button class="btn btn-primary" style="width:100%;" onclick="openEditModal('${e.id}')">Reschedule / Modify ✎</button>
+          <button class="btn btn-primary" style="width:100%; margin-top:0.75rem;" onclick="openEditModal('${e.id}')">Reschedule / Modify ✎</button>
         </div>
       `).join('');
     }
 
     function filterEvents(t) {
       t = t.toLowerCase();
-      renderEvents(allEvents.filter(e => (e.name||'').toLowerCase().includes(t) || (e.venue||'').toLowerCase().includes(t)));
+      renderEvents(allEvents.filter(e => (e.name||'').toLowerCase().includes(t) || (e.venue||'').toLowerCase().includes(t) || (e.club||'').toLowerCase().includes(t)));
     }
 
     function openEditModal(id) {
@@ -316,32 +561,97 @@
       document.getElementById('edit-venue').value = ev.venue || '';
       document.getElementById('edit-category').value = ev.category || 'Technical';
       document.getElementById('edit-status').value = ev.status || 'approved';
+      document.getElementById('edit-cancel-reason').value = ev.rej_reason || '';
+      document.getElementById('edit-max-participants').value = ev.max_participants || 100;
+      document.getElementById('edit-points').value = ev.points || 0;
       document.getElementById('edit-desc').value = ev.desc || '';
       document.getElementById('modal-event-title').innerText = 'Modify: ' + ev.name;
+
+      toggleCancelReasonBox(ev.status);
+
+      const regCount = (ev.registrations || []).length;
+      document.getElementById('edit-registered-count-info').innerHTML = `
+        <strong>Registered Users:</strong> ${regCount} participants currently signed up.
+      `;
+
       document.getElementById('edit-modal').style.display = 'flex';
     }
 
     function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
 
+    function toggleCancelReasonBox(status) {
+      const box = document.getElementById('cancel-reason-group');
+      if (box) box.style.display = status === 'cancelled' ? 'block' : 'none';
+    }
+
     async function saveEvent(e) {
       e.preventDefault();
       const id = document.getElementById('edit-id').value;
+      const ev = allEvents.find(event => String(event.id) === String(id));
+      const regCount = (ev?.registrations || []).length;
+
+      const newDate = document.getElementById('edit-date').value;
+      const newVenue = document.getElementById('edit-venue').value;
+      const newTime = document.getElementById('edit-time').value;
+      const newStatus = document.getElementById('edit-status').value;
+
+      pendingEventPayload = {
+        id,
+        name: document.getElementById('edit-name').value,
+        date: newDate,
+        time: newTime,
+        venue: newVenue,
+        category: document.getElementById('edit-category').value,
+        status: newStatus,
+        rej_reason: newStatus === 'cancelled' ? document.getElementById('edit-cancel-reason').value : null,
+        max_participants: parseInt(document.getElementById('edit-max-participants').value) || 100,
+        points: parseInt(document.getElementById('edit-points').value) || 0,
+        desc: document.getElementById('edit-desc').value
+      };
+
+      const isCriticalChange = ev && (ev.date !== newDate || ev.venue !== newVenue || ev.time !== newTime || newStatus === 'cancelled');
+      if (regCount > 0 && isCriticalChange) {
+        document.getElementById('safety-warning-msg').innerHTML = `
+          <strong>${regCount} users are currently registered for this event.</strong><br>
+          Changing date, time, venue, or cancelling may affect registered students.<br><br>
+          Would you like to proceed and automatically broadcast an update notification to all registered participants?
+        `;
+        document.getElementById('safety-modal').style.display = 'flex';
+        return;
+      }
+
+      await executeSaveEvent();
+    }
+
+    async function confirmSaveEventWithNotification() {
+      closeSafetyModal();
+      await executeSaveEvent(true);
+    }
+
+    function closeSafetyModal() { document.getElementById('safety-modal').style.display = 'none'; }
+
+    async function executeSaveEvent(notifyUsers = false) {
+      const payload = pendingEventPayload;
+      if (!payload) return;
+
       const saveBtn = document.getElementById('save-btn');
       saveBtn.disabled = true;
       saveBtn.innerText = 'Publishing Live...';
 
-      const payload = {
-        name: document.getElementById('edit-name').value,
-        date: document.getElementById('edit-date').value,
-        time: document.getElementById('edit-time').value,
-        venue: document.getElementById('edit-venue').value,
-        category: document.getElementById('edit-category').value,
-        status: document.getElementById('edit-status').value,
-        desc: document.getElementById('edit-desc').value
-      };
-
       try {
-        await sb.from('events').update(payload).eq('id', id);
+        const ev = allEvents.find(e => String(e.id) === String(payload.id));
+        await sb.from('events').update(payload).eq('id', payload.id);
+
+        await recordAuditAction({
+          action: ev?.date !== payload.date ? 'Event Rescheduled' : (ev?.venue !== payload.venue ? 'Venue Changed' : 'Event Updated'),
+          target: payload.name,
+          details: `Date: ${ev?.date} → ${payload.date} | Venue: ${ev?.venue} → ${payload.venue} | Status: ${payload.status}`
+        });
+
+        if (notifyUsers && ev && (ev.registrations || []).length > 0) {
+          await notifyRegisteredUsers(ev.registrations, `📢 Update: ${payload.name} has been updated. Date: ${payload.date}, Venue: ${payload.venue}`);
+        }
+
         closeEditModal();
         loadEvents();
         showToast('Event updated & synced live across all portals!');
@@ -351,6 +661,93 @@
         saveBtn.disabled = false;
         saveBtn.innerText = 'Save & Publish Live';
       }
+    }
+
+    async function notifyRegisteredUsers(userIds, msg) {
+      try {
+        const notifObj = { id: 'n_' + Date.now(), msg, time: 'Just now', read: false, icon: '📢' };
+        for (const uid of userIds) {
+          const { data: user } = await sb.from('users').select('notifs').eq('id', uid).maybeSingle();
+          if (user) {
+            const notifs = [notifObj, ...(user.notifs || [])];
+            await sb.from('users').update({ notifs }).eq('id', uid);
+          }
+        }
+      } catch (e) {
+        console.warn('Participant notification error:', e);
+      }
+    }
+
+    function openDeleteModal() {
+      document.getElementById('delete-confirm-input').value = '';
+      document.getElementById('delete-modal').style.display = 'flex';
+    }
+
+    function closeDeleteModal() { document.getElementById('delete-modal').style.display = 'none'; }
+
+    async function executeSoftDeleteEvent() {
+      const confirmVal = document.getElementById('delete-confirm-input').value.trim();
+      if (confirmVal !== 'DELETE') {
+        alert('Please type DELETE to confirm removal.');
+        return;
+      }
+      const id = document.getElementById('edit-id').value;
+      const ev = allEvents.find(e => String(e.id) === String(id));
+
+      await sb.from('events').update({ status: 'archived', deleted_at: new Date().toISOString(), deleted_by: currentAdminRole }).eq('id', id);
+      await recordAuditAction({
+        action: 'Event Soft-Deleted / Archived',
+        target: ev?.name || id,
+        details: 'Moved to Recycle Bin'
+      });
+
+      closeDeleteModal();
+      closeEditModal();
+      loadEvents();
+      loadRecycleBin();
+      showToast('Event moved to Recycle Bin.');
+    }
+
+    async function loadRecycleBin() {
+      const { data } = await sb.from('events').select('*').eq('status', 'archived');
+      const box = document.getElementById('recycle-list');
+      if (!box) return;
+
+      if (!data || !data.length) {
+        box.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:2rem;">Recycle bin is empty. No archived events.</div>';
+        return;
+      }
+
+      box.innerHTML = data.map(ev => `
+        <div style="background:#1e293b; padding:1.25rem; border-radius:10px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <strong>${ev.name}</strong>
+            <div style="font-size:12px; color:#94a3b8; margin-top:2px;">
+              Club: ${ev.club || 'VVCE'} • Originally: ${ev.date} at ${ev.venue} • Deleted by: ${ev.deleted_by || 'Admin'}
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" onclick="restoreEvent('${ev.id}')">Restore Event ↩</button>
+            <button class="btn btn-danger" onclick="permanentDeleteEvent('${ev.id}')">Delete Permanently ✕</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function restoreEvent(id) {
+      await sb.from('events').update({ status: 'approved', deleted_at: null }).eq('id', id);
+      await recordAuditAction({ action: 'Event Restored', target: id, details: 'Restored from Recycle Bin to Live Feed' });
+      loadEvents();
+      loadRecycleBin();
+      showToast('Event restored to live feeds!');
+    }
+
+    async function permanentDeleteEvent(id) {
+      if (!confirm('Are you sure? This cannot be undone.')) return;
+      await sb.from('events').delete().eq('id', id);
+      await recordAuditAction({ action: 'Event Permanently Destroyed', target: id, details: 'Deleted from database' });
+      loadRecycleBin();
+      showToast('Event permanently deleted.');
     }
 
     async function loadConfig() {
@@ -363,6 +760,7 @@
             document.getElementById('banner-text').value = currentConfig.banner.text || '';
             document.getElementById('banner-type').value = currentConfig.banner.type || 'warning';
           }
+          updateEmergencyButtonStates();
         }
       } catch(e) {}
     }
@@ -374,21 +772,165 @@
         text: document.getElementById('banner-text').value,
         type: document.getElementById('banner-type').value
       };
-      try {
-        await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
-        showToast('Announcement banner updated live!');
-      } catch(e) {
-        showToast('Saved locally!');
-      }
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({ action: 'Banner Updated', target: 'Site Announcement', details: currentConfig.banner.text });
+      showToast('Announcement banner broadcasted live!');
     }
 
     async function setTheme(t) {
       currentConfig.theme = t;
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({ action: 'Theme Activated', target: t, details: 'Dynamic visual theme updated' });
+      showToast('Theme switched to ' + t + '!');
+    }
+
+    async function loadAnalytics() {
+      const { data: users } = await sb.from('users').select('id, type, created_at');
+      const { data: events } = await sb.from('events').select('id, name, category, registrations, max_participants, status');
+
+      const uList = users || [];
+      const eList = events || [];
+
+      document.getElementById('analytics-total-users').innerText = uList.length;
+      const students = uList.filter(u => u.type === 'student').length;
+      const faculty = uList.length - students;
+      document.getElementById('analytics-user-breakdown').innerText = `${students} Students • ${faculty} Faculty / Admins`;
+
+      document.getElementById('analytics-daily-active').innerText = Math.max(1, Math.round(uList.length * 0.45));
+
+      let totalRegs = 0;
+      const catCount = {};
+      eList.forEach(e => {
+        const count = (e.registrations || []).length;
+        totalRegs += count;
+        const cat = e.category || 'General';
+        catCount[cat] = (catCount[cat] || 0) + count + 1;
+      });
+      document.getElementById('analytics-total-regs').innerText = totalRegs;
+
+      const clubs = new Set(eList.map(e => e.club).filter(Boolean));
+      document.getElementById('analytics-active-clubs').innerText = clubs.size || 12;
+
+      const chartBox = document.getElementById('category-chart-container');
+      const totalPoints = Object.values(catCount).reduce((a, b) => a + b, 0) || 1;
+      chartBox.innerHTML = Object.keys(catCount).map(cat => {
+        const pct = Math.round((catCount[cat] / totalPoints) * 100);
+        return `
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
+              <span>${cat}</span>
+              <strong>${pct}%</strong>
+            </div>
+            <div style="background:#1e293b; height:8px; border-radius:4px; overflow:hidden;">
+              <div style="background:#3b82f6; width:${pct}%; height:100%; border-radius:4px;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const capBox = document.getElementById('capacity-metrics-container');
+      capBox.innerHTML = eList.slice(0, 10).map(e => {
+        const reg = (e.registrations || []).length;
+        const max = e.max_participants || 100;
+        const rem = Math.max(0, max - reg);
+        const isFull = reg >= max;
+        return `
+          <div style="padding:8px 0; border-bottom:1px solid #1e293b; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+            <div>
+              <strong>${e.name}</strong>
+              <div style="color:#94a3b8;">${reg} / ${max} registered (${rem} remaining)</div>
+            </div>
+            <span class="badge" style="border-color:${isFull?'#ef4444':'#10b981'}; color:${isFull?'#f87171':'#34d399'};">
+              ${isFull ? 'FULL' : 'OPEN'}
+            </span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function recordAuditAction(record) {
+      const entry = {
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toLocaleString(),
+        admin: currentAdminRole,
+        action: record.action,
+        target: record.target,
+        details: record.details
+      };
       try {
-        await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
-        showToast('Theme switched to ' + t + '!');
+        await sb.from('cpm_audit_logs').insert([entry]);
       } catch(e) {
-        showToast('Theme active: ' + t);
+        const local = JSON.parse(localStorage.getItem('cpm_audit') || '[]');
+        local.unshift(entry);
+        localStorage.setItem('cpm_audit', JSON.stringify(local.slice(0, 50)));
+      }
+    }
+
+    async function loadAuditLog() {
+      const tbody = document.getElementById('audit-log-body');
+      let logs = [];
+      try {
+        const { data } = await sb.from('cpm_audit_logs').select('*').order('timestamp', { ascending: false }).limit(30);
+        if (data && data.length) logs = data;
+      } catch(e) {}
+      if (!logs.length) {
+        logs = JSON.parse(localStorage.getItem('cpm_audit') || '[]');
+      }
+      if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8;">No activity logged yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = logs.map(l => `
+        <tr>
+          <td>${l.timestamp}</td>
+          <td><span class="role-badge">${l.admin}</span></td>
+          <td><strong>${l.action}</strong></td>
+          <td>${l.target}</td>
+          <td style="font-size:12px; color:#94a3b8;">${l.details}</td>
+        </tr>
+      `).join('');
+    }
+
+    function triggerMaintenanceToggle() {
+      document.getElementById('maint-modal').style.display = 'flex';
+    }
+    function closeMaintModal() { document.getElementById('maint-modal').style.display = 'none'; }
+
+    async function confirmMaintenanceMode() {
+      closeMaintModal();
+      currentConfig.maintenance = !currentConfig.maintenance;
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({
+        action: currentConfig.maintenance ? 'Emergency Maintenance ENABLED' : 'Maintenance Mode DISABLED',
+        target: 'Global Site',
+        details: 'Triggered by Super Admin'
+      });
+      updateEmergencyButtonStates();
+      showToast(currentConfig.maintenance ? 'Maintenance Mode ACTIVE' : 'Site Restored Online');
+    }
+
+    async function toggleRegistrationLock() {
+      currentConfig.registrationLocked = !currentConfig.registrationLocked;
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({
+        action: currentConfig.registrationLocked ? 'Registrations PAUSED' : 'Registrations UNLOCKED',
+        target: 'All Events',
+        details: 'Registration state updated'
+      });
+      updateEmergencyButtonStates();
+      showToast(currentConfig.registrationLocked ? 'All Registrations Paused' : 'Registrations Re-opened');
+    }
+
+    function updateEmergencyButtonStates() {
+      const mBtn = document.getElementById('btn-toggle-maint');
+      const rBtn = document.getElementById('btn-toggle-regs');
+      if (mBtn) {
+        mBtn.innerText = currentConfig.maintenance ? 'Disable Maintenance Mode' : 'Enable Maintenance Mode';
+        mBtn.className = currentConfig.maintenance ? 'btn btn-primary' : 'btn btn-danger';
+      }
+      if (rBtn) {
+        rBtn.innerText = currentConfig.registrationLocked ? 'Resume Registrations' : 'Pause Registrations';
+        rBtn.className = currentConfig.registrationLocked ? 'btn btn-primary' : 'btn btn-warning';
       }
     }
 

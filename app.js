@@ -1500,6 +1500,7 @@ function showPage(pageId) {
   const titles = {
     'dashboard': 'Dashboard',
     'events': 'Events',
+    'clubs': 'VVCE Clubs Directory',
     'calendar': 'Academic Calendar',
     'registrations': 'My Registrations',
     'certificates': 'Certificates',
@@ -1531,6 +1532,7 @@ function showPage(pageId) {
   const renders = {
     'dashboard':            renderStudentDashboard,
     'events':               renderEventsPage,
+    'clubs':                () => renderClubsDirectoryPage(),
     'calendar':             renderCalendarPage,
     'registrations':        renderRegistrationsPage,
     'certificates':         renderCertificatesPage,
@@ -1602,7 +1604,8 @@ function renderSidebar() {
     html = `
       <div class="sb-section-label">Overview</div>
       ${navItem('dashboard','📊','Dashboard')}
-      ${navItem('events','🗓️','Events')}
+      ${navItem('events','🗓️','All Events')}
+      ${navItem('clubs','🏛️','Clubs')}
       ${navItem('registrations','📋','My Registrations')}
       ${navItem('certificates','🏆','Certificates')}
       ${navItem('calendar','📅','Academic Calendar')}
@@ -1613,6 +1616,8 @@ function renderSidebar() {
     html = `
       <div class="sb-section-label">Management</div>
       ${navItem('admin-dashboard','📊','Dashboard')}
+      ${navItem('events','🗓️','All Events')}
+      ${navItem('clubs','🏛️','Clubs')}
       ${navItem('create-event','➕','Create Event')}
       ${navItem('manage-events','📋','My Events')}
       ${navItem('participants','👥','Participants')}
@@ -1623,6 +1628,8 @@ function renderSidebar() {
     html = `
       <div class="sb-section-label">Overview</div>
       ${navItem('authority-dashboard','📊','Dashboard')}
+      ${navItem('events','🗓️','All Events')}
+      ${navItem('clubs','🏛️','Clubs')}
       ${navItem('authority-clubs','🏛️','Club Monitor')}
       ${navItem('authority-clash','⚡','Clash Detect')}
       ${user.designation !== 'dean' && user.designation !== 'principal' ? navItem('authority-attendance','📊','Attendance') : ''}
@@ -1955,17 +1962,23 @@ function eventCard(ev) {
   const user  = STATE.user;
   const isReg = (ev.registrations||[]).includes(user?.id);
   const isFull= ev.regCount >= ev.maxParticipants;
+  const isCancelled = ev.status === 'cancelled';
+  const isRescheduled = ev.status === 'rescheduled';
   const catCls = { Technical:'cat-technical',Cultural:'cat-cultural',Sports:'cat-sports',Workshop:'cat-workshop',Management:'cat-management',Social:'cat-social' }[ev.category]||'cat-technical';
 
   return `
-    <div class="event-card" onclick="openEventModal('${ev.id}')">
+    <div class="event-card ${isCancelled ? 'ev-cancelled-card' : ''}" onclick="openEventModal('${ev.id}')">
       <div class="event-poster">
         ${ev.poster?`<img src="${ev.poster}">`:`<span style="position:relative;z-index:1;">${ev.emoji||'🎓'}</span>`}
         <span class="ev-cat-badge ${catCls}">${ev.category}</span>
+        ${isCancelled ? `<span class="ev-cat-badge" style="top:10px;right:10px;left:auto;background:#ef4444;color:#fff;font-weight:800;">🚫 CANCELLED</span>` : ''}
+        ${isRescheduled ? `<span class="ev-cat-badge" style="top:10px;right:10px;left:auto;background:#f59e0b;color:#fff;font-weight:800;">⚠️ RESCHEDULED</span>` : ''}
       </div>
       <div class="ev-body">
         <div class="ev-title">${ev.name}</div>
         <div class="ev-club">${ev.club}</div>
+        ${isCancelled ? `<div style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0;">🚫 <strong>Event Cancelled:</strong> ${ev.rejReason || 'Due to administrative schedule changes.'}</div>` : ''}
+        ${isRescheduled ? `<div style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0;">⚠️ <strong>Rescheduled:</strong> Now on ${formatDate(ev.date)} @ ${formatTime(ev.time)}</div>` : ''}
         <div class="ev-metas">
           <div class="ev-meta">📅 ${formatDate(ev.date)}</div>
           <div class="ev-meta">🕐 ${formatTime(ev.time)} &nbsp;|&nbsp; 📍 ${ev.venue}</div>
@@ -1973,22 +1986,155 @@ function eventCard(ev) {
           <div class="ev-meta" style="color:#6366f1;font-weight:600;">🎓 Open to: ${(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches'}</div>
         </div>
         <div class="ev-foot">
-          <span class="ev-seats ${isFull?'full':''}">${isFull?'🔴 Full':`${ev.maxParticipants-ev.regCount} seats left`}</span>
+          <span class="ev-seats ${isFull?'full':''}">${isCancelled ? 'Cancelled' : (isFull?'🔴 Full':`${ev.maxParticipants-ev.regCount} seats left`)}</span>
           <div style="display:flex;gap:6px;align-items:center;">
             ${user?.type==='student'
-              ? isReg
-                ? `<button class="btn-reg registered" onclick="event.stopPropagation();unregisterEv('${ev.id}')">✓ Registered</button>`
-                : (ev.pendingPayments && ev.pendingPayments.some(p => p.uid === STATE.user.id))
-                  ? `<button class="btn-reg" style="background:#f59e0b;color:#fff;border:none;" disabled>⏳ Pending Approval</button>`
-                  : isFull
-                    ? `<button class="btn-reg" disabled style="opacity:.5;cursor:not-allowed;">Full</button>`
-                    : `<button class="btn-reg" onclick="event.stopPropagation();registerEv('${ev.id}')">Register</button>`
+              ? isCancelled
+                ? `<button class="btn-reg" disabled style="background:#ef444420;color:#ef4444;border:1px solid #ef444440;cursor:not-allowed;">Cancelled</button>`
+                : isReg
+                  ? `<button class="btn-reg registered" onclick="event.stopPropagation();unregisterEv('${ev.id}')">✓ Registered</button>`
+                  : (ev.pendingPayments && ev.pendingPayments.some(p => p.uid === STATE.user.id))
+                    ? `<button class="btn-reg" style="background:#f59e0b;color:#fff;border:none;" disabled>⏳ Pending Approval</button>`
+                    : isFull
+                      ? `<button class="btn-reg" disabled style="opacity:.5;cursor:not-allowed;">Full</button>`
+                      : `<button class="btn-reg" onclick="event.stopPropagation();registerEv('${ev.id}')">Register</button>`
               : ''
             }
           </div>
         </div>
       </div>
     </div>`;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CLUBS DIRECTORY & CLUB-SPECIFIC EVENTS
+───────────────────────────────────────────────────────────────*/
+function renderClubsDirectoryPage(selectedClubName = null) {
+  const el = document.getElementById('page-clubs');
+  if (!el) return;
+
+  const users = getDB('vvce_users');
+  const allEvents = getDB('vvce_events').filter(e => e.status !== 'archived');
+
+  // If a specific club is selected, render club-exclusive events view
+  if (selectedClubName) {
+    const clubUser = users.find(u => u.type === 'admin' && (u.clubName || '').toLowerCase() === selectedClubName.toLowerCase());
+    const clubEvents = allEvents.filter(e => (e.club || '').toLowerCase() === selectedClubName.toLowerCase());
+    const upcoming = clubEvents.filter(e => e.date >= new Date().toISOString().split('T')[0] && e.status !== 'completed');
+    const past = clubEvents.filter(e => e.date < new Date().toISOString().split('T')[0] || e.status === 'completed');
+
+    el.innerHTML = `
+      <div style="margin-bottom:1.5rem;">
+        <button class="btn" style="background:#1e293b; color:#fff; display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; font-weight:600; font-size:13px; margin-bottom:1rem; cursor:pointer;" onclick="renderClubsDirectoryPage()">
+          ← Back to All Clubs
+        </button>
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.5rem; display:flex; gap:1.5rem; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex-wrap:wrap;">
+          <div style="width:64px; height:64px; border-radius:12px; background:linear-gradient(135deg, #4f46e5, #7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700;">
+            ${clubUser?.clubLogo ? `<img src="${clubUser.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '🏛️'}
+          </div>
+          <div style="flex:1;">
+            <h2 style="font-family:'Outfit',sans-serif; font-size:1.5rem; color:#1e293b; margin-bottom:4px;">${selectedClubName}</h2>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:#64748b;">
+              <span><strong>Domain:</strong> ${clubUser?.domain || 'Multi-disciplinary'}</span>
+              <span>•</span>
+              <span><strong>Faculty Coordinator:</strong> ${clubUser?.faculty || 'Faculty in Charge'}</span>
+              <span>•</span>
+              <span><strong>Total Events:</strong> ${clubEvents.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
+        <button id="tab-club-up" class="btn" style="background:#4f46e5; color:#fff; padding:6px 14px; font-size:13px;" onclick="switchClubTab('upcoming', '${selectedClubName}')">Upcoming Events (${upcoming.length})</button>
+        <button id="tab-club-past" class="btn" style="background:#f1f5f9; color:#475569; padding:6px 14px; font-size:13px;" onclick="switchClubTab('past', '${selectedClubName}')">Past & Completed (${past.length})</button>
+      </div>
+
+      <div class="event-grid" id="club-events-grid">
+        ${upcoming.length > 0 ? upcoming.map(e => eventCard(e)).join('') : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><div style="font-size:32px;">🗓️</div><p style="color:#64748b; margin-top:8px;">No upcoming events scheduled for ${selectedClubName}.</p></div>`}
+      </div>
+    `;
+    return;
+  }
+
+  // Otherwise, render full Clubs Directory grid
+  // Gather registered clubs
+  const clubAdmins = users.filter(u => u.type === 'admin' && u.clubName);
+  const knownClubNames = new Set(clubAdmins.map(u => u.clubName.toLowerCase()));
+  
+  // Include clubs from events that might not have an admin account
+  allEvents.forEach(e => {
+    if (e.club && !knownClubNames.has(e.club.toLowerCase())) {
+      knownClubNames.add(e.club.toLowerCase());
+      clubAdmins.push({ clubName: e.club, domain: e.category || 'General', faculty: 'Club Lead' });
+    }
+  });
+
+  el.innerHTML = `
+    <div style="margin-bottom:1.5rem;">
+      <h2 style="font-family:'Outfit',sans-serif; font-size:1.6rem; color:#1e293b;">🏛️ VVCE Clubs & Student Chapters</h2>
+      <p style="color:#64748b; font-size:14px; margin-top:4px;">Explore official college clubs, student associations, and browse their exclusive events.</p>
+      <div style="margin-top:1rem;">
+        <input type="text" class="search-inp" placeholder="🔍 Search clubs by name or domain..." oninput="filterClubsView(this.value)">
+      </div>
+    </div>
+
+    <div class="event-grid" id="clubs-directory-grid">
+      ${clubAdmins.map(c => {
+        const cEvents = allEvents.filter(e => (e.club || '').toLowerCase() === c.clubName.toLowerCase());
+        return `
+          <div class="event-card" style="cursor:pointer;" onclick="renderClubsDirectoryPage('${c.clubName.replace(/'/g, "\\'")}')">
+            <div style="padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+                  <div style="width:48px; height:48px; border-radius:10px; background:linear-gradient(135deg,#e0e7ff,#c7d2fe); color:#4338ca; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700;">
+                    ${c.clubLogo ? `<img src="${c.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">` : '🏛️'}
+                  </div>
+                  <span class="badge" style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; font-size:11px; padding:3px 8px; border-radius:6px; font-weight:600;">${c.domain || 'Club'}</span>
+                </div>
+                <h3 style="font-family:'Outfit',sans-serif; font-size:1.15rem; color:#0f172a; margin-bottom:6px;">${c.clubName}</h3>
+                <p style="font-size:12px; color:#64748b; margin-bottom:12px;">${c.desc ? c.desc.slice(0, 95) + '...' : 'Official student chapter at Vidyavardhaka College of Engineering.'}</p>
+                <div style="font-size:12px; color:#475569; display:flex; flex-direction:column; gap:4px; margin-bottom:14px;">
+                  <span>👤 <strong>Coordinator:</strong> ${c.faculty || 'Faculty in Charge'}</span>
+                  <span>📅 <strong>Events Hosted:</strong> ${cEvents.length} events</span>
+                </div>
+              </div>
+              <button class="btn" style="background:#4f46e5; color:#fff; width:100%; padding:10px; border-radius:8px; font-weight:600; font-size:13px; text-align:center;">
+                View Club Events ➔
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function switchClubTab(type, clubName) {
+  const allEvents = getDB('vvce_events').filter(e => (e.club || '').toLowerCase() === clubName.toLowerCase() && e.status !== 'archived');
+  const now = new Date().toISOString().split('T')[0];
+  const events = type === 'upcoming'
+    ? allEvents.filter(e => e.date >= now && e.status !== 'completed')
+    : allEvents.filter(e => e.date < now || e.status === 'completed');
+
+  document.getElementById('tab-club-up').style.background = type === 'upcoming' ? '#4f46e5' : '#f1f5f9';
+  document.getElementById('tab-club-up').style.color = type === 'upcoming' ? '#fff' : '#475569';
+  document.getElementById('tab-club-past').style.background = type === 'past' ? '#4f46e5' : '#f1f5f9';
+  document.getElementById('tab-club-past').style.color = type === 'past' ? '#fff' : '#475569';
+
+  const grid = document.getElementById('club-events-grid');
+  grid.innerHTML = events.length > 0
+    ? events.map(e => eventCard(e)).join('')
+    : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><p style="color:#64748b;">No ${type} events for this club.</p></div>`;
+}
+
+function filterClubsView(term) {
+  const t = term.toLowerCase().trim();
+  const cards = document.querySelectorAll('#clubs-directory-grid .event-card');
+  cards.forEach(card => {
+    const text = card.textContent.toLowerCase();
+    card.style.display = text.includes(t) ? '' : 'none';
+  });
 }
 
 function registerEv(id) {
@@ -4502,5 +4648,86 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Expose all functions to window for inline onclick handlers in HTML
-window.addNotif = addNotif; window.addNotifToUser = addNotifToUser; window.applyAttendanceRewards = applyAttendanceRewards; window.approveClub = approveClub; window.approveEvent = approveEvent; window.autoFillOtp = autoFillOtp; window.avatar = avatar; window.changeMonth = changeMonth; window.checkClashCount = checkClashCount; window.clearAuthMsg = clearAuthMsg; window.closeModal = closeModal; window.completeRegistration = completeRegistration; window.computeStudentYearSem = computeStudentYearSem; window.confirmReject = confirmReject; window.deanApprovalsContent = deanApprovalsContent; window.deanApproveClub = deanApproveClub; window.deanClashContent = deanClashContent; window.deanDashboardContent = deanDashboardContent; window.deanEventApprovalsContent = deanEventApprovalsContent; window.deanEventsContent = deanEventsContent; window.deanFilterEvents = deanFilterEvents; window.deanRejectClub = deanRejectClub; window.detailChip = detailChip; window.drawCalendar = drawCalendar; window.eventCard = eventCard; window.filterClubs = filterClubs; window.filterEvents = filterEvents; window.finalizeRegistration = finalizeRegistration; window.formatDate = formatDate; window.formatTime = formatTime; window.genId = genId; window.getDB = getDB; window.getDBObj = getDBObj; window.getGreeting = getGreeting; window.getRelativeTime = getRelativeTime; window.goBack = goBack; window.googleLoginByEmail = googleLoginByEmail; window.handleAdminSignup = handleAdminSignup; window.handleAuthoritySignup = handleAuthoritySignup; window.handleDeanPortalNav = handleDeanPortalNav; window.handleForgotPassword = handleForgotPassword; window.handleLogin = handleLogin; window.handleOtpInput = handleOtpInput; window.handleOtpKey = handleOtpKey; window.handlePhotoUpload = handlePhotoUpload; window.handlePosterUpload = handlePosterUpload; window.handlePrincipalPortalNav = handlePrincipalPortalNav; window.handleResumeUpload = handleResumeUpload; window.handleStudentSignup = handleStudentSignup; window.initGoogleAuth = initGoogleAuth; window.launchApp = launchApp; window.lockDeanPortal = lockDeanPortal; window.lockPrincipalPortal = lockPrincipalPortal; window.logout = logout; window.manualGoogleEmailEntry = manualGoogleEmailEntry; window.markAllRead = markAllRead; window.navItem = navItem; window.openEventModal = openEventModal; window.openModal = openModal; window.openPaymentModal = openPaymentModal; window.openProfileEdit = openProfileEdit; window.openRejectModal = openRejectModal; window.profField = profField; window.profFieldLink = profFieldLink; window.quickLogin = quickLogin; window.readNotif = readNotif; window.registerEv = registerEv; window.regList = regList; window.renderAcadSchedule = renderAcadSchedule; window.renderAdminDashboard = renderAdminDashboard; window.renderApprovals = renderApprovals; window.renderAttendancePage = renderAttendancePage; window.renderAuthorityDashboard = renderAuthorityDashboard; window.renderAuthorityProfile = renderAuthorityProfile; window.renderCalendarPage = renderCalendarPage; window.renderCertificatesPage = renderCertificatesPage; window.renderClashDetect = renderClashDetect; window.renderClubCards = renderClubCards; window.renderClubMonitor = renderClubMonitor; window.renderCreateEventPage = renderCreateEventPage; window.renderDeanPortal = renderDeanPortal; window.renderEventsPage = renderEventsPage; window.renderManageEventsPage = renderManageEventsPage; window.renderNotifs = renderNotifs; window.renderParticipantsPage = renderParticipantsPage; window.renderParticipantTable = renderParticipantTable; window.renderPrincipalAvailability = renderPrincipalAvailability; window.renderPrincipalPortal = renderPrincipalPortal; window.renderProfilePage = renderProfilePage; window.renderRegistrationsPage = renderRegistrationsPage; window.renderSidebar = renderSidebar; window.renderStudentDashboard = renderStudentDashboard; window.renderTopbarUser = renderTopbarUser; window.resendRegistrationOtp = resendRegistrationOtp; window.revokeClub = revokeClub; window.saveProfileEdit = saveProfileEdit; window.selectRegRole = selectRegRole; window.sendRegistrationOtp = sendRegistrationOtp; window.showAuthMsg = showAuthMsg; window.showCalDateEvents = showCalDateEvents; window.showPage = showPage; window.simulatePayment = simulatePayment; window.statCard = statCard; window.submitCertificate = submitCertificate; window.submitDraftEvent = submitDraftEvent; window.submitEvent = submitEvent; window.switchMainTab = switchMainTab; window.switchRegTab = switchRegTab; window.titleCase = titleCase; window.toast = toast; window.toggleChip = toggleChip; window.toggleNotifPanel = toggleNotifPanel; window.togglePass = togglePass; window.toggleSidebar = toggleSidebar; window.triggerPhotoUpload = triggerPhotoUpload; window.unregisterEv = unregisterEv; window.updateUser = updateUser; window.verifyDeanPassword = verifyDeanPassword; window.verifyPrincipalPassword = verifyPrincipalPassword; window.verifyRegistrationOtp = verifyRegistrationOtp; window.viewClubDetail = viewClubDetail;
+/* ─────────────────────────────────────────────────────────────
+   DYNAMIC CPM CONFIGURATION (Realtime Banners, Themes, Maintenance)
+───────────────────────────────────────────────────────────────*/
+async function initDynamicSiteConfig() {
+  const sb = window.supabase ? window.supabase.createClient(
+    'https://nkugbdencpvhhvgqybgi.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdWdiZGVuY3B2aGh2Z3F5YmdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4OTY3MzMsImV4cCI6MjA5NjQ3MjczM30.YFFnsWBymu4R59aMHTEq6ogwI0xb4xjbavpto1FrVWY'
+  ) : null;
+
+  if (!sb) return;
+
+  function applyConfig(cfg) {
+    if (!cfg) return;
+
+    // 1. Maintenance Mode
+    let maintEl = document.getElementById('cpm-maintenance-overlay');
+    if (cfg.maintenance) {
+      if (!maintEl) {
+        maintEl = document.createElement('div');
+        maintEl.id = 'cpm-maintenance-overlay';
+        maintEl.style.cssText = 'position:fixed;inset:0;background:#090d16;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:2rem;font-family:sans-serif;';
+        maintEl.innerHTML = `
+          <div style="font-size:64px;margin-bottom:1rem;">🛠️</div>
+          <h1 style="font-size:2rem;font-family:Outfit,sans-serif;margin-bottom:0.75rem;">Under Scheduled Maintenance</h1>
+          <p style="color:#94a3b8;max-width:480px;line-height:1.6;font-size:15px;">The VVCE Events portal is temporarily unavailable while our administrative team applies system updates. Please check back shortly.</p>
+        `;
+        document.body.appendChild(maintEl);
+      }
+      maintEl.style.display = 'flex';
+    } else if (maintEl) {
+      maintEl.style.display = 'none';
+    }
+
+    // 2. Dynamic Banner
+    let bannerEl = document.getElementById('cpm-live-banner');
+    if (cfg.banner && cfg.banner.enabled && cfg.banner.text) {
+      if (!bannerEl) {
+        bannerEl = document.createElement('div');
+        bannerEl.id = 'cpm-live-banner';
+        bannerEl.style.cssText = 'position:sticky;top:0;z-index:99998;padding:10px 16px;text-align:center;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);';
+        document.body.prepend(bannerEl);
+      }
+      const bgMap = {
+        warning: 'linear-gradient(90deg, #d97706, #f59e0b)',
+        danger: 'linear-gradient(90deg, #dc2626, #ef4444)',
+        info: 'linear-gradient(90deg, #2563eb, #3b82f6)',
+        success: 'linear-gradient(90deg, #059669, #10b981)'
+      };
+      bannerEl.style.background = bgMap[cfg.banner.type] || bgMap.warning;
+      bannerEl.style.color = '#ffffff';
+      bannerEl.innerHTML = `<span>${cfg.banner.text}</span>`;
+      bannerEl.style.display = 'flex';
+    } else if (bannerEl) {
+      bannerEl.style.display = 'none';
+    }
+
+    // 3. Dynamic Theme
+    if (cfg.theme) {
+      document.body.classList.remove('theme-festive', 'theme-cyber', 'theme-minimal');
+      if (cfg.theme === 'festive') document.body.classList.add('theme-festive');
+      if (cfg.theme === 'cyber') document.body.classList.add('theme-cyber');
+      if (cfg.theme === 'minimal') document.body.classList.add('theme-minimal');
+    }
+  }
+
+  try {
+    const { data } = await sb.from('cpm_config').select('*').eq('id', 'global').maybeSingle();
+    if (data && data.config) applyConfig(data.config);
+
+    sb.channel('cpm_live_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cpm_config' }, payload => {
+        if (payload.new && payload.new.config) applyConfig(payload.new.config);
+      })
+      .subscribe();
+  } catch(e) {
+    console.warn('CPM live config sync:', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initDynamicSiteConfig();
+});
 
