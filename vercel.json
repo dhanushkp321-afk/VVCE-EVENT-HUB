@@ -5,6 +5,10 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/cpm",
+      "destination": "/cpm.html"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     }

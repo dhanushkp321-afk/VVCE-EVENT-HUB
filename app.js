@@ -1082,7 +1082,7 @@ function autoFillOtp() {
   if (d6) d6.focus();
 }
 
-function refinalizeRegistration() {
+function resendRegistrationOtp() {
   if (!STATE.pendingOtpData) {
     closeModal('modal-otp');
     return;

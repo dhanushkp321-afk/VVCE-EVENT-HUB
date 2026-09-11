@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VVCE Events — CPM Control Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #090d16; color: #f1f5f9; min-height: 100vh; display: flex; flex-direction: column; }
+    header { background: #0f172a; border-bottom: 1px solid #1e293b; padding: 0.9rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand img { width: 36px; height: 36px; border-radius: 8px; background: #fff; padding: 2px; }
+    .brand h1 { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; color: #fff; }
+    .badge { background: #3b82f625; color: #60a5fa; border: 1px solid #3b82f640; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: .05em; }
+    .nav-tabs { display: flex; gap: 6px; background: #090d16; padding: 4px; border-radius: 10px; border: 1px solid #1e293b; }
+    .tab-btn { background: none; border: none; color: #94a3b8; font-weight: 600; font-size: 0.82rem; padding: 6px 14px; border-radius: 7px; cursor: pointer; transition: 0.2s; }
+    .tab-btn.active { background: #1e293b; color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    .btn { cursor: pointer; padding: 0.55rem 1.1rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; border: none; transition: 0.2s; }
+    .btn-danger { background: #ef444420; color: #f87171; border: 1px solid #ef444440; }
+    .btn-danger:hover { background: #ef444440; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+
+    #auth-overlay { position: fixed; inset: 0; background: #090d16f2; backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .login-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; width: 100%; max-width: 420px; padding: 2.2rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); }
+    .login-box h2 { font-family: 'Outfit', sans-serif; font-size: 1.5rem; text-align: center; margin-bottom: 0.4rem; }
+    .login-box p { color: #94a3b8; font-size: 0.85rem; text-align: center; margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1.1rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.4rem; color: #cbd5e1; }
+    .form-control { width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 0.75rem 1rem; color: #fff; font-size: 0.9rem; outline: none; }
+    .form-control:focus { border-color: #3b82f6; }
+    .err-msg { color: #f87171; font-size: 0.8rem; margin-top: 0.4rem; display: none; }
+
+    main { flex: 1; max-width: 1200px; width: 100%; margin: 0 auto; padding: 2rem; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; margin-top: 1.25rem; }
+    .event-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; }
+    .event-meta { font-size: 0.85rem; color: #cbd5e1; margin: 0.8rem 0; display: flex; flex-direction: column; gap: 6px; }
+
+    .settings-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; padding: 1.75rem; margin-bottom: 1.5rem; }
+    .settings-card h3 { font-family: 'Outfit', sans-serif; font-size: 1.2rem; margin-bottom: 0.5rem; }
+    .settings-card p { color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.25rem; }
+
+    #edit-modal { position: fixed; inset: 0; background: #090d16c0; backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
+    .modal-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; padding: 2rem; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    #toast { position: fixed; bottom: 2rem; right: 2rem; background: #10b981; color: #fff; padding: 0.85rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem; display: none; z-index: 2000; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <img src="vvce-logo-header.png" alt="VVCE">
+      <h1>VVCE Events CPM</h1>
+      <span class="badge">Control Panel</span>
+    </div>
+
+    <div class="nav-tabs" id="portal-nav" style="display: none;">
+      <button class="tab-btn active" onclick="switchTab('events', this)">📅 Events & Venues</button>
+      <button class="tab-btn" onclick="switchTab('banner', this)">📢 Site Banner</button>
+      <button class="tab-btn" onclick="switchTab('theme', this)">🎨 Themes</button>
+    </div>
+
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <a href="/" target="_blank" style="color:#94a3b8; text-decoration:none; font-size:0.85rem; font-weight:600;">View Live Site ↗</a>
+      <button class="btn btn-danger" onclick="logout()">Logout</button>
+    </div>
+  </header>
+
+  <!-- Login Modal -->
+  <div id="auth-overlay">
+    <div class="login-box">
+      <h2>CPM Portal</h2>
+      <p>Enter Master Administrator Password for real-time site control.</p>
+      <form onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Administrator Password</label>
+          <input type="password" id="cpm-pass" class="form-control" placeholder="••••••••" autofocus required>
+          <div id="login-err" class="err-msg">Invalid password. Access denied.</div>
+        </div>
+        <button type="submit" id="login-btn" class="btn btn-primary" style="width: 100%; padding: 0.8rem;">Access CPM Portal →</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <main id="cpm-content" style="display: none;">
+    <!-- TAB 1: EVENTS -->
+    <section id="tab-events" class="tab-content active">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+          <h2 style="font-family:'Outfit'; font-size:1.4rem;">Manage & Reschedule Events</h2>
+          <p style="color:#94a3b8; font-size:0.85rem;">Modify dates, venues, timings, or visibility dynamically without redeploying.</p>
+        </div>
+        <input type="text" class="form-control" style="width: 280px;" placeholder="Search event or venue..." oninput="filterEvents(this.value)">
+      </div>
+      <div class="event-grid" id="events-container"></div>
+    </section>
+
+    <!-- TAB 2: BANNER -->
+    <section id="tab-banner" class="tab-content">
+      <div class="settings-card">
+        <h3>📢 Live Site Announcement Banner</h3>
+        <p>This banner appears instantly across the top of the entire website without any redeployment.</p>
+        <form onsubmit="saveBannerConfig(event)">
+          <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-bottom:1.5rem;">
+            <input type="checkbox" id="banner-enabled" style="width:20px; height:20px; cursor:pointer;">
+            <label for="banner-enabled" style="margin:0; font-size:0.95rem; cursor:pointer;"><strong>Enable Announcement Banner</strong></label>
+          </div>
+          <div class="form-group">
+            <label>Banner Text / Announcement Message</label>
+            <input type="text" id="banner-text" class="form-control" placeholder="e.g. 📢 Important: Hackathon registrations close tonight at 11:59 PM!">
+          </div>
+          <div class="form-group">
+            <label>Banner Style / Color Theme</label>
+            <select id="banner-type" class="form-control">
+              <option value="warning">Gold / Amber (Alert)</option>
+              <option value="danger">Crimson / Red (Urgent Notice)</option>
+              <option value="info">Navy / Royal Blue (General Info)</option>
+              <option value="success">Emerald Green (Success / New)</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Save & Broadcast Banner Live</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 3: THEMES -->
+    <section id="tab-theme" class="tab-content">
+      <div class="settings-card">
+        <h3>🎨 Dynamic Website Theme</h3>
+        <p>Switch the aesthetic of the portal dynamically for college fests or hackathons.</p>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+          <button class="btn" style="background:#0f172a; border:2px solid #3b82f6; color:#fff; padding:1.2rem; text-align:left;" onclick="setTheme('default')">
+            <strong>VVCE Classic</strong>
+            <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Institutional Navy & Gold</div>
+          </button>
+          <button class="btn" style="background:#180b18; border:2px solid #ec4899; color:#fff; padding:1.2rem; text-align:left;" onclick="setTheme('festive')">
+            <strong>Festive / Utsav</strong>
+            <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Vibrant Crimson & Gold</div>
+          </button>
+          <button class="btn" style="background:#050505; border:2px solid #10b981; color:#fff; padding:1.2rem; text-align:left;" onclick="setTheme('cyber')">
+            <strong>Cyberpunk / Tech</strong>
+            <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">High-tech Emerald & Dark</div>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit Modal -->
+  <div id="edit-modal">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+        <h3 id="modal-event-title" style="font-family:'Outfit'; font-size:1.3rem;">Modify Event</h3>
+        <button style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer;" onclick="closeEditModal()">&times;</button>
+      </div>
+      <form onsubmit="saveEvent(event)">
+        <input type="hidden" id="edit-id">
+        <div class="form-group">
+          <label>Event Name</label>
+          <input type="text" id="edit-name" class="form-control" required>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Event Date (Reschedule)</label>
+            <input type="date" id="edit-date" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Event Time</label>
+            <input type="text" id="edit-time" class="form-control" placeholder="10:00 AM" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Venue / Location</label>
+          <input type="text" id="edit-venue" class="form-control" required placeholder="Auditorium / Seminar Hall">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="edit-category" class="form-control">
+              <option value="Technical">Technical</option>
+              <option value="Cultural">Cultural</option>
+              <option value="Sports">Sports</option>
+              <option value="Workshop">Workshop</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="edit-status" class="form-control">
+              <option value="approved">Published (Approved)</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="archived">Archived (Hidden)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="edit-desc" class="form-control" rows="3"></textarea>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:1.5rem;">
+          <button type="button" class="btn" style="background:#334155; color:#fff;" onclick="closeEditModal()">Cancel</button>
+          <button type="submit" id="save-btn" class="btn btn-primary">Save & Publish Live</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast">Changes saved & live on all portals!</div>
+
+  <script>
+    const supabaseUrl = 'https://nkugbdencpvhhvgqybgi.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdWdiZGVuY3B2aGh2Z3F5YmdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4OTY3MzMsImV4cCI6MjA5NjQ3MjczM30.YFFnsWBymu4R59aMHTEq6ogwI0xb4xjbavpto1FrVWY';
+    const sb = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    let allEvents = [];
+    let currentConfig = { banner: { enabled: false, text: '', type: 'warning' }, theme: 'default' };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const isAuth = sessionStorage.getItem('cpm_auth') === 'true';
+      if (isAuth) showDashboard();
+      else showAuth();
+    });
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const pass = document.getElementById('cpm-pass').value;
+      const err = document.getElementById('login-err');
+      
+      if (pass === 'Vvce@Admin#CPM2025') {
+        sessionStorage.setItem('cpm_auth', 'true');
+        showDashboard();
+      } else {
+        err.style.display = 'block';
+      }
+    }
+
+    function showDashboard() {
+      document.getElementById('auth-overlay').style.display = 'none';
+      document.getElementById('cpm-content').style.display = 'block';
+      document.getElementById('portal-nav').style.display = 'flex';
+      loadEvents();
+      loadConfig();
+    }
+
+    function showAuth() {
+      document.getElementById('auth-overlay').style.display = 'flex';
+      document.getElementById('cpm-content').style.display = 'none';
+      document.getElementById('portal-nav').style.display = 'none';
+    }
+
+    function logout() {
+      sessionStorage.removeItem('cpm_auth');
+      showAuth();
+    }
+
+    function switchTab(tab, el) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    async function loadEvents() {
+      const { data } = await sb.from('events').select('*').order('date', { ascending: true });
+      allEvents = data || [];
+      renderEvents(allEvents);
+    }
+
+    function renderEvents(events) {
+      const c = document.getElementById('events-container');
+      if (!events.length) {
+        c.innerHTML = '<div style="color:#94a3b8;">No events found.</div>';
+        return;
+      }
+      c.innerHTML = events.map(e => `
+        <div class="event-card">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div>
+                <strong style="font-size:1.05rem;">${e.name}</strong>
+                <div style="font-size:0.8rem; color:#94a3b8;">${e.club || 'Club'}</div>
+              </div>
+              <span class="badge" style="border-color:${e.status==='approved'?'#10b981':'#f59e0b'}; color:${e.status==='approved'?'#34d399':'#fbbf24'};">${e.status}</span>
+            </div>
+            <div class="event-meta">
+              <div>📅 <strong>Date:</strong> ${e.date}</div>
+              <div>⏰ <strong>Time:</strong> ${e.time || 'TBD'}</div>
+              <div>📍 <strong>Venue:</strong> ${e.venue || 'TBD'}</div>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;" onclick="openEditModal('${e.id}')">Reschedule / Modify ✎</button>
+        </div>
+      `).join('');
+    }
+
+    function filterEvents(t) {
+      t = t.toLowerCase();
+      renderEvents(allEvents.filter(e => (e.name||'').toLowerCase().includes(t) || (e.venue||'').toLowerCase().includes(t)));
+    }
+
+    function openEditModal(id) {
+      const ev = allEvents.find(e => String(e.id) === String(id));
+      if (!ev) return;
+      document.getElementById('edit-id').value = ev.id;
+      document.getElementById('edit-name').value = ev.name || '';
+      document.getElementById('edit-date').value = ev.date || '';
+      document.getElementById('edit-time').value = ev.time || '';
+      document.getElementById('edit-venue').value = ev.venue || '';
+      document.getElementById('edit-category').value = ev.category || 'Technical';
+      document.getElementById('edit-status').value = ev.status || 'approved';
+      document.getElementById('edit-desc').value = ev.desc || '';
+      document.getElementById('modal-event-title').innerText = 'Modify: ' + ev.name;
+      document.getElementById('edit-modal').style.display = 'flex';
+    }
+
+    function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
+
+    async function saveEvent(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      const saveBtn = document.getElementById('save-btn');
+      saveBtn.disabled = true;
+      saveBtn.innerText = 'Publishing Live...';
+
+      const payload = {
+        name: document.getElementById('edit-name').value,
+        date: document.getElementById('edit-date').value,
+        time: document.getElementById('edit-time').value,
+        venue: document.getElementById('edit-venue').value,
+        category: document.getElementById('edit-category').value,
+        status: document.getElementById('edit-status').value,
+        desc: document.getElementById('edit-desc').value
+      };
+
+      try {
+        await sb.from('events').update(payload).eq('id', id);
+        closeEditModal();
+        loadEvents();
+        showToast('Event updated & synced live across all portals!');
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerText = 'Save & Publish Live';
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const { data } = await sb.from('cpm_config').select('*').eq('id', 'global').maybeSingle();
+        if (data && data.config) {
+          currentConfig = data.config;
+          if (currentConfig.banner) {
+            document.getElementById('banner-enabled').checked = !!currentConfig.banner.enabled;
+            document.getElementById('banner-text').value = currentConfig.banner.text || '';
+            document.getElementById('banner-type').value = currentConfig.banner.type || 'warning';
+          }
+        }
+      } catch(e) {}
+    }
+
+    async function saveBannerConfig(e) {
+      e.preventDefault();
+      currentConfig.banner = {
+        enabled: document.getElementById('banner-enabled').checked,
+        text: document.getElementById('banner-text').value,
+        type: document.getElementById('banner-type').value
+      };
+      try {
+        await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+        showToast('Announcement banner updated live!');
+      } catch(e) {
+        showToast('Saved locally!');
+      }
+    }
+
+    async function setTheme(t) {
+      currentConfig.theme = t;
+      try {
+        await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+        showToast('Theme switched to ' + t + '!');
+      } catch(e) {
+        showToast('Theme active: ' + t);
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 3500);
+    }
+  </script>
+</body>
+</html>
