@@ -4707,6 +4707,9 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     window.addEventListener('load', initGoogleAuth);
   }
+  // Init live CPM config sync (banners, themes, maintenance)
+  // Small delay to ensure Supabase client is ready after bootApp
+  setTimeout(initDynamicSiteConfig, 500);
 });
 
 // Expose all functions to window for inline onclick handlers in HTML
@@ -4714,10 +4717,8 @@ document.addEventListener('DOMContentLoaded', function() {
    DYNAMIC CPM CONFIGURATION (Realtime Banners, Themes, Maintenance)
 ───────────────────────────────────────────────────────────────*/
 async function initDynamicSiteConfig() {
-  const sb = window.supabase ? window.supabase.createClient(
-    'https://nkugbdencpvhhvgqybgi.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdWdiZGVuY3B2aGh2Z3F5YmdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4OTY3MzMsImV4cCI6MjA5NjQ3MjczM30.YFFnsWBymu4R59aMHTEq6ogwI0xb4xjbavpto1FrVWY'
-  ) : null;
+  // Use the shared client (window.supabase is already initialized by bootApp)
+  const sb = getSupabaseClient();
 
   if (!sb) return;
 
@@ -4802,12 +4803,6 @@ async function initDynamicSiteConfig() {
     console.warn('CPM live config sync:', e);
   }
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-  initDynamicSiteConfig();
-});
-
-
 
 /* ─────────────────────────────────────────────────────────────
    FESTIVAL & NATIONAL CELEBRATION DYNAMIC THEME ENGINE
