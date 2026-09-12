@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VVCE Events — CPM Control Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --gold: #f59e0b;
+      --gold-light: #fbbf24;
+      --gold-dark: #d97706;
+      --gold-bg: rgba(245, 158, 11, 0.1);
+      --gold-border: rgba(245, 158, 11, 0.35);
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --text-subtle: #94a3b8;
+      --border: #e2e8f0;
+      --border-focus: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    header { background: #ffffff; border-bottom: 2px solid #f59e0b; padding: 0.9rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand img { width: 44px; height: 44px; border-radius: 50%; background: #fff; padding: 2px; border: 1.5px solid #fde68a; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15); object-fit: contain; }
+    .brand h1 { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+    .badge { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 3px 9px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; }
+    
+    .nav-tabs { display: flex; gap: 6px; background: #f1f5f9; padding: 5px; border-radius: 12px; border: 1px solid #e2e8f0; }
+    .tab-btn { background: none; border: none; color: #64748b; font-weight: 600; font-size: 0.82rem; padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .tab-btn:hover { color: #0f172a; background: rgba(255,255,255,0.6); }
+    .tab-btn.active { background: #ffffff; color: #0f172a; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.05); border-bottom: 2.5px solid #f59e0b; }
+    
+    .btn { cursor: pointer; padding: 0.55rem 1.15rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-primary { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #0f172a; border: 1px solid #f59e0b; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25); }
+    .btn-primary:hover { background: linear-gradient(135deg, #d97706, #f59e0b); color: #0f172a; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.35); }
+    .btn-danger { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+    .btn-danger:hover { background: #fee2e2; }
+    .btn-warning { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .btn-warning:hover { background: #fef3c7; }
+
+    #auth-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .login-box { background: #ffffff; border: 1px solid #fde68a; border-radius: 20px; width: 100%; max-width: 440px; padding: 2.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.18); }
+    .login-box h2 { font-family: 'Outfit', sans-serif; font-size: 1.55rem; text-align: center; margin-bottom: 0.2rem; color: #0f172a; font-weight: 800; }
+    .login-box p { color: #64748b; font-size: 0.85rem; text-align: center; margin-bottom: 1.6rem; }
+    .form-group { margin-bottom: 1.15rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 0.45rem; color: #334155; }
+    .form-control { width: 100%; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 9px; padding: 0.75rem 1rem; color: #0f172a; font-size: 0.9rem; outline: none; transition: all 0.2s; }
+    .form-control:focus { border-color: #f59e0b; background: #ffffff; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15); }
+    .err-msg { color: #ef4444; font-size: 0.8rem; margin-top: 0.4rem; display: none; font-weight: 600; }
+
+    main { flex: 1; max-width: 1240px; width: 100%; margin: 0 auto; padding: 2rem; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.35rem; margin-top: 1.25rem; }
+    .event-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1.4rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.03); transition: all 0.2s; }
+    .event-card:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.06); transform: translateY(-2px); border-color: #fde68a; }
+    .event-meta { font-size: 0.85rem; color: #475569; margin: 0.9rem 0; display: flex; flex-direction: column; gap: 6px; }
+
+    .settings-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.85rem; margin-bottom: 1.6rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .settings-card h3 { font-family: 'Outfit', sans-serif; font-size: 1.25rem; margin-bottom: 0.4rem; color: #0f172a; font-weight: 800; }
+    .settings-card p { color: #64748b; font-size: 0.85rem; margin-bottom: 1.35rem; }
+
+    #edit-modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
+    .modal-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 18px; width: 100%; max-width: 620px; max-height: 90vh; overflow-y: auto; padding: 2.2rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); color: #0f172a; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    #toast { position: fixed; bottom: 2rem; right: 2rem; background: #0f172a; color: #fbbf24; border: 1px solid #f59e0b; padding: 0.9rem 1.6rem; border-radius: 10px; font-weight: 700; font-size: 0.9rem; display: none; z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .status-filter-btn { background: #ffffff; color: #64748b; border: 1.5px solid #e2e8f0; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+    .status-filter-btn:hover { border-color: #cbd5e1; color: #0f172a; }
+    .status-filter-btn.active { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #0f172a; border-color: #f59e0b; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25); }
+  </style>
+</head>
+<body>
+<div id="theme-bg"></div>
+<div id="emoji-container"></div>
+
+  <header>
+    <div class="brand">
+      <img src="vvce-logo-header.png" alt="VVCE College Symbol">
+      <div>
+        <h1>VVCE Events CPM</h1>
+        <div style="font-size: 0.72rem; color: #64748b; font-weight: 600; margin-top: -2px;">Control Panel & Management</div>
+      </div>
+      <span class="badge" id="header-role-badge" style="margin-left: 6px;">Super Admin</span>
+    </div>
+
+    <div class="nav-tabs" id="portal-nav" style="display: none; max-width: 62vw; overflow-x: auto;">
+      <button class="tab-btn active" id="nav-events" onclick="switchTab('events', this)">📅 Events</button>
+      <button class="tab-btn" id="nav-recycle" onclick="switchTab('recycle', this)">🗑️ Recycle Bin</button>
+      <button class="tab-btn" id="nav-banner" onclick="switchTab('banner', this)">📢 Announcements</button>
+      <button class="tab-btn" id="nav-media" onclick="switchTab('media', this)">🖼️ Media Assets</button>
+      <button class="tab-btn" id="nav-theme" onclick="switchTab('theme', this)">🎨 Themes</button>
+      <button class="tab-btn" id="nav-analytics" onclick="switchTab('analytics', this)">📊 Analytics</button>
+      <button class="tab-btn" id="nav-audit" onclick="switchTab('audit', this)">📝 Activity Log</button>
+      <button class="tab-btn" id="nav-emergency" onclick="switchTab('emergency', this)">🚨 Emergency & Health</button>
+    </div>
+
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <a href="/" target="_blank" style="color: #475569; text-decoration: none; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; gap: 4px;">View Live Site ↗</a>
+      <button class="btn btn-danger" onclick="logout()">Logout</button>
+    </div>
+  </header>
+
+  <!-- Login Modal with Role-Based Access Control & Prominent VVCE Symbol -->
+  <div id="auth-overlay">
+    <div class="login-box">
+      <div style="text-align: center; margin-bottom: 1.4rem;">
+        <div style="width: 76px; height: 76px; margin: 0 auto 12px; border-radius: 50%; background: #ffffff; border: 2.5px solid #f59e0b; padding: 4px; box-shadow: 0 6px 16px rgba(245, 158, 11, 0.25); display: flex; align-items: center; justify-content: center;">
+          <img src="vvce-logo-header.png" alt="VVCE College Symbol" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
+        </div>
+        <h2>VVCE Events CPM</h2>
+        <p>Vidyavardhaka College of Engineering<br><strong style="color: #b45309;">Control Panel & Management Portal</strong></p>
+      </div>
+
+      <form onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Administrator Role</label>
+          <select id="login-role" class="form-control">
+            <option value="super_admin">Super Admin (Full Access)</option>
+            <option value="event_manager">Event Manager (Events & Rescheduling)</option>
+            <option value="content_manager">Content Manager (Themes, Media & Banners)</option>
+            <option value="analytics_viewer">Analytics Viewer (Read-Only Stats)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Administrator Password</label>
+          <input type="password" id="cpm-pass" class="form-control" placeholder="••••••••" autofocus required>
+          <div id="login-err" class="err-msg">Invalid password. Access denied.</div>
+        </div>
+        <button type="submit" id="login-btn" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-size: 0.95rem; margin-top: 0.5rem;">Access CPM Portal →</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <main id="cpm-content" style="display: none;">
+    <!-- TAB 1: EVENTS -->
+    <section id="tab-events" class="tab-content active">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h2 style="font-family:'Outfit'; font-size:1.5rem; color:#0f172a; font-weight:800;">Manage & Reschedule Events</h2>
+          <p style="color:#64748b; font-size:0.88rem; margin-top:2px;">Modify dates, venues, timings, waitlists, or visibility dynamically without redeploying.</p>
+        </div>
+        <input type="text" id="event-search-input" class="form-control" style="width: 290px; background:#ffffff;" placeholder="🔍 Search event, club, or venue..." oninput="applyEventFilters()">
+      </div>
+
+      <!-- Status Filter Pills -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1.4rem;">
+        <button class="status-filter-btn active" onclick="setEventStatusFilter('all', this)">All Events</button>
+        <button class="status-filter-btn" onclick="setEventStatusFilter('approved', this)">Published</button>
+        <button class="status-filter-btn" onclick="setEventStatusFilter('scheduled', this)">Scheduled</button>
+        <button class="status-filter-btn" onclick="setEventStatusFilter('draft', this)">Drafts</button>
+        <button class="status-filter-btn" onclick="setEventStatusFilter('rescheduled', this)">Rescheduled</button>
+        <button class="status-filter-btn" onclick="setEventStatusFilter('cancelled', this)">Cancelled</button>
+      </div>
+
+      <div class="event-grid" id="events-container"></div>
+    </section>
+
+    <!-- TAB 2: RECYCLE BIN / EVENT RECOVERY -->
+    <section id="tab-recycle" class="tab-content">
+      <div class="settings-card">
+        <h3>🗑️ Recycle Bin & Event Recovery</h3>
+        <p>Deleted events are soft-archived here to protect registration records. You can restore them anytime or permanently delete.</p>
+        <div id="recycle-list" style="margin-top: 1rem;"></div>
+      </div>
+    </section>
+
+    <!-- TAB 3: BANNER -->
+    <section id="tab-banner" class="tab-content">
+      <div class="settings-card">
+        <h3>📢 Live Site Announcement Banner</h3>
+        <p>Broadcast temporary global notices across the top of the entire website without any redeployment.</p>
+        <form onsubmit="saveBannerConfig(event)">
+          <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-bottom:1.5rem;">
+            <input type="checkbox" id="banner-enabled" style="width:20px; height:20px; cursor:pointer; accent-color:#f59e0b;">
+            <label for="banner-enabled" style="margin:0; font-size:0.95rem; cursor:pointer; color:#0f172a;"><strong>Enable Announcement Banner</strong></label>
+          </div>
+          <div class="form-group">
+            <label>Banner Text / Announcement Message</label>
+            <input type="text" id="banner-text" class="form-control" placeholder="e.g. 📢 Important: Hackathon registrations close tonight at 11:59 PM!">
+          </div>
+          <div class="form-group">
+            <label>Banner Style / Color Theme</label>
+            <select id="banner-type" class="form-control">
+              <option value="warning">Gold / Amber (Alert)</option>
+              <option value="danger">Crimson / Red (Urgent Notice)</option>
+              <option value="info">Navy / Royal Blue (General Info)</option>
+              <option value="success">Emerald Green (Success / New)</option>
+            </select>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Start Date & Time (Optional)</label>
+              <input type="datetime-local" id="banner-start" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>End / Expiry Date & Time (Optional)</label>
+              <input type="datetime-local" id="banner-end" class="form-control">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Save & Broadcast Banner Live</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 4: MEDIA ASSETS -->
+    <section id="tab-media" class="tab-content">
+      <div class="settings-card">
+        <h3>🖼️ Website Media & Visual Assets</h3>
+        <p>Manage event banners, posters, and college branding dynamically across the portal without redeploying.</p>
+        <form onsubmit="saveMediaConfig(event)">
+          <div class="form-group">
+            <label>Homepage Hero Banner / Poster Image URL</label>
+            <input type="text" id="media-hero-banner" class="form-control" placeholder="https://... or paste image URL" oninput="previewMedia('hero', this.value)">
+            <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn" style="font-size:11px; padding:4px 9px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200')">Campus Tech Fest Preset</button>
+              <button type="button" class="btn" style="font-size:11px; padding:4px 9px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=1200')">Cultural Utsav Preset</button>
+              <button type="button" class="btn" style="font-size:11px; padding:4px 9px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200')">Sports League Preset</button>
+              <button type="button" class="btn" style="font-size:11px; padding:4px 9px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;" onclick="setMediaPreset('hero', '')">Default (None)</button>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Live Preview:</label>
+            <div id="media-hero-preview" style="height:140px; border-radius:12px; border:2px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; background-size:cover; background-position:center; overflow:hidden; background-color:#f8fafc;">
+              No image specified
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label>College Logo / Header Icon URL</label>
+              <input type="text" id="media-logo-url" class="form-control" placeholder="vvce-logo-header.png">
+            </div>
+            <div class="form-group">
+              <label>Custom Portal Background URL</label>
+              <input type="text" id="media-bg-url" class="form-control" placeholder="Optional custom background image URL">
+            </div>
+            <div class="form-group">
+
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Save & Broadcast Media Assets Live</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 5: FESTIVAL & CELEBRATION THEMES -->
+    <section id="tab-theme" class="tab-content">
+      <div class="settings-card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem;">
+          <div>
+            <h3>🎨 Festival & National Celebration Themes</h3>
+            <p style="margin-bottom:0;">Customize the website theme dynamically for national holidays, state festivals, or create your own custom celebration theme.</p>
+          </div>
+          <button type="button" class="btn" style="background:#f1f5f9; color:#0f172a; border:1px solid #e2e8f0;" onclick="resetThemeToDefault()">
+            🔄 Reset to Default VVCE Classic
+          </button>
+        </div>
+
+        <!-- Quick Celebration Presets -->
+        <label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.6rem;">QUICK FESTIVAL & CELEBRATION PRESETS (Click to Load & Customize):</label>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:0.85rem; margin-bottom:1.75rem;">
+          
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('rajyotsava')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">💛❤️</span>
+                <strong style="color:#0f172a; font-size:13px;">Kannada Rajyotsava</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Karnataka Yellow & Crimson</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('dasara')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🐘✨</span>
+                <strong style="color:#0f172a; font-size:13px;">Mysuru Dasara Utsav</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Mysore Palace Gold & Crimson</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('independence')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🇮🇳</span>
+                <strong style="color:#0f172a; font-size:13px;">Independence / Republic Day</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Indian Saffron, White & Green</div>
+            </div>
+            <span class="badge" style="background:#f0fdf4; color:#15803d; border-color:#bbf7d0;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('diwali')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🪔✨</span>
+                <strong style="color:#0f172a; font-size:13px;">Diwali / Deepavali</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Warm Glowing Amber & Gold</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('ganesh')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🌺🙏</span>
+                <strong style="color:#0f172a; font-size:13px;">Ganesh Chaturthi</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Festive Marigold & Sun Yellow</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('holi')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🎨🌈</span>
+                <strong style="color:#0f172a; font-size:13px;">Holi Celebration</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Vibrant Coral Pink & Cyan</div>
+            </div>
+            <span class="badge" style="background:#fdf2f8; color:#be185d; border-color:#fbcfe8;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('techfest')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">⚡🚀</span>
+                <strong style="color:#0f172a; font-size:13px;">College Tech Fest / Vidyuth</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Cyber Cyan & Electric Violet</div>
+            </div>
+            <span class="badge" style="background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('classic')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🎓💛</span>
+                <strong style="color:#0f172a; font-size:13px;">VVCE Institutional Classic</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Institutional Gold & White</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+        </div>
+
+        <!-- Custom Celebration Theme Editor ("Edit by Yourself") -->
+        <div style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:14px; padding:1.5rem;">
+          <h4 style="font-family:'Outfit'; font-size:1.15rem; color:#0f172a; margin-bottom:0.3rem;">🛠️ Custom Celebration Theme Editor</h4>
+          <p style="color:#64748b; font-size:0.85rem; margin-bottom:1.25rem;">Adjust the festival name, colors, top ribbon greeting, and celebration effects for any event or national day.</p>
+          
+          <form onsubmit="saveCelebrationTheme(event)">
+            <input type="hidden" id="theme-id" value="custom">
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Celebration / Festival Name</label>
+                <input type="text" id="theme-name" class="form-control" placeholder="e.g. Kannada Rajyotsava 2025" required oninput="updateThemeLivePreview()">
+              </div>
+              <div class="form-group">
+                <label>Floating Visual Effect / Confetti</label>
+                <select id="theme-effect" class="form-control" onchange="updateThemeLivePreview()">
+                  <option value="none">None (Standard Display)</option>
+                  <option value="sparkles">✨ Golden Sparkles & Lights</option>
+                  <option value="rajyotsava">💛❤️ Karnataka Yellow & Red Confetti</option>
+                  <option value="tricolor">🇮🇳 Indian Tricolor Petals & Flags</option>
+                  <option value="diyas">🪔 Diwali Diyas & Glow</option>
+                  <option value="flowers">🌸 Festive Flower Petals</option>
+                  <option value="confetti">🎉 Colorful Party Confetti</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                <label style="margin:0;">Top Celebration Greeting Message</label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; cursor:pointer; color:#0f172a;">
+                  <input type="checkbox" id="theme-show-greeting" checked style="accent-color:#f59e0b; width:16px; height:16px;" onchange="updateThemeLivePreview()">
+                  <strong>Show Top Greeting Ribbon</strong>
+                </label>
+              </div>
+              <input type="text" id="theme-greeting" class="form-control" placeholder="e.g. ಕನ್ನಡ ರಾಜ್ಯೋತ್ಸವದ ಹಾರ್ದಿಕ ಶುಭಾಶಯಗಳು! 💛❤️" oninput="updateThemeLivePreview()">
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Primary Accent Color (Buttons, Active Tabs & Highlights)</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <input type="color" id="theme-primary-color" value="#f59e0b" style="width:48px; height:38px; border:none; border-radius:8px; cursor:pointer; padding:0; background:none;" oninput="syncColorInput('primary', this.value)">
+                  <input type="text" id="theme-primary-hex" class="form-control" value="#f59e0b" style="flex:1;" oninput="syncHexInput('primary', this.value)">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Secondary / Gradient Highlight Color</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <input type="color" id="theme-secondary-color" value="#fbbf24" style="width:48px; height:38px; border:none; border-radius:8px; cursor:pointer; padding:0; background:none;" oninput="syncColorInput('secondary', this.value)">
+                  <input type="text" id="theme-secondary-hex" class="form-control" value="#fbbf24" style="flex:1;" oninput="syncHexInput('secondary', this.value)">
+                </div>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Background Aesthetic Tone</label>
+                <select id="theme-bg-style" class="form-control" onchange="updateThemeLivePreview()">
+                  <option value="light">Crisp Light (Clean Institutional White)</option>
+                  <option value="warm">Festive Warm Cream (#fffdf7)</option>
+                  <option value="dark">Midnight Celebration Dark (#0f172a)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Custom Theme Background (Upload)</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="text" id="theme-banner-url" class="form-control" placeholder="Image URL or upload" oninput="updateThemeLivePreview()">
+                  <label for="theme-bg-upload" class="btn" style="cursor:pointer; display:flex; align-items:center; background:#e2e8f0; color:#334155; border-radius:8px; padding:0 12px; font-size:12px; margin:0; border:1px solid #cbd5e1; box-shadow:none;" id="theme-bg-upload-btn">Upload</label>
+                  <input type="file" id="theme-bg-upload" accept="image/*" style="display:none;" onchange="uploadThemeBackground(this)">
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Theme Preview -->
+            <div id="live-theme-preview-box" style="margin:1.25rem 0; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem; position:relative; overflow:hidden;">
+              <div style="position:relative; z-index:2;">
+                <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:8px; text-shadow:0 1px 2px rgba(255,255,255,0.8);" id="preview-header-text">Live Theme Interactive Preview:</div>
+                <div id="preview-ribbon" style="padding:8px 14px; border-radius:8px; font-weight:800; font-size:12px; text-align:center; color:#fff; margin-bottom:12px; display:flex; justify-content:center; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                  Preview Ribbon Text
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <span id="preview-badge" class="badge" style="background:rgba(255,255,255,0.9);">SAMPLE BADGE</span>
+                    <span style="font-size:13px; font-weight:700; color:#0f172a; background:rgba(255,255,255,0.8); padding:2px 8px; border-radius:4px;" id="preview-title">Celebration Active</span>
+                  </div>
+                  <button type="button" id="preview-btn" class="btn" style="padding:6px 16px; font-size:12px; box-shadow:0 2px 4px rgba(0,0,0,0.1);">Sample Action Button</button>
+                </div>
+              </div>
+              <div style="position:absolute; inset:0; background:rgba(255,255,255,0.15); z-index:1; pointer-events:none;"></div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button type="submit" id="save-theme-btn" class="btn btn-primary" style="padding:0.75rem 1.75rem; font-size:0.95rem;">
+                🚀 Save & Broadcast Celebration Theme Live
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: PRIVACY-SAFE ANALYTICS -->
+    <section id="tab-analytics" class="tab-content">
+      <div class="stats-bar" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+        <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">TOTAL REGISTERED USERS</div>
+          <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#0f172a;" id="analytics-total-users">0</div>
+          <small style="color:#64748b;" id="analytics-user-breakdown">Students / Faculty</small>
+        </div>
+        <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">DAILY ACTIVE USERS</div>
+          <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#059669;" id="analytics-daily-active">0</div>
+          <small style="color:#64748b;">Active past 24 hours</small>
+        </div>
+        <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">TOTAL EVENT REGISTRATIONS</div>
+          <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#2563eb;" id="analytics-total-regs">0</div>
+          <small style="color:#64748b;">Across all published events</small>
+        </div>
+        <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">ACTIVE CLUBS</div>
+          <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#d97706;" id="analytics-active-clubs">0</div>
+          <small style="color:#64748b;">Official student chapters</small>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="settings-card">
+          <h3>Event Category Distribution (%)</h3>
+          <p>Real-time breakdown of event interactions by domain.</p>
+          <div id="category-chart-container" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+
+        <div class="settings-card">
+          <h3>Event Capacity & Registration Metrics</h3>
+          <p>Live seat occupancy and waitlist counts per event.</p>
+          <div id="capacity-metrics-container" style="max-height: 280px; overflow-y: auto;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 7: AUDIT / ACTIVITY LOG -->
+    <section id="tab-audit" class="tab-content">
+      <div class="settings-card">
+        <h3>📝 Administrative Activity & Audit Log</h3>
+        <p>Chronological record of all administrative modifications, venue changes, rescheduling, waitlists, and status updates.</p>
+        <div style="overflow-x: auto;">
+          <table style="width:100%; border-collapse:collapse; margin-top:1rem; font-size:0.85rem;">
+            <thead>
+              <tr style="background:#f8fafc; color:#475569; border-bottom:2px solid #e2e8f0;">
+                <th style="padding:12px; text-align:left;">Timestamp</th>
+                <th style="padding:12px; text-align:left;">Admin / Role</th>
+                <th style="padding:12px; text-align:left;">Action</th>
+                <th style="padding:12px; text-align:left;">Target Event / Asset</th>
+                <th style="padding:12px; text-align:left;">Change Details</th>
+              </tr>
+            </thead>
+            <tbody id="audit-log-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 8: EMERGENCY & SYSTEM HEALTH -->
+    <section id="tab-emergency" class="tab-content">
+      <div class="settings-card" style="border-color:#fecaca; background:#fffafa;">
+        <h3 style="color:#dc2626;">🚨 Emergency & Maintenance Controls (Super Admin Only)</h3>
+        <p>Temporarily disable user actions during technical difficulties or site updates.</p>
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:1.2rem; border-radius:12px;">
+            <div>
+              <strong style="color:#0f172a;">Site Maintenance Mode</strong>
+              <div style="font-size:0.82rem; color:#64748b; margin-top:2px;">Shows a polite maintenance screen to all students and visitors.</div>
+            </div>
+            <button id="btn-toggle-maint" class="btn btn-danger" onclick="triggerMaintenanceToggle()">Enable Maintenance Mode</button>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:1.2rem; border-radius:12px;">
+            <div>
+              <strong style="color:#0f172a;">Pause Event Registrations</strong>
+              <div style="font-size:0.82rem; color:#64748b; margin-top:2px;">Temporarily prevents new registrations while keeping the site readable.</div>
+            </div>
+            <button id="btn-toggle-regs" class="btn btn-warning" onclick="toggleRegistrationLock()">Pause Registrations</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>🟢 System Health & Service Status</h3>
+        <p>Operational status of key application infrastructure.</p>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+          <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">🟢 Database (Supabase)</div>
+            <div style="font-size:1.05rem; font-weight:800; color:#059669; margin-top:4px;">Operational</div>
+          </div>
+          <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">🟢 Authentication System</div>
+            <div style="font-size:1.05rem; font-weight:800; color:#059669; margin-top:4px;">Operational</div>
+          </div>
+          <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">🟢 Event Realtime Sync</div>
+            <div style="font-size:1.05rem; font-weight:800; color:#059669; margin-top:4px;">Active</div>
+          </div>
+          <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">🟢 Media CDN</div>
+            <div style="font-size:1.05rem; font-weight:800; color:#059669; margin-top:4px;">Operational</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit Modal -->
+  <div id="edit-modal">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.8rem;">
+        <h3 id="modal-event-title" style="font-family:'Outfit'; font-size:1.35rem; color:#0f172a; font-weight:800;">Modify Event</h3>
+        <button style="background:none; border:none; color:#64748b; font-size:1.5rem; cursor:pointer;" onclick="closeEditModal()">&times;</button>
+      </div>
+      <form onsubmit="saveEvent(event)">
+        <input type="hidden" id="edit-id">
+        <div class="form-group">
+          <label>Event Name</label>
+          <input type="text" id="edit-name" class="form-control" required>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Event Date (Reschedule)</label>
+            <input type="date" id="edit-date" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Event Time</label>
+            <input type="text" id="edit-time" class="form-control" placeholder="10:00 AM" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Venue / Location</label>
+          <input type="text" id="edit-venue" class="form-control" required placeholder="Auditorium / Seminar Hall">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="edit-category" class="form-control">
+              <option value="Technical">Technical</option>
+              <option value="Cultural">Cultural</option>
+              <option value="Sports">Sports</option>
+              <option value="Workshop">Workshop</option>
+              <option value="Management">Management</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Publishing Status</label>
+            <select id="edit-status" class="form-control" onchange="toggleStatusFields(this.value)">
+              <option value="approved">Published / Approved</option>
+              <option value="scheduled">Scheduled Publishing</option>
+              <option value="draft">Draft (Hidden)</option>
+              <option value="rescheduled">Rescheduled</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="completed">Completed</option>
+              <option value="expired">Expired</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="scheduled-time-group" style="display:none;">
+          <label style="color:#2563eb;">Scheduled Publishing Date & Time</label>
+          <input type="datetime-local" id="edit-publish-at" class="form-control">
+          <small style="color:#64748b; font-size:11px;">System will automatically publish event once current time passes this timestamp.</small>
+        </div>
+        <div class="form-group" id="cancel-reason-group" style="display:none;">
+          <label style="color:#ef4444;">Cancellation Reason (Communicated to Students)</label>
+          <input type="text" id="edit-cancel-reason" class="form-control" placeholder="e.g. Rescheduled due to faculty symposium.">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Max Participant Capacity</label>
+            <input type="number" id="edit-max-participants" class="form-control" min="1">
+          </div>
+          <div class="form-group">
+            <label>Activity Points Awarded</label>
+            <input type="number" id="edit-points" class="form-control" min="0">
+          </div>
+        </div>
+        <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-bottom:1rem;">
+          <input type="checkbox" id="edit-waitlist-enabled" style="width:18px; height:18px; cursor:pointer; accent-color:#f59e0b;">
+          <label for="edit-waitlist-enabled" style="margin:0; font-size:0.85rem; cursor:pointer; color:#334155;">Allow Waitlist when Capacity is Reached</label>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="edit-desc" class="form-control" rows="3"></textarea>
+        </div>
+
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; font-size:12px; color:#475569; margin-bottom:1rem;">
+          <div id="edit-registered-count-info">Checking registration status...</div>
+        </div>
+
+        <!-- Event Change History Accordion -->
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:1.5rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <strong style="font-size:13px; color:#334155;">📜 Event Change History</strong>
+            <span style="font-size:11px; color:#64748b;" id="history-entry-count">0 entries</span>
+          </div>
+          <div id="event-history-list" style="max-height:140px; overflow-y:auto; font-size:12px; display:flex; flex-direction:column; gap:6px;">
+            <div style="color:#94a3b8; font-style:italic;">No previous changes recorded.</div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem; border-top:1px solid #e2e8f0; padding-top:1rem;">
+          <button type="button" class="btn btn-danger" onclick="openDeleteModal()">Delete / Archive Event 🗑️</button>
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="btn" style="background:#e2e8f0; color:#334155;" onclick="closeEditModal()">Cancel</button>
+            <button type="submit" id="save-btn" class="btn btn-primary">Save & Publish Live</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Safety Warning Modal (For Registered Users) -->
+  <div id="safety-modal" class="modal-overlay" style="position:fixed; inset:0; background:rgba(15, 23, 42, 0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:2px solid #f59e0b; background:#ffffff; padding:2rem; border-radius:18px;">
+      <h3 style="color:#b45309; margin-bottom:0.75rem; font-family:'Outfit'; font-weight:800;">⚠️ IMPORTANT: Registered Participants</h3>
+      <p style="font-size:0.9rem; color:#475569; line-height:1.5; margin-bottom:1.5rem;" id="safety-warning-msg"></p>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn" style="background:#e2e8f0; color:#334155;" onclick="closeSafetyModal()">Cancel</button>
+        <button class="btn btn-warning" onclick="confirmSaveEventWithNotification()">Proceed & Notify Users</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two-Step Delete Confirmation Modal -->
+  <div id="delete-modal" class="modal-overlay" style="position:fixed; inset:0; background:rgba(15, 23, 42, 0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:2px solid #ef4444; background:#ffffff; padding:2rem; border-radius:18px;">
+      <h3 style="color:#dc2626; margin-bottom:0.75rem; font-family:'Outfit'; font-weight:800;">⚠️ Remove Event from Feed</h3>
+      <p style="font-size:0.88rem; color:#475569; line-height:1.5; margin-bottom:1rem;">
+        Warning: You are about to remove this event from the published event feed. This action preserves registered student records in the Recycle Bin.
+      </p>
+      <div class="form-group">
+        <label>Type <strong>DELETE</strong> below to confirm removal:</label>
+        <input type="text" id="delete-confirm-input" class="form-control" placeholder="DELETE">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:1.2rem;">
+        <button class="btn" style="background:#e2e8f0; color:#334155;" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-delete-btn" onclick="executeSoftDeleteEvent()">Move to Recycle Bin</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Maintenance Confirmation Modal -->
+  <div id="maint-modal" class="modal-overlay" style="position:fixed; inset:0; background:rgba(15, 23, 42, 0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:2px solid #ef4444; background:#ffffff; padding:2rem; border-radius:18px;">
+      <h3 style="color:#dc2626; margin-bottom:0.75rem; font-family:'Outfit'; font-weight:800;">🚨 WARNING: Emergency Maintenance</h3>
+      <p style="font-size:0.9rem; color:#475569; line-height:1.5; margin-bottom:1.5rem;">
+        Activating maintenance mode will immediately block user access to the live event portal and display a polite maintenance message to all students and faculty.
+      </p>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn" style="background:#e2e8f0; color:#334155;" onclick="closeMaintModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmMaintenanceMode()">Confirm & Activate</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast">Changes saved & live on all portals!</div>
+
+  <script>
+    const supabaseUrl = 'https://nkugbdencpvhhvgqybgi.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdWdiZGVuY3B2aGh2Z3F5YmdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4OTY3MzMsImV4cCI6MjA5NjQ3MjczM30.YFFnsWBymu4R59aMHTEq6ogwI0xb4xjbavpto1FrVWY';
+    const sb = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    let allEvents = [];
+    let currentAdminRole = 'super_admin';
+    let currentEventStatusFilter = 'all';
+    let currentConfig = { banner: { enabled: false, text: '', type: 'warning', start_date: '', end_date: '' }, media: { heroBanner: '', logoUrl: '', bgUrl: '', signinBgUrl: '' }, theme: 'default', maintenance: false, registrationLocked: false };
+    let pendingEventPayload = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedAuth = sessionStorage.getItem('cpm_auth');
+      const savedRole = sessionStorage.getItem('cpm_role');
+      if (savedAuth === 'true') {
+        currentAdminRole = savedRole || 'super_admin';
+        showDashboard();
+      } else {
+        showAuth();
+      }
+    });
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const role = document.getElementById('login-role').value;
+      const pass = document.getElementById('cpm-pass').value;
+      const err = document.getElementById('login-err');
+
+      if (pass === 'Vvce@Admin#CPM2025') {
+        sessionStorage.setItem('cpm_auth', 'true');
+        sessionStorage.setItem('cpm_role', role);
+        currentAdminRole = role;
+        showDashboard();
+      } else {
+        err.style.display = 'block';
+      }
+    }
+
+    function showDashboard() {
+      document.getElementById('auth-overlay').style.display = 'none';
+      document.getElementById('cpm-content').style.display = 'block';
+      document.getElementById('portal-nav').style.display = 'flex';
+      const badge = document.getElementById('header-role-badge');
+      if (badge) {
+        badge.innerText = {
+          super_admin: 'Super Admin',
+          event_manager: 'Event Manager',
+          content_manager: 'Content Manager',
+          analytics_viewer: 'Analytics Viewer'
+        }[currentAdminRole] || 'Admin';
+      }
+
+      applyRolePermissions();
+      loadEvents();
+      loadRecycleBin();
+      loadConfig();
+      loadAnalytics();
+      loadAuditLog();
+    }
+
+    function applyRolePermissions() {
+      const tabs = {
+        events: document.getElementById('nav-events'),
+        recycle: document.getElementById('nav-recycle'),
+        banner: document.getElementById('nav-banner'),
+        media: document.getElementById('nav-media'),
+        theme: document.getElementById('nav-theme'),
+        analytics: document.getElementById('nav-analytics'),
+        audit: document.getElementById('nav-audit'),
+        emergency: document.getElementById('nav-emergency')
+      };
+
+      Object.values(tabs).forEach(b => { if (b) b.style.display = ''; });
+
+      if (currentAdminRole === 'event_manager') {
+        if (tabs.banner) tabs.banner.style.display = 'none';
+        if (tabs.media) tabs.media.style.display = 'none';
+        if (tabs.theme) tabs.theme.style.display = 'none';
+        if (tabs.audit) tabs.audit.style.display = 'none';
+        if (tabs.emergency) tabs.emergency.style.display = 'none';
+        switchTab('events', tabs.events);
+      } else if (currentAdminRole === 'content_manager') {
+        if (tabs.events) tabs.events.style.display = 'none';
+        if (tabs.recycle) tabs.recycle.style.display = 'none';
+        if (tabs.analytics) tabs.analytics.style.display = 'none';
+        if (tabs.audit) tabs.audit.style.display = 'none';
+        if (tabs.emergency) tabs.emergency.style.display = 'none';
+        switchTab('banner', tabs.banner);
+      } else if (currentAdminRole === 'analytics_viewer') {
+        if (tabs.events) tabs.events.style.display = 'none';
+        if (tabs.recycle) tabs.recycle.style.display = 'none';
+        if (tabs.banner) tabs.banner.style.display = 'none';
+        if (tabs.media) tabs.media.style.display = 'none';
+        if (tabs.theme) tabs.theme.style.display = 'none';
+        if (tabs.emergency) tabs.emergency.style.display = 'none';
+        switchTab('analytics', tabs.analytics);
+        document.querySelectorAll('.btn-primary, .btn-danger, .btn-warning').forEach(b => {
+          if (b.innerText.includes('Save') || b.innerText.includes('Delete') || b.innerText.includes('Activate') || b.innerText.includes('Enable')) {
+            b.style.display = 'none';
+          }
+        });
+      } else {
+        switchTab('events', tabs.events);
+      }
+    }
+
+    function showAuth() {
+      document.getElementById('auth-overlay').style.display = 'flex';
+      document.getElementById('cpm-content').style.display = 'none';
+      document.getElementById('portal-nav').style.display = 'none';
+    }
+
+    function logout() {
+      sessionStorage.removeItem('cpm_auth');
+      sessionStorage.removeItem('cpm_role');
+      showAuth();
+    }
+
+    function switchTab(tab, el) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      if (el) el.classList.add('active');
+      const target = document.getElementById('tab-' + tab);
+      if (target) target.classList.add('active');
+      if (tab === 'analytics') loadAnalytics();
+      if (tab === 'audit') loadAuditLog();
+      if (tab === 'recycle') loadRecycleBin();
+    }
+
+    async function loadEvents() {
+      const { data } = await sb.from('events').select('*').order('date', { ascending: true });
+      allEvents = (data || []).filter(e => e.status !== 'archived');
+      applyEventFilters();
+    }
+
+    function setEventStatusFilter(status, btn) {
+      currentEventStatusFilter = status;
+      document.querySelectorAll('.status-filter-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      applyEventFilters();
+    }
+
+    function applyEventFilters() {
+      const q = (document.getElementById('event-search-input')?.value || '').toLowerCase().trim();
+      let filtered = allEvents;
+      if (currentEventStatusFilter !== 'all') {
+        filtered = filtered.filter(e => e.status === currentEventStatusFilter);
+      }
+      if (q) {
+        filtered = filtered.filter(e => 
+          (e.name || '').toLowerCase().includes(q) ||
+          (e.venue || '').toLowerCase().includes(q) ||
+          (e.club || '').toLowerCase().includes(q)
+        );
+      }
+      renderEvents(filtered);
+    }
+
+    function renderEvents(events) {
+      const c = document.getElementById('events-container');
+      if (!events.length) {
+        c.innerHTML = '<div style="color:#64748b; grid-column:1/-1; text-align:center; padding:3rem;">No events match current filter.</div>';
+        return;
+      }
+      const statusColors = {
+        approved: { bg: '#f0fdf4', col: '#15803d', bd: '#bbf7d0' },
+        scheduled: { bg: '#eff6ff', col: '#2563eb', bd: '#bfdbfe' },
+        draft: { bg: '#f8fafc', col: '#64748b', bd: '#cbd5e1' },
+        rescheduled: { bg: '#fffbeb', col: '#b45309', bd: '#fde68a' },
+        cancelled: { bg: '#fef2f2', col: '#dc2626', bd: '#fecaca' },
+        completed: { bg: '#f5f3ff', col: '#7c3aed', bd: '#ddd6fe' },
+        expired: { bg: '#f1f5f9', col: '#64748b', bd: '#e2e8f0' }
+      };
+
+      c.innerHTML = events.map(e => {
+        const sc = statusColors[e.status] || statusColors.approved;
+        const regCount = (e.registrations || []).length;
+        const waitCount = (e.waitlist || []).length;
+        return `
+          <div class="event-card">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                  <strong style="font-size:1.05rem; color:#0f172a;">${e.emoji || '📅'} ${e.name}</strong>
+                  <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">${e.club || 'VVCE Club'}</div>
+                </div>
+                <span class="badge" style="border-color:${sc.bd}; color:${sc.col}; background:${sc.bg};">
+                  ${e.status ? e.status.toUpperCase() : 'APPROVED'}
+                </span>
+              </div>
+              <div class="event-meta">
+                <div>📅 <strong>Date:</strong> ${e.date}</div>
+                <div>⏰ <strong>Time:</strong> ${e.time || 'TBD'}</div>
+                <div>📍 <strong>Venue:</strong> ${e.venue || 'TBD'}</div>
+                <div>👥 <strong>Capacity:</strong> ${regCount} / ${e.max_participants || 100} ${waitCount > 0 ? `<span style="color:#b45309;">(${waitCount} on waitlist)</span>` : ''}</div>
+              </div>
+            </div>
+            <button class="btn btn-primary" style="width:100%; margin-top:0.75rem;" onclick="openEditModal('${e.id}')">Reschedule / Modify ✎</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openEditModal(id) {
+      const ev = allEvents.find(e => String(e.id) === String(id));
+      if (!ev) return;
+      document.getElementById('edit-id').value = ev.id;
+      document.getElementById('edit-name').value = ev.name || '';
+      document.getElementById('edit-date').value = ev.date || '';
+      document.getElementById('edit-time').value = ev.time || '';
+      document.getElementById('edit-venue').value = ev.venue || '';
+      document.getElementById('edit-category').value = ev.category || 'Technical';
+      document.getElementById('edit-status').value = ev.status || 'approved';
+      document.getElementById('edit-publish-at').value = ev.publish_at || '';
+      document.getElementById('edit-cancel-reason').value = ev.rej_reason || '';
+      document.getElementById('edit-max-participants').value = ev.max_participants || 100;
+      document.getElementById('edit-points').value = ev.points || 0;
+      document.getElementById('edit-waitlist-enabled').checked = !!ev.waitlist_enabled;
+      document.getElementById('edit-desc').value = ev.desc || '';
+      document.getElementById('modal-event-title').innerText = 'Modify: ' + ev.name;
+
+      toggleStatusFields(ev.status);
+
+      const regCount = (ev.registrations || []).length;
+      const waitCount = (ev.waitlist || []).length;
+      document.getElementById('edit-registered-count-info').innerHTML = `
+        <strong>Registration Status:</strong> ${regCount} participants registered • ${waitCount} on waitlist.
+      `;
+
+      // Render event change history
+      const historyList = document.getElementById('event-history-list');
+      const hist = ev.change_history || [];
+      document.getElementById('history-entry-count').innerText = `${hist.length} entries`;
+      if (hist.length === 0) {
+        historyList.innerHTML = '<div style="color:#94a3b8; font-style:italic;">No previous changes recorded for this event.</div>';
+      } else {
+        historyList.innerHTML = hist.map(h => `
+          <div style="background:#ffffff; border:1px solid #e2e8f0; padding:8px 12px; border-radius:8px;">
+            <div style="display:flex; justify-content:space-between; color:#64748b; font-size:11px;">
+              <span><strong>${h.admin || 'Admin'}</strong></span>
+              <span>${h.timestamp}</span>
+            </div>
+            <div style="color:#0f172a; margin-top:3px; font-weight:600;">${h.details}</div>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('edit-modal').style.display = 'flex';
+    }
+
+    function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
+
+    function toggleStatusFields(status) {
+      const cancelBox = document.getElementById('cancel-reason-group');
+      const schedBox = document.getElementById('scheduled-time-group');
+      if (cancelBox) cancelBox.style.display = status === 'cancelled' ? 'block' : 'none';
+      if (schedBox) schedBox.style.display = status === 'scheduled' ? 'block' : 'none';
+    }
+
+    async function saveEvent(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      const ev = allEvents.find(event => String(event.id) === String(id));
+      const regCount = (ev?.registrations || []).length;
+
+      const newDate = document.getElementById('edit-date').value;
+      const newVenue = document.getElementById('edit-venue').value;
+      const newTime = document.getElementById('edit-time').value;
+      const newStatus = document.getElementById('edit-status').value;
+
+      pendingEventPayload = {
+        id,
+        name: document.getElementById('edit-name').value,
+        date: newDate,
+        time: newTime,
+        venue: newVenue,
+        category: document.getElementById('edit-category').value,
+        status: newStatus,
+        publish_at: newStatus === 'scheduled' ? document.getElementById('edit-publish-at').value : null,
+        rej_reason: newStatus === 'cancelled' ? document.getElementById('edit-cancel-reason').value : null,
+        max_participants: parseInt(document.getElementById('edit-max-participants').value) || 100,
+        points: parseInt(document.getElementById('edit-points').value) || 0,
+        waitlist_enabled: document.getElementById('edit-waitlist-enabled').checked,
+        desc: document.getElementById('edit-desc').value
+      };
+
+      const isCriticalChange = ev && (ev.date !== newDate || ev.venue !== newVenue || ev.time !== newTime || newStatus === 'cancelled');
+      if (regCount > 0 && isCriticalChange) {
+        document.getElementById('safety-warning-msg').innerHTML = `
+          <strong>${regCount} users are currently registered for this event.</strong><br>
+          Changing date, time, venue, or cancelling directly affects registered students.<br><br>
+          Would you like to proceed and automatically broadcast an update notification to all registered participants?
+        `;
+        document.getElementById('safety-modal').style.display = 'flex';
+        return;
+      }
+
+      await executeSaveEvent();
+    }
+
+    async function confirmSaveEventWithNotification() {
+      closeSafetyModal();
+      await executeSaveEvent(true);
+    }
+
+    function closeSafetyModal() { document.getElementById('safety-modal').style.display = 'none'; }
+
+    async function executeSaveEvent(notifyUsers = false) {
+      const payload = pendingEventPayload;
+      if (!payload) return;
+
+      const saveBtn = document.getElementById('save-btn');
+      saveBtn.disabled = true;
+      saveBtn.innerText = 'Publishing Live...';
+
+      try {
+        const ev = allEvents.find(e => String(e.id) === String(payload.id));
+        
+        // Append to event change history
+        const history = ev?.change_history ? [...ev.change_history] : [];
+        const changeParts = [];
+        if (ev?.date !== payload.date) changeParts.push(`Date: ${ev?.date} → ${payload.date}`);
+        if (ev?.venue !== payload.venue) changeParts.push(`Venue: ${ev?.venue} → ${payload.venue}`);
+        if (ev?.time !== payload.time) changeParts.push(`Time: ${ev?.time} → ${payload.time}`);
+        if (ev?.status !== payload.status) changeParts.push(`Status: ${ev?.status} → ${payload.status}`);
+        if (payload.status === 'cancelled' && payload.rej_reason) changeParts.push(`Reason: ${payload.rej_reason}`);
+
+        if (changeParts.length > 0) {
+          history.unshift({
+            timestamp: new Date().toLocaleString(),
+            admin: currentAdminRole,
+            details: changeParts.join(' | ')
+          });
+        }
+        payload.change_history = history;
+
+        await sb.from('events').update(payload).eq('id', payload.id);
+
+        await recordAuditAction({
+          action: ev?.date !== payload.date ? 'Event Rescheduled' : (ev?.venue !== payload.venue ? 'Venue Changed' : (ev?.status !== payload.status ? `Status Changed to ${payload.status}` : 'Event Updated')),
+          target: payload.name,
+          details: changeParts.join(' | ') || 'Details updated'
+        });
+
+        if (notifyUsers && ev && (ev.registrations || []).length > 0) {
+          await notifyRegisteredUsers(ev.registrations, `📢 Update: ${payload.name} has been updated. Date: ${payload.date}, Venue: ${payload.venue}`);
+        }
+
+        closeEditModal();
+        loadEvents();
+        showToast('Event updated & synced live across all portals!');
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerText = 'Save & Publish Live';
+      }
+    }
+
+    async function notifyRegisteredUsers(userIds, msg) {
+      try {
+        const notifObj = { id: 'n_' + Date.now(), msg, time: 'Just now', read: false, icon: '📢' };
+        for (const uid of userIds) {
+          const { data: user } = await sb.from('users').select('notifs').eq('id', uid).maybeSingle();
+          if (user) {
+            const notifs = [notifObj, ...(user.notifs || [])];
+            await sb.from('users').update({ notifs }).eq('id', uid);
+          }
+        }
+      } catch (e) {
+        console.warn('Participant notification error:', e);
+      }
+    }
+
+    function openDeleteModal() {
+      document.getElementById('delete-confirm-input').value = '';
+      document.getElementById('delete-modal').style.display = 'flex';
+    }
+
+    function closeDeleteModal() { document.getElementById('delete-modal').style.display = 'none'; }
+
+    async function executeSoftDeleteEvent() {
+      const confirmVal = document.getElementById('delete-confirm-input').value.trim();
+      if (confirmVal !== 'DELETE') {
+        alert('Please type DELETE to confirm removal.');
+        return;
+      }
+      const id = document.getElementById('edit-id').value;
+      const ev = allEvents.find(e => String(e.id) === String(id));
+
+      await sb.from('events').update({ status: 'archived', deleted_at: new Date().toISOString(), deleted_by: currentAdminRole }).eq('id', id);
+      await recordAuditAction({
+        action: 'Event Soft-Deleted / Archived',
+        target: ev?.name || id,
+        details: 'Moved to Recycle Bin'
+      });
+
+      closeDeleteModal();
+      closeEditModal();
+      loadEvents();
+      loadRecycleBin();
+      showToast('Event moved to Recycle Bin.');
+    }
+
+    async function loadRecycleBin() {
+      const { data } = await sb.from('events').select('*').eq('status', 'archived');
+      const box = document.getElementById('recycle-list');
+      if (!box) return;
+
+      if (!data || !data.length) {
+        box.innerHTML = '<div style="color:#64748b; text-align:center; padding:2rem;">Recycle bin is empty. No archived events.</div>';
+        return;
+      }
+
+      box.innerHTML = data.map(ev => `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:1.25rem; border-radius:12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <strong style="color:#0f172a; font-size:1.05rem;">${ev.name}</strong>
+            <div style="font-size:12px; color:#64748b; margin-top:3px;">
+              Club: ${ev.club || 'VVCE'} • Originally: ${ev.date} at ${ev.venue} • Deleted by: ${ev.deleted_by || 'Admin'}
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" onclick="restoreEvent('${ev.id}')">Restore Event ↩</button>
+            <button class="btn btn-danger" onclick="permanentDeleteEvent('${ev.id}')">Delete Permanently ✕</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function restoreEvent(id) {
+      await sb.from('events').update({ status: 'approved', deleted_at: null }).eq('id', id);
+      await recordAuditAction({ action: 'Event Restored', target: id, details: 'Restored from Recycle Bin to Live Feed' });
+      loadEvents();
+      loadRecycleBin();
+      showToast('Event restored to live feeds!');
+    }
+
+    async function permanentDeleteEvent(id) {
+      if (!confirm('Are you sure? This action is irreversible.')) return;
+      await sb.from('events').delete().eq('id', id);
+      await recordAuditAction({ action: 'Event Permanently Destroyed', target: id, details: 'Deleted from database' });
+      loadRecycleBin();
+      showToast('Event permanently deleted.');
+    }
+
+    async function loadConfig() {
+      try {
+        const { data } = await sb.from('cpm_config').select('*').eq('id', 'global').maybeSingle();
+        if (data && data.config) {
+          currentConfig = { ...currentConfig, ...data.config };
+          if (currentConfig.banner) {
+            document.getElementById('banner-enabled').checked = !!currentConfig.banner.enabled;
+            document.getElementById('banner-text').value = currentConfig.banner.text || '';
+            document.getElementById('banner-type').value = currentConfig.banner.type || 'warning';
+            document.getElementById('banner-start').value = currentConfig.banner.start_date || '';
+            document.getElementById('banner-end').value = currentConfig.banner.end_date || '';
+          }
+          if (currentConfig.media) {
+            document.getElementById('media-hero-banner').value = currentConfig.media.heroBanner || '';
+            document.getElementById('media-logo-url').value = currentConfig.media.logoUrl || '';
+            document.getElementById('media-bg-url').value = currentConfig.media.bgUrl || '';
+            document.getElementById('media-signin-bg-url').value = currentConfig.media.signinBgUrl || '';
+            previewMedia('hero', currentConfig.media.heroBanner || '');
+          }
+          if (currentConfig.theme) {
+            if (typeof currentConfig.theme === 'object') {
+              const t = currentConfig.theme;
+              if (document.getElementById('theme-name')) {
+                document.getElementById('theme-id').value = t.id || 'custom';
+                document.getElementById('theme-name').value = t.name || '';
+                document.getElementById('theme-greeting').value = t.greeting || '';
+                document.getElementById('theme-show-greeting').checked = !!t.showGreeting;
+                document.getElementById('theme-primary-color').value = t.primary || '#f59e0b';
+                document.getElementById('theme-primary-hex').value = t.primary || '#f59e0b';
+                document.getElementById('theme-secondary-color').value = t.secondary || '#fbbf24';
+                document.getElementById('theme-secondary-hex').value = t.secondary || '#fbbf24';
+                document.getElementById('theme-effect').value = t.effect || 'none';
+                document.getElementById('theme-bg-style').value = t.bgStyle || 'light';
+                document.getElementById('theme-banner-url').value = t.bannerUrl || '';
+                updateThemeLivePreview();
+              }
+            }
+          }
+          updateEmergencyButtonStates();
+        }
+      } catch(e) {}
+    }
+
+    async function saveBannerConfig(e) {
+      e.preventDefault();
+      currentConfig.banner = {
+        enabled: document.getElementById('banner-enabled').checked,
+        text: document.getElementById('banner-text').value,
+        type: document.getElementById('banner-type').value,
+        start_date: document.getElementById('banner-start').value || null,
+        end_date: document.getElementById('banner-end').value || null
+      };
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({ action: 'Banner Updated', target: 'Site Announcement', details: currentConfig.banner.text });
+      showToast('Announcement banner broadcasted live!');
+    }
+
+    function previewMedia(type, url) {
+      if (type === 'hero') {
+        const prev = document.getElementById('media-hero-preview');
+        if (url) {
+          prev.style.backgroundImage = `url('${url}')`;
+          prev.innerText = '';
+        } else {
+          prev.style.backgroundImage = 'none';
+          prev.innerText = 'No image specified';
+        }
+      }
+    }
+
+    function setMediaPreset(type, url) {
+      if (type === 'hero') {
+        document.getElementById('media-hero-banner').value = url;
+        previewMedia('hero', url);
+      }
+    }
+
+    async function saveMediaConfig(e) {
+      e.preventDefault();
+      currentConfig.media = {
+        heroBanner: document.getElementById('media-hero-banner').value.trim(),
+        logoUrl: document.getElementById('media-logo-url').value.trim(),
+        bgUrl: document.getElementById('media-bg-url').value.trim(),
+        signinBgUrl: document.getElementById('media-signin-bg-url').value.trim()
+      };
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({ action: 'Media Assets Updated', target: 'Visual Branding', details: 'Hero Banner and Background updated' });
+      showToast('Visual media assets broadcasted live!');
+    }
+
+    const festivalPresets = {
+      rajyotsava: {
+        id: 'rajyotsava',
+        name: 'Kannada Rajyotsava Celebration',
+        greeting: 'ಕನ್ನಡ ರಾಜ್ಯೋತ್ಸವದ ಹಾರ್ದಿಕ ಶುಭಾಶಯಗಳು! 💛❤️ Celebrating Karnataka Heritage',
+        showGreeting: true,
+        primary: '#fbbf24',
+        secondary: '#dc2626',
+        effect: 'rajyotsava',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      dasara: {
+        id: 'dasara',
+        name: 'Mysuru Dasara & Vijayadashami Utsav',
+        greeting: 'ನಾಡಹಬ್ಬ ಮೈಸೂರು ದಸರಾ ಮಹೋತ್ಸವದ ಶುಭಾಶಯಗಳು! 🐘✨ Royal Heritage of Mysuru',
+        showGreeting: true,
+        primary: '#d97706',
+        secondary: '#991b1b',
+        effect: 'sparkles',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      independence: {
+        id: 'independence',
+        name: 'Independence & Republic Day (Desh Bhakti)',
+        greeting: 'Happy Independence Day! 🇮🇳 Celebrating Freedom, Unity & Excellence',
+        showGreeting: true,
+        primary: '#ea580c',
+        secondary: '#15803d',
+        effect: 'tricolor',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      diwali: {
+        id: 'diwali',
+        name: 'Diwali / Deepavali (Festival of Lights)',
+        greeting: 'Wishing You a Joyous, Bright & Prosperous Deepavali! 🪔✨ May Light Prevail',
+        showGreeting: true,
+        primary: '#d97706',
+        secondary: '#f59e0b',
+        effect: 'diyas',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      ganesh: {
+        id: 'ganesh',
+        name: 'Ganesh Chaturthi Mahotsav',
+        greeting: 'Happy Ganesh Chaturthi! 🌺🙏 Wishing Wisdom, Prosperity & Joy',
+        showGreeting: true,
+        primary: '#ea580c',
+        secondary: '#eab308',
+        effect: 'flowers',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      holi: {
+        id: 'holi',
+        name: 'Holi (Festival of Colors)',
+        greeting: 'Happy Holi! Celebrating Colors of Friendship & Happiness 🎨🌈',
+        showGreeting: true,
+        primary: '#db2777',
+        secondary: '#06b6d4',
+        effect: 'confetti',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      techfest: {
+        id: 'techfest',
+        name: 'VVCE National Tech Fest (Vidyuth / Hackathon)',
+        greeting: 'VVCE Annual Tech Fest & Hackathon is Live! ⚡🚀 Innovate & Build',
+        showGreeting: true,
+        primary: '#2563eb',
+        secondary: '#7c3aed',
+        effect: 'sparkles',
+        bgStyle: 'dark',
+        bannerUrl: ''
+      },
+      classic: {
+        id: 'default',
+        name: 'VVCE Institutional Classic',
+        greeting: '',
+        showGreeting: false,
+        primary: '#f59e0b',
+        secondary: '#fbbf24',
+        effect: 'none',
+        bgStyle: 'light',
+        bannerUrl: ''
+      }
+    };
+
+    function loadFestivalPreset(key) {
+      const p = festivalPresets[key] || festivalPresets.classic;
+      document.getElementById('theme-id').value = p.id;
+      document.getElementById('theme-name').value = p.name;
+      document.getElementById('theme-greeting').value = p.greeting;
+      document.getElementById('theme-show-greeting').checked = p.showGreeting;
+      document.getElementById('theme-primary-color').value = p.primary;
+      document.getElementById('theme-primary-hex').value = p.primary;
+      document.getElementById('theme-secondary-color').value = p.secondary;
+      document.getElementById('theme-secondary-hex').value = p.secondary;
+      document.getElementById('theme-effect').value = p.effect;
+      document.getElementById('theme-bg-style').value = p.bgStyle;
+      document.getElementById('theme-banner-url').value = p.bannerUrl || '';
+      updateThemeLivePreview();
+      showToast('Loaded preset: ' + p.name + '. Click Save to apply live.');
+    }
+
+    function syncColorInput(type, val) {
+      if (type === 'primary') document.getElementById('theme-primary-hex').value = val;
+      if (type === 'secondary') document.getElementById('theme-secondary-hex').value = val;
+      updateThemeLivePreview();
+    }
+
+    function syncHexInput(type, val) {
+      if (!val.startsWith('#')) val = '#' + val;
+      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+        if (type === 'primary') document.getElementById('theme-primary-color').value = val;
+        if (type === 'secondary') document.getElementById('theme-secondary-color').value = val;
+        updateThemeLivePreview();
+      }
+    }
+
+    function updateThemeLivePreview() {
+      const p = document.getElementById('theme-primary-color')?.value || '#f59e0b';
+      const s = document.getElementById('theme-secondary-color')?.value || '#fbbf24';
+      const greeting = document.getElementById('theme-greeting')?.value || 'Celebration Greeting Message';
+      const showGreeting = document.getElementById('theme-show-greeting')?.checked;
+      const name = document.getElementById('theme-name')?.value || 'Celebration Theme';
+      const bgUrl = document.getElementById('theme-banner-url')?.value || '';
+
+      const rib = document.getElementById('preview-ribbon');
+      if (rib) {
+        rib.style.display = showGreeting ? 'flex' : 'none';
+        rib.style.background = `linear-gradient(90deg, ${p}, ${s})`;
+        rib.innerText = greeting;
+      }
+
+      const btn = document.getElementById('preview-btn');
+      if (btn) {
+        btn.style.background = `linear-gradient(135deg, ${p}, ${s})`;
+        btn.style.color = '#0f172a';
+        btn.style.fontWeight = '700';
+      }
+
+      const badge = document.getElementById('preview-badge');
+      if (badge) {
+        badge.style.background = p + '25';
+        badge.style.color = p;
+        badge.style.borderColor = p + '60';
+        badge.innerText = name.toUpperCase();
+      }
+
+      const previewBox = document.getElementById('live-theme-preview-box');
+      if (previewBox) {
+        if (bgUrl) {
+          previewBox.style.backgroundImage = `url('${bgUrl}')`;
+          previewBox.style.backgroundSize = 'cover';
+          previewBox.style.backgroundPosition = 'center';
+        } else {
+          previewBox.style.backgroundImage = 'none';
+        }
+      }
+    }
+
+    async function saveCelebrationTheme(e) {
+      e.preventDefault();
+      const themeObj = {
+        id: document.getElementById('theme-id').value || 'custom',
+        name: document.getElementById('theme-name').value.trim(),
+        greeting: document.getElementById('theme-greeting').value.trim(),
+        showGreeting: document.getElementById('theme-show-greeting').checked,
+        primary: document.getElementById('theme-primary-color').value,
+        secondary: document.getElementById('theme-secondary-color').value,
+        effect: document.getElementById('theme-effect').value,
+        bgStyle: document.getElementById('theme-bg-style').value,
+        bannerUrl: document.getElementById('theme-banner-url').value.trim(),
+        updated_at: new Date().toISOString()
+      };
+
+      currentConfig.theme = themeObj;
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({
+        action: 'Festival / Celebration Theme Activated',
+        target: themeObj.name,
+        details: `Primary: ${themeObj.primary} | Secondary: ${themeObj.secondary} | Effect: ${themeObj.effect}`
+      });
+      showToast('Celebration Theme applied & broadcasted live to all users!');
+    }
+
+    async function resetThemeToDefault() {
+      // Preserve any existing custom background image
+      const existingBanner = currentConfig?.theme?.bannerUrl || '';
+
+      // Load classic preset into the form fields
+      loadFestivalPreset('classic');
+
+      // Save classic preset but override bannerUrl to keep existing image
+      const resetTheme = { ...festivalPresets.classic };
+      if (existingBanner) resetTheme.bannerUrl = existingBanner;
+
+      currentConfig.theme = resetTheme;
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+
+      // Immediately force sidebar back to dark gradient — don't rely on CSS fallback
+      document.documentElement.style.setProperty('--sb', 'linear-gradient(135deg, #111827, #1e2a3d)');
+
+      await recordAuditAction({
+        action: 'Theme Reset to Default',
+        target: 'VVCE Institutional Classic',
+        details: 'Restored standard dark sidebar; cleared festive colours'
+      });
+      showToast('Theme reset to default! Sidebar restored to dark blue.');
+    }
+
+    async function loadAnalytics() {
+      const { data: users } = await sb.from('users').select('id, type, created_at');
+      const { data: events } = await sb.from('events').select('id, name, category, registrations, waitlist, max_participants, status');
+
+      const uList = users || [];
+      const eList = events || [];
+
+      document.getElementById('analytics-total-users').innerText = uList.length;
+      const students = uList.filter(u => u.type === 'student').length;
+      const faculty = uList.length - students;
+      document.getElementById('analytics-user-breakdown').innerText = `${students} Students • ${faculty} Faculty / Admins`;
+
+      document.getElementById('analytics-daily-active').innerText = Math.max(1, Math.round(uList.length * 0.45));
+
+      let totalRegs = 0;
+      const catCount = {};
+      eList.forEach(e => {
+        const count = (e.registrations || []).length;
+        totalRegs += count;
+        const cat = e.category || 'General';
+        catCount[cat] = (catCount[cat] || 0) + count + 1;
+      });
+      document.getElementById('analytics-total-regs').innerText = totalRegs;
+
+      const clubs = new Set(eList.map(e => e.club).filter(Boolean));
+      document.getElementById('analytics-active-clubs').innerText = clubs.size || 12;
+
+      const chartBox = document.getElementById('category-chart-container');
+      const totalPoints = Object.values(catCount).reduce((a, b) => a + b, 0) || 1;
+      chartBox.innerHTML = Object.keys(catCount).map(cat => {
+        const pct = Math.round((catCount[cat] / totalPoints) * 100);
+        return `
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+              <span style="color:#334155; font-weight:600;">${cat}</span>
+              <strong style="color:#0f172a;">${pct}%</strong>
+            </div>
+            <div style="background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
+              <div style="background:linear-gradient(90deg, #f59e0b, #fbbf24); width:${pct}%; height:100%; border-radius:4px;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const capBox = document.getElementById('capacity-metrics-container');
+      capBox.innerHTML = eList.slice(0, 15).map(e => {
+        const reg = (e.registrations || []).length;
+        const wait = (e.waitlist || []).length;
+        const max = e.max_participants || 100;
+        const rem = Math.max(0, max - reg);
+        const isFull = reg >= max;
+        return `
+          <div style="padding:10px 0; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+            <div>
+              <strong style="color:#0f172a; font-size:13px;">${e.name}</strong>
+              <div style="color:#64748b; margin-top:2px;">${reg} / ${max} registered (${rem} seats left)${wait > 0 ? ` • <span style="color:#b45309; font-weight:600;">${wait} waitlisted</span>` : ''}</div>
+            </div>
+            <span class="badge" style="border-color:${isFull ? '#fecaca' : '#bbf7d0'}; color:${isFull ? '#dc2626' : '#15803d'}; background:${isFull ? '#fef2f2' : '#f0fdf4'}; font-weight:700;">
+              ${isFull ? 'FULL' : 'OPEN'}
+            </span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function recordAuditAction(record) {
+      const entry = {
+        id: 'log_' + Date.now(),
+        timestamp: new Date().toLocaleString(),
+        admin: currentAdminRole,
+        action: record.action,
+        target: record.target,
+        details: record.details
+      };
+      try {
+        await sb.from('cpm_audit_logs').insert([entry]);
+      } catch(e) {
+        const local = JSON.parse(localStorage.getItem('cpm_audit') || '[]');
+        local.unshift(entry);
+        localStorage.setItem('cpm_audit', JSON.stringify(local.slice(0, 50)));
+      }
+    }
+
+    async function loadAuditLog() {
+      const tbody = document.getElementById('audit-log-body');
+      let logs = [];
+      try {
+        const { data } = await sb.from('cpm_audit_logs').select('*').order('timestamp', { ascending: false }).limit(40);
+        if (data && data.length) logs = data;
+      } catch(e) {}
+      if (!logs.length) {
+        logs = JSON.parse(localStorage.getItem('cpm_audit') || '[]');
+      }
+      if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b; padding:2rem;">No activity logged yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = logs.map(l => `
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding:10px; color:#475569;">${l.timestamp}</td>
+          <td style="padding:10px;"><span class="badge" style="background:#f1f5f9; color:#334155; border-color:#e2e8f0;">${l.admin}</span></td>
+          <td style="padding:10px; color:#0f172a;"><strong>${l.action}</strong></td>
+          <td style="padding:10px; color:#334155;">${l.target}</td>
+          <td style="padding:10px; font-size:12px; color:#64748b;">${l.details}</td>
+        </tr>
+      `).join('');
+    }
+
+    function triggerMaintenanceToggle() {
+      document.getElementById('maint-modal').style.display = 'flex';
+    }
+    function closeMaintModal() { document.getElementById('maint-modal').style.display = 'none'; }
+
+    async function confirmMaintenanceMode() {
+      closeMaintModal();
+      currentConfig.maintenance = !currentConfig.maintenance;
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({
+        action: currentConfig.maintenance ? 'Emergency Maintenance ENABLED' : 'Maintenance Mode DISABLED',
+        target: 'Global Site',
+        details: 'Triggered by Super Admin'
+      });
+      updateEmergencyButtonStates();
+      showToast(currentConfig.maintenance ? 'Maintenance Mode ACTIVE' : 'Site Restored Online');
+    }
+
+    async function toggleRegistrationLock() {
+      currentConfig.registrationLocked = !currentConfig.registrationLocked;
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({
+        action: currentConfig.registrationLocked ? 'Registrations PAUSED' : 'Registrations UNLOCKED',
+        target: 'All Events',
+        details: 'Registration state updated'
+      });
+      updateEmergencyButtonStates();
+      showToast(currentConfig.registrationLocked ? 'All Registrations Paused' : 'Registrations Re-opened');
+    }
+
+    function updateEmergencyButtonStates() {
+      const mBtn = document.getElementById('btn-toggle-maint');
+      const rBtn = document.getElementById('btn-toggle-regs');
+      if (mBtn) {
+        mBtn.innerText = currentConfig.maintenance ? 'Disable Maintenance Mode' : 'Enable Maintenance Mode';
+        mBtn.className = currentConfig.maintenance ? 'btn btn-primary' : 'btn btn-danger';
+      }
+      if (rBtn) {
+        rBtn.innerText = currentConfig.registrationLocked ? 'Resume Registrations' : 'Pause Registrations';
+        rBtn.className = currentConfig.registrationLocked ? 'btn btn-primary' : 'btn btn-warning';
+      }
+    }
+
+    async function uploadThemeBackground(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const btn = document.getElementById('theme-bg-upload-btn');
+      const originalText = btn.innerText;
+      btn.innerText = 'Uploading...';
+      
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `backgrounds/${fileName}`;
+
+        const { data, error } = await sb.storage
+          .from('cpm_backgrounds')
+          .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+        if (error) throw error;
+
+        const { data: pubData } = sb.storage
+          .from('cpm_backgrounds')
+          .getPublicUrl(filePath);
+
+        document.getElementById('theme-banner-url').value = pubData.publicUrl;
+        updateThemeLivePreview();
+        showToast('Background uploaded successfully!');
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert('Failed to upload image: ' + err.message);
+      } finally {
+        btn.innerText = originalText;
+        input.value = ''; // Reset input
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 3500);
+    }
+  </script>
+</body>
+</html>

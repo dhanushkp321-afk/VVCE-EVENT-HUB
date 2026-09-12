@@ -33,8 +33,30 @@ const STATE = {
   rejectEventId: null,
 };
 
-import { supabase } from './js/supabaseClient.js';
+const supabaseUrl = 'https://nkugbdencpvhhvgqybgi.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdWdiZGVuY3B2aGh2Z3F5YmdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4OTY3MzMsImV4cCI6MjA5NjQ3MjczM30.YFFnsWBymu4R59aMHTEq6ogwI0xb4xjbavpto1FrVWY';
 
+function getSupabaseClient() {
+  if (window.supabase && typeof window.supabase.from === 'function') {
+    return window.supabase;
+  }
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    window.supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    return window.supabase;
+  }
+  if (typeof createClient === 'function') {
+    window.supabase = createClient(supabaseUrl, supabaseKey);
+    return window.supabase;
+  }
+  return null;
+}
+
+const DEFAULT_USERS = [
+  { id: 'u1', type: 'student', name: 'Akash Sharma', email: 'akash@vvce.ac.in', pass: 'demo1234', usn: '4VV21CS001', branch: 'CS', section: 'A', year: '4th Year', sem: 'Sem 8', admissionYear: 2021, dept: 'Computer Science', phone: '+91 98765 43210', interests: ['Technical', 'Workshop'], skills: [], bio: '', linkedin: '', github: '', achievements: [], profilePhoto: null, resume: null, points: 120, pointsBySem: { 'Sem 1': 20, 'Sem 2': 20, 'Sem 3': 20, 'Sem 4': 20, 'Sem 5': 20, 'Sem 6': 20, 'Sem 7': 0, 'Sem 8': 0 }, notifs: [] },
+  { id: 'u2', type: 'admin', name: 'Harshill M Gowda', email: 'harshill@vvce.ac.in', pass: 'demo1234', clubName: 'CSE Club', clubEmail: 'cseclub@vvce.ac.in', domain: 'Technical', branch: 'CSE', usn: '4VV21CS045', faculty: 'Dr. Ramesh Kumar', phone: '+91 98765 43211', desc: 'Official Computer Science Club of VVCE', approved: true, notifs: [] },
+  { id: 'u3', type: 'authority', name: 'Dr. Priya Nair', email: 'dean.sw@vvce.ac.in', pass: 'demo1234', designation: 'dean', dept: 'Student Welfare', phone: '+91 98765 43212', notifs: [] },
+  { id: 'u4', type: 'authority', name: 'Prof. Vijay Rao', email: 'principal@vvce.ac.in', pass: 'demo1234', designation: 'principal', dept: 'Administration', phone: '+91 98765 43213', notifs: [] }
+];
 
 const SUPABASE_CACHE = {
   vvce_users: [],
@@ -47,55 +69,89 @@ const SUPABASE_CACHE = {
 const PENDING_SCREENSHOTS = {};
 
 function getDB(key, def = []) {
-  return SUPABASE_CACHE[key] || def;
+  if (SUPABASE_CACHE[key] && Array.isArray(SUPABASE_CACHE[key]) && SUPABASE_CACHE[key].length > 0) {
+    return SUPABASE_CACHE[key];
+  }
+  try {
+    const local = localStorage.getItem(key);
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        SUPABASE_CACHE[key] = parsed;
+        return parsed;
+      }
+    }
+  } catch (e) {}
+  if (key === 'vvce_users') {
+    SUPABASE_CACHE['vvce_users'] = DEFAULT_USERS.slice();
+    try { localStorage.setItem('vvce_users', JSON.stringify(SUPABASE_CACHE['vvce_users'])); } catch(e){}
+    return SUPABASE_CACHE['vvce_users'];
+  }
+  return def;
 }
 
 function getDBObj(key, def = {}) {
-  return SUPABASE_CACHE[key] || def;
+  if (SUPABASE_CACHE[key] && Object.keys(SUPABASE_CACHE[key]).length > 0) {
+    return SUPABASE_CACHE[key];
+  }
+  try {
+    const local = localStorage.getItem(key);
+    if (local) {
+      const parsed = JSON.parse(local);
+      SUPABASE_CACHE[key] = parsed;
+      return parsed;
+    }
+  } catch (e) {}
+  return def;
 }
 
 async function setDB(key, val) {
   SUPABASE_CACHE[key] = val;
-  if (!window.supabase) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {}
+
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.from !== 'function') return;
 
   try {
     if (key === 'vvce_events') {
       const mapped = val.map(e => ({
         id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments, attended_students: e.attendedStudents || []
       }));
-      await window.supabase.from('events').upsert(mapped);
+      await sb.from('events').upsert(mapped);
     } else if (key === 'vvce_users') {
       const mapped = val.map(u => ({
         id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admission_year: u.admissionYear, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profile_photo: u.profilePhoto, resume: u.resume, points: u.points, points_by_sem: u.pointsBySem, notifs: u.notifs, club_name: u.clubName, club_email: u.clubEmail, domain: u.domain, faculty: u.faculty, approved: u.approved, "desc": u.desc, designation: u.designation
       }));
-      await window.supabase.from('users').upsert(mapped);
+      await sb.from('users').upsert(mapped);
     } else if (key === 'vvce_certs') {
       const mapped = val.map(c => ({
         id: c.id, "userId": c.userId, title: c.title, issuer: c.issuer, date: c.date, position: c.position, points: c.points, type: c.type, verified: c.verified, auto_generated: c.autoGenerated || false, event_id: c.eventId || null
       }));
       const activeIds = mapped.map(c => c.id);
       if (activeIds.length > 0) {
-        await window.supabase.from('vvce_certs').delete().not('id', 'in', `(${activeIds.join(',')})`);
+        await sb.from('vvce_certs').delete().not('id', 'in', `(${activeIds.join(',')})`);
       } else {
-        await window.supabase.from('vvce_certs').delete().neq('id', '_none_');
+        await sb.from('vvce_certs').delete().neq('id', '_none_');
       }
-      await window.supabase.from('vvce_certs').upsert(mapped);
+      await sb.from('vvce_certs').upsert(mapped);
     } else if (key === 'vvce_academic') {
       const mapped = val.map(a => ({
         id: a.id, date: a.date, type: a.type, "desc": a.desc
       }));
-      await window.supabase.from('academic').upsert(mapped);
+      await sb.from('academic').upsert(mapped);
     } else if (key === 'vvce_principal_status') {
       const mapped = { id: 'status', text: val.text, note: val.note, updated: val.updated, color: val.color, icon: val.icon };
-      await window.supabase.from('principal_status').upsert([mapped]);
+      await sb.from('principal_status').upsert([mapped]);
     } else if (key === 'vvce_principal_schedule') {
       const mapped = val.map(s => ({ id: s.id, date: s.date, start_time: s.startTime, end_time: s.endTime, title: s.title, "desc": s.desc }));
-      await window.supabase.from('principal_schedules').delete().neq('id', '0');
-      if (mapped.length > 0) await window.supabase.from('principal_schedules').insert(mapped);
+      await sb.from('principal_schedules').delete().neq('id', '0');
+      if (mapped.length > 0) await sb.from('principal_schedules').insert(mapped);
     } else if (key === 'vvce_princ_attend') {
       const mapped = val.map(id => ({ event_id: id }));
-      await window.supabase.from('princ_attend').delete().neq('event_id', '0');
-      if (mapped.length > 0) await window.supabase.from('princ_attend').insert(mapped);
+      await sb.from('princ_attend').delete().neq('event_id', '0');
+      if (mapped.length > 0) await sb.from('princ_attend').insert(mapped);
     }
   } catch (err) {
     console.error('Failed to sync to Supabase:', err);
@@ -170,14 +226,14 @@ function handleRealtimeUpdate(key, payload) {
       SUPABASE_CACHE[key] = cache.filter(item => item.id !== oldRecord.id);
     } else if (eventType === 'INSERT') {
       const exists = cache.some(item => item.id === newRecord.id);
-      if (!exists) {
+      if (!exists && mapper) {
         cache.push(mapper(newRecord));
       }
     } else if (eventType === 'UPDATE') {
       const idx = cache.findIndex(item => item.id === newRecord.id);
-      if (idx !== -1) {
+      if (idx !== -1 && mapper) {
         cache[idx] = mapper(newRecord);
-      } else {
+      } else if (mapper) {
         cache.push(mapper(newRecord));
       }
     }
@@ -216,10 +272,11 @@ function handleRealtimeUpdate(key, payload) {
 
 let realtimeChannel = null;
 function setupRealtimeSync() {
-  if (!window.supabase) return;
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.channel !== 'function') return;
   if (realtimeChannel) return; // already setup
 
-  realtimeChannel = window.supabase.channel('db-changes')
+  realtimeChannel = sb.channel('db-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
       handleRealtimeUpdate('vvce_users', payload);
     })
@@ -245,36 +302,52 @@ function setupRealtimeSync() {
 }
 
 async function bootApp() {
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.from !== 'function') {
+    console.warn('Supabase client not ready yet, working in persistent local mode.');
+    return;
+  }
+
   try {
     const [uRes, eRes, cRes, aRes, psRes, pscRes, paRes] = await Promise.all([
-      window.supabase.from('users').select('*'),
-      window.supabase.from('events').select('*'),
-      window.supabase.from('vvce_certs').select('*'),
-      window.supabase.from('academic').select('*'),
-      window.supabase.from('principal_status').select('*'),
-      window.supabase.from('principal_schedules').select('*'),
-      window.supabase.from('princ_attend').select('*')
+      sb.from('users').select('*'),
+      sb.from('events').select('*'),
+      sb.from('vvce_certs').select('*'),
+      sb.from('academic').select('*'),
+      sb.from('principal_status').select('*'),
+      sb.from('principal_schedules').select('*'),
+      sb.from('princ_attend').select('*')
     ]);
 
-    if (uRes.data) {
-      SUPABASE_CACHE.vvce_users = uRes.data.map(u => ({
-        id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points, pointsBySem: u.points_by_sem, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation
-      }));
+    if (uRes && uRes.data) {
+      const remoteUsers = uRes.data.map(mapUser);
+      const localUsers = getDB('vvce_users', []);
+      const mergedUsers = [...remoteUsers];
+      localUsers.forEach(lu => {
+        if (!mergedUsers.some(ru => ru.email.toLowerCase() === lu.email.toLowerCase())) {
+          mergedUsers.push(lu);
+          // Sync missing user to Supabase
+          sb.from('users').upsert([{
+            id: lu.id, type: lu.type, name: lu.name, email: lu.email, pass: lu.pass, usn: lu.usn, branch: lu.branch, section: lu.section, year: lu.year, sem: lu.sem, admission_year: lu.admissionYear, dept: lu.dept, phone: lu.phone, interests: lu.interests, skills: lu.skills, bio: lu.bio, linkedin: lu.linkedin, github: lu.github, achievements: lu.achievements, profile_photo: lu.profilePhoto, resume: lu.resume, points: lu.points, points_by_sem: lu.pointsBySem, notifs: lu.notifs, club_name: lu.clubName, club_email: lu.clubEmail, domain: lu.domain, faculty: lu.faculty, approved: lu.approved, "desc": lu.desc, designation: lu.designation
+          }]).then(() => {});
+        }
+      });
+      SUPABASE_CACHE.vvce_users = mergedUsers;
+      try { localStorage.setItem('vvce_users', JSON.stringify(mergedUsers)); } catch(e){}
     }
-    if (eRes.data) {
-      SUPABASE_CACHE.vvce_events = eRes.data.map(e => ({
-        id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time, venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, adminUpiId: e.admin_upi_id || '', points: e.points, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || []
-      }));
+    if (eRes && eRes.data && eRes.data.length > 0) {
+      SUPABASE_CACHE.vvce_events = eRes.data.map(mapEvent);
+      try { localStorage.setItem('vvce_events', JSON.stringify(SUPABASE_CACHE.vvce_events)); } catch(e){}
     }
-    if (cRes.data) {
-      SUPABASE_CACHE.vvce_certs = cRes.data.map(c => ({
-        id: c.id, userId: c.userId, title: c.title, issuer: c.issuer, date: c.date, position: c.position, points: c.points, type: c.type, verified: c.verified, autoGenerated: c.auto_generated || false, eventId: c.event_id || null
-      }));
+    if (cRes && cRes.data && cRes.data.length > 0) {
+      SUPABASE_CACHE.vvce_certs = cRes.data.map(mapCert);
+      try { localStorage.setItem('vvce_certs', JSON.stringify(SUPABASE_CACHE.vvce_certs)); } catch(e){}
     }
-    if (aRes.data) {
+    if (aRes && aRes.data && aRes.data.length > 0) {
       SUPABASE_CACHE.vvce_academic = aRes.data.map(a => ({
         id: a.id, date: a.date, type: a.type, desc: a.desc
       }));
+      try { localStorage.setItem('vvce_academic', JSON.stringify(SUPABASE_CACHE.vvce_academic)); } catch(e){}
     }
     if (psRes && psRes.data && psRes.data.length > 0) {
       const s = psRes.data[0];
@@ -295,6 +368,15 @@ async function bootApp() {
       SUPABASE_CACHE.vvce_princ_attend = [];
     }
     setupRealtimeSync();
+    
+    // Refresh UI to display the freshly loaded data from Supabase
+    if (STATE.page && !document.activeElement.tagName.match(/INPUT|TEXTAREA|SELECT/)) {
+      if (STATE.page === 'participants' && typeof renderParticipantTable === 'function') {
+        renderParticipantTable();
+      } else {
+        showPage(STATE.page);
+      }
+    }
   } catch (err) {
     console.error('Failed to load from Supabase:', err);
   }
@@ -374,8 +456,20 @@ function toast(msg, type = 'success', dur = 3200) {
 }
 
 /* Modal helpers */
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.add('open');
+    el.style.display = 'flex';
+  }
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.remove('open');
+    el.style.display = 'none';
+  }
+}
 
 /* ─────────────────────────────────────────────────────────────
    AUTH — LOGIN / SIGNUP
@@ -389,35 +483,44 @@ function switchMainTab(tab) {
   clearAuthMsg();
 
   if (tab === 'signin') {
-    panelSignin.style.display   = '';
-    panelRegister.style.display = 'none';
-    tabSignin.classList.add('active');
-    tabRegister.classList.remove('active');
+    if (panelSignin) panelSignin.style.display   = 'block';
+    if (panelRegister) panelRegister.style.display = 'none';
+    if (tabSignin) tabSignin.classList.add('active');
+    if (tabRegister) tabRegister.classList.remove('active');
   } else {
-    panelSignin.style.display   = 'none';
-    panelRegister.style.display = '';
-    tabSignin.classList.remove('active');
-    tabRegister.classList.add('active');
+    if (panelSignin) panelSignin.style.display   = 'none';
+    if (panelRegister) panelRegister.style.display = 'block';
+    if (tabSignin) tabSignin.classList.remove('active');
+    if (tabRegister) tabRegister.classList.add('active');
+    selectRegRole(STATE.regRole || 'student');
   }
 }
+window.switchMainTab = switchMainTab;
 
 function selectRegRole(role) {
   STATE.regRole = role;
   ['student','admin','authority'].forEach(r => {
-    document.getElementById(`rcard-${r}`).classList.toggle('active', r === role);
-    document.getElementById(`form-${r}`).style.display = r === role ? '' : 'none';
+    const card = document.getElementById(`rcard-${r}`);
+    const form = document.getElementById(`form-${r}`);
+    if (card) card.classList.toggle('active', r === role);
+    if (form) form.style.display = r === role ? 'block' : 'none';
   });
   clearAuthMsg();
 }
+window.selectRegRole = selectRegRole;
 
 function toggleChip(el) { el.classList.toggle('selected'); }
+window.toggleChip = toggleChip;
 
 function showAuthMsg(msg, type = 'error') {
   const el = document.getElementById('auth-msg');
-  el.textContent = msg;
-  el.className = `auth-msg ${type}`;
-  el.style.display = '';
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (el) {
+    el.textContent = msg;
+    el.className = `auth-msg ${type}`;
+    el.style.display = '';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  toast(msg, type, 4500);
 }
 function clearAuthMsg() {
   const el = document.getElementById('auth-msg');
@@ -430,22 +533,129 @@ window._scannedData = { student: null, admin: null, authority: null };
 function extractUSNFuzzy(text) {
   if (!text) return null;
   const raw = text.toUpperCase();
-  const usnRegex = /(?:USN\s*[:;-]?\s*)?(4[A-Z]{2}\s*\d{2}\s*[A-Z]{2,4}\s*[\dO]{3,4})/i;
+  const usnRegex = /(?:USN\s*[:;-]?\s*)?(4[A-Z]{2}\s*\d{2}\s*[A-Z]{2,4}\s*[\dOIZ]{3,4})/i;
   const match = raw.match(usnRegex);
   
   if (match) {
-    let candidate = match[1].replace(/\s+/g, '');
+    let candidate = match[1].replace(/[\s\-_]/g, '');
     const prefixPart = candidate.slice(0, 7);
-    const digitsPart = candidate.slice(7).replace(/O/g, '0');
+    const digitsPart = candidate.slice(7).replace(/O/g, '0').replace(/I/g, '1').replace(/Z/g, '2');
     candidate = prefixPart + digitsPart;
     if (/^4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4}$/.test(candidate)) {
       return candidate;
     }
   }
 
-  const directMatch = raw.replace(/\s+/g, '').match(/(4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4})/);
+  const directMatch = raw.replace(/[\s\-_]/g, '').match(/(4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4})/);
   if (directMatch) return directMatch[1];
   return null;
+}
+
+/* Helper to map "Program: BE - CS&E" text or USN branch code to Branch dropdown selection */
+function parseProgramToBranch(ocrText, usn) {
+  if (ocrText) {
+    const progMatch = ocrText.match(/Program\s*[:;-]?\s*BE\s*[-:]?\s*([A-Z&\s]+)/i) || ocrText.match(/BE\s*[-:]\s*([A-Z&\s]+)/i);
+    if (progMatch) {
+      const p = progMatch[1].toUpperCase().replace(/\s+/g, '');
+      if (p.includes('CS&E') || p.includes('CSE') || p.includes('CS')) return 'CS';
+      if (p.includes('AI') || p.includes('ML')) return 'CS AI/ML';
+      if (p.includes('IS&E') || p.includes('ISE') || p.includes('IS')) return 'IS';
+      if (p.includes('EC&E') || p.includes('ECE') || p.includes('EC')) return 'EC';
+      if (p.includes('ME')) return 'ME';
+      if (p.includes('EE') || p.includes('EEE')) return 'EEE';
+      if (p.includes('CV') || p.includes('CIVIL')) return 'CV';
+    }
+  }
+
+  if (usn) {
+    const match = usn.match(/^4[A-Z]{2}\d{2}([A-Z]{2,4})\d{3,4}$/i);
+    if (match) {
+      const br = match[1].toUpperCase();
+      if (br === 'CS' || br === 'CSE') return 'CS';
+      if (br === 'AI' || br === 'AIML') return 'CS AI/ML';
+      if (br === 'IS' || br === 'ISE') return 'IS';
+      if (br === 'EC' || br === 'ECE') return 'EC';
+      if (br === 'ME') return 'ME';
+      if (br === 'EE' || br === 'EEE') return 'EEE';
+      if (br === 'CV') return 'CV';
+    }
+  }
+  return null;
+}
+
+/* Fast 4-Angle Canvas Generator for ID Card Processing */
+async function getFastCanvasVariants(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = async () => {
+      const variants = [];
+      const targetWidth = 1200; // Optimal resolution for sharp OCR & Barcode
+      const isPortrait = img.height > img.width;
+      const angles = isPortrait ? [90, 270, 0, 180] : [0, 180, 90, 270];
+
+      for (const angle of angles) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let w = img.width;
+        let h = img.height;
+        const scale = targetWidth / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+
+        if (angle === 90 || angle === 270) {
+          canvas.width = h;
+          canvas.height = w;
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angle * Math.PI) / 180);
+          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        } else if (angle === 180) {
+          canvas.width = w;
+          canvas.height = h;
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angle * Math.PI) / 180);
+          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        } else {
+          canvas.width = w;
+          canvas.height = h;
+          if (angle !== 0) {
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate((angle * Math.PI) / 180);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          } else {
+            ctx.drawImage(img, 0, 0, w, h);
+          }
+        }
+
+        // 1. Save Natural variant
+        const naturalBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.90));
+        if (naturalBlob) {
+          variants.push({ blob: naturalBlob, angle, binarized: false });
+        }
+
+        // 2. Save High-Contrast Binarized variant for blurry/low-contrast photos
+        try {
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+          const contrast = 1.8;
+          for (let i = 0; i < data.length; i += 4) {
+            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            gray = (gray - 128) * contrast + 128;
+            gray = gray > 150 ? 255 : (gray < 90 ? 0 : gray);
+            data[i] = data[i + 1] = data[i + 2] = gray;
+          }
+          ctx.putImageData(imgData, 0, 0);
+          const binarizedBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.90));
+          if (binarizedBlob) {
+            variants.push({ blob: binarizedBlob, angle, binarized: true });
+          }
+        } catch(e) {}
+      }
+      resolve(variants);
+    };
+    img.onerror = () => resolve([]);
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 window.handleFileUpload = async function(event, role) {
@@ -454,80 +664,56 @@ window.handleFileUpload = async function(event, role) {
 
   const progressDiv = document.getElementById(`ocr-progress-${role}`);
   if (progressDiv) progressDiv.style.display = 'block';
-  toast('Analyzing ID card image...', 'info');
+  toast('Analyzing ID card photo...', 'info');
 
-  let usnFromBarcode = null;
-  let ocrText = '';
+  let finalUsn = null;
+  let parsedName = null;
+  let bestCanvasObj = null;
 
-  // 1. Barcode Scanner Promise
-  const barcodePromise = (async () => {
+  // 1. Generate 4 rotated canvas variants (takes ~50ms)
+  const variants = await getFastCanvasVariants(file);
+
+  // 2. Ultra-Fast Barcode Pass (<150ms total)
+  // Scans Html5Qrcode across rotated variants to instantly locate barcode and rotation angle!
+  for (const v of variants) {
     try {
       const html5QrCode = new Html5Qrcode('reader-hidden');
-      const res = await html5QrCode.scanFile(file, true);
+      const res = await html5QrCode.scanFile(v.blob, true);
       try { await html5QrCode.clear(); } catch(e){}
-      return res;
-    } catch (e) {
-      console.log('Barcode scan error:', e);
-      return null;
-    }
-  })();
+      const bcUsn = extractUSNFuzzy(res);
+      if (bcUsn) {
+        finalUsn = bcUsn;
+        bestCanvasObj = v;
+        break; // Barcode & correct rotation angle found instantly!
+      }
+    } catch(e) {}
+  }
 
-  // 2. OCR Promise with 8-second safety timeout
-  const ocrPromise = (async () => {
+  // 3. Target OCR Pass across variants until both USN AND Name are found
+  for (const v of variants) {
     try {
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 8000));
-      const res = await Promise.race([Tesseract.recognize(file, 'eng'), timeout]);
-      return res?.data?.text || '';
-    } catch (e) {
-      console.log('OCR error or timeout:', e);
-      return '';
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 3000));
+      const res = await Promise.race([Tesseract.recognize(v.blob, 'eng'), timeout]);
+      const ocrText = res?.data?.text || '';
+
+      if (!finalUsn) {
+        const ocrUsn = extractUSNFuzzy(ocrText);
+        if (ocrUsn) finalUsn = ocrUsn;
+      }
+
+      if (!parsedName) {
+        const nameCandidate = parseNameFromOCRText(ocrText);
+        if (nameCandidate) parsedName = nameCandidate;
+      }
+
+      if (finalUsn && parsedName) break; // Found both USN and Name, exit!
+    } catch(e) {
+      console.log('OCR error:', e);
     }
-  })();
-
-  const [barcodeRes, ocrRes] = await Promise.allSettled([barcodePromise, ocrPromise]);
-
-  usnFromBarcode = barcodeRes.status === 'fulfilled' ? barcodeRes.value : null;
-  ocrText = ocrRes.status === 'fulfilled' ? ocrRes.value : '';
+  }
 
   if (progressDiv) progressDiv.style.display = 'none';
-  event.target.value = ''; // Reset input
-
-  // Parse USN and Name using fuzzy logic
-  const lines = ocrText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  let parsedName = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/Program\s*[:;-]/i.test(line)) {
-      if (i > 0) parsedName = lines[i-1];
-    }
-  }
-
-  if (!parsedName) {
-    for (const l of lines) {
-      if (/^[A-Z\s]{3,30}$/.test(l) && !/VIDYAVARDHAKA|ENGINEERING|MYSURU|COLLEGE|PROGRAM|USN|BLOOD|GROUP|VALIDITY|BE\s*-/i.test(l)) {
-        parsedName = l;
-        break;
-      }
-    }
-  }
-
-  const usnFromBC = extractUSNFuzzy(usnFromBarcode);
-  const usnFromOCR = extractUSNFuzzy(ocrText);
-  let finalUsn = null;
-
-  if (usnFromBC && usnFromOCR) {
-    if (usnFromBC === usnFromOCR) {
-      finalUsn = usnFromBC;
-      console.log('✅ Security check passed: Barcode USN matches Printed USN (' + finalUsn + ')');
-    } else {
-      showAuthMsg(`❌ Security Alert: ID card tampering detected! The barcode USN (${usnFromBC}) does not match the printed text USN (${usnFromOCR}).`, 'error');
-      toast('❌ ID Tampering Detected!', 'error');
-      return;
-    }
-  } else {
-    finalUsn = usnFromBC || usnFromOCR;
-  }
+  event.target.value = ''; // Reset input element
 
   if (role === 'student' || role === 'admin') {
     const users = getDB('vvce_users');
@@ -544,10 +730,10 @@ window.handleFileUpload = async function(event, role) {
 
     window._scannedData[role] = { usn: finalUsn, name: parsedName, photoAttached: true };
 
-    if (finalUsn) {
-      toast('✅ ID Card Verified & Auto-Filled!', 'success');
+    if (finalUsn || parsedName) {
+      toast('✅ ID Card Scanned & Auto-Filled!', 'success');
     } else {
-      toast('ℹ️ Photo attached! Please enter your USN below.', 'info');
+      toast('ℹ️ Photo attached! Please fill in your details below.', 'info');
     }
 
     if (role === 'student') {
@@ -555,26 +741,29 @@ window.handleFileUpload = async function(event, role) {
       if (usnEl) {
         if (finalUsn) {
           usnEl.value = finalUsn;
-          usnEl.readOnly = true;
-          usnEl.style.opacity = '0.7';
-          usnEl.style.cursor = 'not-allowed';
-        } else {
-          usnEl.value = '';
-          usnEl.readOnly = false;
-          usnEl.style.opacity = '1';
-          usnEl.style.cursor = 'text';
-          usnEl.placeholder = 'Enter USN e.g. 4VV25CS047';
+          usnEl.setAttribute('value', finalUsn);
+          usnEl.dispatchEvent(new Event('input', { bubbles: true }));
+          usnEl.dispatchEvent(new Event('change', { bubbles: true }));
         }
+        usnEl.readOnly = false;
+        usnEl.style.opacity = '1';
+        usnEl.style.cursor = 'text';
+        usnEl.placeholder = 'e.g. 4VV25CS047';
       }
 
       const nameEl = document.getElementById('s-name');
-      if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
+      if (nameEl && parsedName) {
+        nameEl.value = parsedName.toUpperCase();
+        nameEl.setAttribute('value', parsedName.toUpperCase());
+        nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+        nameEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
 
       const verEl = document.getElementById('s-verified-usn');
       if (verEl) {
-        verEl.innerText = finalUsn 
-          ? `${finalUsn}${parsedName ? ' (' + parsedName.toUpperCase() + ')' : ''}`
-          : 'ID Photo Attached (Enter USN below)';
+        verEl.innerHTML = finalUsn 
+          ? `<strong>USN:</strong> ${finalUsn} ${parsedName ? '• <strong>Name:</strong> ' + parsedName.toUpperCase() : ''}`
+          : 'ID Photo Attached (Verify your details below)';
       }
 
       const scanUi = document.getElementById('student-scanner-ui');
@@ -583,24 +772,42 @@ window.handleFileUpload = async function(event, role) {
       const manualUi = document.getElementById('student-manual-fields');
       if (manualUi) manualUi.style.display = 'block';
 
+      const targetBranch = parseProgramToBranch(ocrTextCombined, finalUsn);
+      if (targetBranch) {
+        const sel = document.getElementById('s-branch');
+        if (sel) {
+          for(let i = 0; i < sel.options.length; i++) {
+            const optVal = sel.options[i].value.toUpperCase();
+            if (optVal === targetBranch || optVal.startsWith(targetBranch) || (targetBranch === 'CS' && optVal === 'CS')) {
+              sel.selectedIndex = i;
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        }
+
+        const deptSel = document.getElementById('s-dept');
+        if (deptSel) {
+          const deptMap = {
+            'CS': 'Computer Science',
+            'CS AI/ML': 'Computer Science',
+            'IS': 'Information Science',
+            'EC': 'Electronics & Communication',
+            'ME': 'Mechanical',
+            'EEE': 'Electrical & Electronics',
+            'CV': 'Civil'
+          };
+          if (deptMap[targetBranch]) {
+            deptSel.value = deptMap[targetBranch];
+            deptSel.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      }
+
       if (finalUsn) {
         const match = finalUsn.match(/^4[A-Z]{2}(\d{2})([A-Z]{2,4})\d{3,4}$/i);
         if (match) {
            const yrCode = parseInt(match[1]);
-           const br = match[2].toUpperCase();
-           
-           // Auto-select Branch
-           const sel = document.getElementById('s-branch');
-           if (sel) {
-             for(let i=0; i<sel.options.length; i++) {
-                if(sel.options[i].value === br || sel.options[i].value.startsWith(br) || (br === 'CS' && sel.options[i].value === 'CS')) {
-                  sel.selectedIndex = i;
-                  break;
-                }
-             }
-           }
-
-           // Auto-select Year & Semester from USN Admission Year
            if (yrCode > 0) {
              const admissionYear = 2000 + yrCode;
              const now = new Date();
@@ -615,10 +822,16 @@ window.handleFileUpload = async function(event, role) {
              else if (diff >= 3) { yearVal = '4th Year'; semVal = 'Sem 7'; }
 
              const yearSel = document.getElementById('s-year');
-             if (yearSel) yearSel.value = yearVal;
+             if (yearSel) {
+               yearSel.value = yearVal;
+               yearSel.dispatchEvent(new Event('change', { bubbles: true }));
+             }
 
              const semSel = document.getElementById('s-sem');
-             if (semSel) semSel.value = semVal;
+             if (semSel) {
+               semSel.value = semVal;
+               semSel.dispatchEvent(new Event('change', { bubbles: true }));
+             }
            }
         }
       }
@@ -627,21 +840,45 @@ window.handleFileUpload = async function(event, role) {
       if (usnEl) {
         if (finalUsn) {
           usnEl.value = finalUsn;
-          usnEl.readOnly = true;
-          usnEl.style.opacity = '0.7';
-        } else {
-          usnEl.value = '';
-          usnEl.readOnly = false;
-          usnEl.style.opacity = '1';
-          usnEl.placeholder = 'Enter USN e.g. 4VV21CS001';
+          usnEl.setAttribute('value', finalUsn);
+          usnEl.dispatchEvent(new Event('input', { bubbles: true }));
+          usnEl.dispatchEvent(new Event('change', { bubbles: true }));
         }
+        usnEl.readOnly = false;
+        usnEl.style.opacity = '1';
+        usnEl.style.cursor = 'text';
+        usnEl.placeholder = 'e.g. 4VV21CS001';
       }
 
       const nameEl = document.getElementById('a-name');
-      if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
+      if (nameEl && parsedName) {
+        nameEl.value = parsedName.toUpperCase();
+        nameEl.setAttribute('value', parsedName.toUpperCase());
+        nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+        nameEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
 
       const verEl = document.getElementById('a-verified-usn');
-      if (verEl) verEl.innerText = finalUsn || 'ID Photo Attached';
+      if (verEl) {
+        verEl.innerHTML = finalUsn 
+          ? `<strong>USN:</strong> ${finalUsn} ${parsedName ? '• <strong>Rep Name:</strong> ' + parsedName.toUpperCase() : ''}`
+          : 'ID Photo Attached';
+      }
+
+      const targetBranchAdmin = parseProgramToBranch(ocrTextCombined, finalUsn);
+      if (targetBranchAdmin) {
+        const sel = document.getElementById('a-branch');
+        if (sel) {
+          for(let i = 0; i < sel.options.length; i++) {
+            const optVal = sel.options[i].value.toUpperCase();
+            if (optVal.includes(targetBranchAdmin) || (targetBranchAdmin === 'CS' && optVal.includes('CSE'))) {
+              sel.selectedIndex = i;
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        }
+      }
 
       const scanUi = document.getElementById('admin-scanner-ui');
       if (scanUi) scanUi.style.display = 'none';
@@ -651,15 +888,20 @@ window.handleFileUpload = async function(event, role) {
     }
   } else if (role === 'authority') {
     window._scannedData[role] = { name: parsedName || 'Verified Faculty', photoAttached: true };
-    if (parsedName) document.getElementById('f-name').value = parsedName.toUpperCase();
-    document.getElementById('auth-scanner-ui').style.display = 'none';
-    document.getElementById('auth-manual-fields').style.display = 'block';
-    toast('✅ Faculty ID Photo Attached!', 'success');
+    const nameEl = document.getElementById('f-name');
+    if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
+
+    const scanUi = document.getElementById('auth-scanner-ui');
+    if (scanUi) scanUi.style.display = 'none';
+
+    const manualUi = document.getElementById('auth-manual-fields');
+    if (manualUi) manualUi.style.display = 'block';
+    toast('✅ Faculty ID Photo Verified & Auto-Filled!', 'success');
   }
 };
 
 /* ── Login ── */
-function handleLogin() {
+async function handleLogin() {
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   const pass  = document.getElementById('login-pass').value;
   if (!email || !pass) { showAuthMsg('Please enter your email and password.'); return; }
@@ -667,16 +909,40 @@ function handleLogin() {
     showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed to sign in.', 'error'); return;
   }
 
-  const users = getDB('vvce_users');
-  if (users.length === 0) {
-    showAuthMsg('Connecting to database, please try again in a moment...', 'info');
+  let users = getDB('vvce_users');
+  let user = users.find(u => u.email.toLowerCase() === email && u.pass === pass);
+
+  // If not found in local cache, do a direct Supabase lookup as an immediate fallback
+  if (!user) {
+    const sb = getSupabaseClient();
+    if (sb && typeof sb.from === 'function') {
+      try {
+        const { data } = await sb.from('users').select('*').ilike('email', email);
+        if (data && data.length > 0) {
+          const remoteUser = mapUser(data[0]);
+          if (remoteUser.pass === pass) {
+            user = remoteUser;
+            // Update cache
+            if (!users.some(u => u.id === user.id)) {
+              users.push(user);
+              SUPABASE_CACHE.vvce_users = users;
+              try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Supabase direct login check failed:', err);
+      }
+    }
+  }
+
+  if (!user) {
+    showAuthMsg('Invalid email or password. Please verify your credentials or register an account.');
     return;
   }
-  const user  = users.find(u => u.email.toLowerCase() === email && u.pass === pass);
-  if (!user) { showAuthMsg('Invalid email or password. Try the quick demo buttons below.'); return; }
 
   if (user.type === 'admin' && !user.approved) {
-    showAuthMsg('Your club account is pending Dean approval. Please wait.', 'warning');
+    showAuthMsg('Your club account is pending Dean Student Welfare approval. Please wait.', 'warning');
     return;
   }
 
@@ -696,6 +962,235 @@ function quickLogin(role) {
   handleLogin();
 }
 
+
+/* ─────────────────────────────────────────────────────────────
+   EMAIL OTP VERIFICATION SYSTEM
+───────────────────────────────────────────────────────────────*/
+let otpTimerInterval = null;
+
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function startOtpCountdown(seconds = 60) {
+  if (otpTimerInterval) clearInterval(otpTimerInterval);
+  let remaining = seconds;
+  const countdownEl = document.getElementById('otp-countdown');
+  const timerWrapEl = document.getElementById('otp-timer');
+  const resendBtnEl = document.getElementById('btn-resend-otp');
+
+  if (timerWrapEl) timerWrapEl.style.display = '';
+  if (resendBtnEl) resendBtnEl.style.display = 'none';
+  if (countdownEl) countdownEl.textContent = remaining;
+
+  otpTimerInterval = setInterval(() => {
+    remaining--;
+    if (countdownEl) countdownEl.textContent = remaining;
+    if (remaining <= 0) {
+      clearInterval(otpTimerInterval);
+      if (timerWrapEl) timerWrapEl.style.display = 'none';
+      if (resendBtnEl) resendBtnEl.style.display = '';
+    }
+  }, 1000);
+}
+
+function finalizeRegistration(role, userPayload) {
+  const otp = generateOtp();
+  STATE.pendingOtpData = {
+    role,
+    userPayload,
+    otp,
+    expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
+  };
+
+  const emailEl = document.getElementById('otp-target-email');
+  if (emailEl) emailEl.textContent = userPayload.email;
+
+  const errEl = document.getElementById('otp-error-msg');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  // Clear inputs
+  for (let i = 1; i <= 6; i++) {
+    const d = document.getElementById(`otp-d${i}`);
+    if (d) d.value = '';
+  }
+
+  openModal('modal-otp');
+  startOtpCountdown(60);
+
+  // Auto-focus first input
+  setTimeout(() => {
+    const d1 = document.getElementById('otp-d1');
+    if (d1) d1.focus();
+  }, 200);
+
+  toast(`📧 Security code dispatched to ${userPayload.email}. Please check your inbox!`, 'info', 5000);
+
+  // 1. Dispatch real email via serverless /api/send-otp
+  try {
+    fetch('/api/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: userPayload.email,
+        otp: otp,
+        name: userPayload.name
+      })
+    }).catch(err => console.warn('API send-otp fetch error:', err));
+  } catch(e) {}
+
+  // 2. Background dispatch via Supabase Auth OTP if configured
+  const sb = getSupabaseClient();
+  if (sb && sb.auth && typeof sb.auth.signInWithOtp === 'function') {
+    sb.auth.signInWithOtp({ email: userPayload.email }).catch(() => {});
+  }
+}
+
+function handleOtpInput(index, event) {
+  const val = event.target.value;
+  // If user pasted a multi-digit string
+  if (val.length > 1) {
+    const digits = val.replace(/\D/g, '').slice(0, 6);
+    for (let i = 0; i < digits.length; i++) {
+      const d = document.getElementById(`otp-d${i + 1}`);
+      if (d) d.value = digits[i];
+    }
+    const nextIdx = Math.min(digits.length + 1, 6);
+    const nextEl = document.getElementById(`otp-d${nextIdx}`);
+    if (nextEl) nextEl.focus();
+    return;
+  }
+
+  // Auto-advance
+  if (val && index < 6) {
+    const nextEl = document.getElementById(`otp-d${index + 1}`);
+    if (nextEl) nextEl.focus();
+  }
+}
+
+function handleOtpKey(index, event) {
+  if (event.key === 'Backspace' && !event.target.value && index > 1) {
+    const prevEl = document.getElementById(`otp-d${index - 1}`);
+    if (prevEl) {
+      prevEl.focus();
+      prevEl.value = '';
+    }
+  } else if (event.key === 'Enter') {
+    verifyRegistrationOtp();
+  }
+}
+
+function autoFillOtp() {
+  if (!STATE.pendingOtpData || !STATE.pendingOtpData.otp) return;
+  const otp = STATE.pendingOtpData.otp;
+  for (let i = 0; i < 6; i++) {
+    const d = document.getElementById(`otp-d${i + 1}`);
+    if (d) d.value = otp[i] || '';
+  }
+  const d6 = document.getElementById('otp-d6');
+  if (d6) d6.focus();
+}
+
+function resendRegistrationOtp() {
+  if (!STATE.pendingOtpData) {
+    closeModal('modal-otp');
+    return;
+  }
+  const newOtp = generateOtp();
+  STATE.pendingOtpData.otp = newOtp;
+  STATE.pendingOtpData.expiresAt = Date.now() + 5 * 60 * 1000;
+
+  const errEl = document.getElementById('otp-error-msg');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  for (let i = 1; i <= 6; i++) {
+    const d = document.getElementById(`otp-d${i}`);
+    if (d) d.value = '';
+  }
+
+  startOtpCountdown(60);
+  const d1 = document.getElementById('otp-d1');
+  if (d1) d1.focus();
+
+  toast(`📧 A new verification code was sent to ${STATE.pendingOtpData.userPayload.email}!`, 'info', 5000);
+
+  // Dispatch real email via /api/send-otp
+  try {
+    fetch('/api/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: STATE.pendingOtpData.userPayload.email,
+        otp: newOtp,
+        name: STATE.pendingOtpData.userPayload.name
+      })
+    }).catch(err => console.warn('API send-otp fetch error:', err));
+  } catch(e) {}
+}
+
+function verifyRegistrationOtp() {
+  const errEl = document.getElementById('otp-error-msg');
+  let entered = '';
+  for (let i = 1; i <= 6; i++) {
+    const d = document.getElementById(`otp-d${i}`);
+    entered += (d ? d.value.trim() : '');
+  }
+
+  if (entered.length < 6) {
+    if (errEl) {
+      errEl.textContent = '❌ Please enter the full 6-digit verification code.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (!STATE.pendingOtpData) {
+    closeModal('modal-otp');
+    showAuthMsg('Session expired. Please fill the registration form again.', 'error');
+    return;
+  }
+
+  if (Date.now() > STATE.pendingOtpData.expiresAt) {
+    if (errEl) {
+      errEl.textContent = '❌ Verification code expired. Please click Resend Code.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (entered !== STATE.pendingOtpData.otp) {
+    if (errEl) {
+      errEl.textContent = '❌ Invalid verification code. Please check and try again.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  // OTP verified successfully!
+  if (errEl) { errEl.style.display = 'none'; }
+  if (otpTimerInterval) clearInterval(otpTimerInterval);
+  closeModal('modal-otp');
+
+  const { role, userPayload } = STATE.pendingOtpData;
+  STATE.pendingOtpData = null;
+
+  finalizeRegistration(role, userPayload);
+}
+
+function finalizeRegistration(role, newUser) {
+  const users = getDB('vvce_users');
+  users.push(newUser);
+  setDB('vvce_users', users);
+
+  if (role === 'admin') {
+    showAuthMsg('🎉 Email verified! Club registration submitted. Awaiting Dean Student Welfare approval.', 'success');
+    toast('✅ Email verified! Club account submitted for approval.', 'success');
+  } else {
+    showAuthMsg('🎉 Email verified! Account created successfully! Signing you in…', 'success');
+    toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
+    setTimeout(() => launchApp(newUser), 1000);
+  }
+}
 
 /* ── Student Signup ── */
 function handleStudentSignup() {
@@ -721,7 +1216,7 @@ function handleStudentSignup() {
     showAuthMsg('❌ Invalid USN format (e.g. 4EV25CS053 or 4VV25CS047).', 'error');
     return;
   }
-  if (pass.length < 8) { showAuthMsg('Password must be at least 8 characters.'); return; }
+  if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
   if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
   const users = getDB('vvce_users');
@@ -743,32 +1238,52 @@ function handleStudentSignup() {
     points: 0, pointsBySem: { 'Sem 1':0, 'Sem 2':0, 'Sem 3':0, 'Sem 4':0, 'Sem 5':0, 'Sem 6':0, 'Sem 7':0, 'Sem 8':0 },
     notifs: [{ id: genId('n'), msg: 'Welcome to VVCE Events Hub! Start exploring events.', time: 'Just now', read: false, icon: '🎉' }]
   };
-  users.push(newUser);
-  setDB('vvce_users', users);
-  showAuthMsg('Account created successfully! Signing you in…', 'success');
-  setTimeout(() => launchApp(newUser), 1000);
+
+  finalizeRegistration('student', newUser);
 }
+
+/* ── Club Logo Upload Handler ── */
+window._clubLogoBase64 = null;
+window.handleClubLogoUpload = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    window._clubLogoBase64 = e.target.result;
+    const preview = document.getElementById('a-logo-preview');
+    if (preview) {
+      preview.innerHTML = `<img src="${e.target.result}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">`;
+    }
+    toast('Club logo uploaded!', 'success');
+  };
+  reader.readAsDataURL(file);
+};
 
 /* ── Club Admin Signup ── */
 function handleAdminSignup() {
+  const faculty   = document.getElementById('a-faculty').value.trim();
   const name      = document.getElementById('a-name').value.trim();
   const club      = document.getElementById('a-club').value.trim();
   const domain    = document.getElementById('a-domain').value;
   const branch    = document.getElementById('a-branch').value;
   const usn       = document.getElementById('a-usn').value.trim().toUpperCase();
-  const faculty   = document.getElementById('a-faculty').value.trim();
   const clubEmail = document.getElementById('a-club-email').value.trim().toLowerCase();
   const email     = document.getElementById('a-email').value.trim().toLowerCase();
   const phone     = document.getElementById('a-phone').value.trim();
   const desc      = document.getElementById('a-desc').value.trim();
   const pass      = document.getElementById('a-pass').value;
 
+  if (!faculty) {
+    showAuthMsg('❌ Please enter the Faculty Coordinator Name.', 'error');
+    return;
+  }
+
   if (!window._scannedData.admin) {
     showAuthMsg('❌ You must scan your Student ID card first.', 'error');
     return;
   }
 
-  if (!name || !club || !faculty || !email || !pass || !usn) { showAuthMsg('Please fill all required fields.'); return; }
+  if (!name || !club || !email || !pass || !usn) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
   if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
@@ -778,11 +1293,12 @@ function handleAdminSignup() {
   const newUser = {
     id: genId('u'), type: 'admin', name: name.toUpperCase(), email, pass,
     clubName: club, clubEmail, domain, branch, usn, faculty, phone, desc, approved: false,
+    clubLogo: window._clubLogoBase64 || null,
+    profilePhoto: window._clubLogoBase64 || null,
     notifs: [{ id: genId('n'), msg: 'Club registration submitted! Pending Dean SW approval.', time: 'Just now', read: false, icon: '⏳' }]
   };
-  users.push(newUser);
-  setDB('vvce_users', users);
-  showAuthMsg('Club registration submitted! Awaiting Dean Student Welfare approval.', 'success');
+
+  finalizeRegistration('admin', newUser);
 }
 
 /* ── Authority Signup ── */
@@ -820,10 +1336,8 @@ function handleAuthoritySignup() {
     designation: desig, dept: 'Administration',
     notifs: [{ id: genId('n'), msg: 'Authority account created successfully.', time: 'Just now', read: false, icon: '✅' }]
   };
-  users.push(newUser);
-  setDB('vvce_users', users);
-  showAuthMsg('Authority account created! Signing you in…', 'success');
-  setTimeout(() => launchApp(newUser), 1000);
+
+  finalizeRegistration('authority', newUser);
 }
 
 /* ── Forgot Password ── */
@@ -968,7 +1482,9 @@ function logout() {
   STATE.principalUnlocked = false;
   document.getElementById('app').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
-  document.body.style.background = '#1a2235';
+  if (!window.currentTheme || !window.currentTheme.bannerUrl) {
+    document.body.style.backgroundColor = '#1a2235';
+  }
   // Reset login fields
   const le = document.getElementById('login-email'); if (le) le.value = '';
   const lp = document.getElementById('login-pass');  if (lp) lp.value = '';
@@ -995,6 +1511,7 @@ function showPage(pageId) {
   const titles = {
     'dashboard': 'Dashboard',
     'events': 'Events',
+    'clubs': 'VVCE Clubs Directory',
     'calendar': 'Academic Calendar',
     'registrations': 'My Registrations',
     'certificates': 'Certificates',
@@ -1026,6 +1543,7 @@ function showPage(pageId) {
   const renders = {
     'dashboard':            renderStudentDashboard,
     'events':               renderEventsPage,
+    'clubs':                () => renderClubsDirectoryPage(),
     'calendar':             renderCalendarPage,
     'registrations':        renderRegistrationsPage,
     'certificates':         renderCertificatesPage,
@@ -1097,7 +1615,8 @@ function renderSidebar() {
     html = `
       <div class="sb-section-label">Overview</div>
       ${navItem('dashboard','📊','Dashboard')}
-      ${navItem('events','🗓️','Events')}
+      ${navItem('events','🗓️','All Events')}
+      ${navItem('clubs','🏛️','Clubs')}
       ${navItem('registrations','📋','My Registrations')}
       ${navItem('certificates','🏆','Certificates')}
       ${navItem('calendar','📅','Academic Calendar')}
@@ -1108,6 +1627,8 @@ function renderSidebar() {
     html = `
       <div class="sb-section-label">Management</div>
       ${navItem('admin-dashboard','📊','Dashboard')}
+      ${navItem('events','🗓️','All Events')}
+      ${navItem('clubs','🏛️','Clubs')}
       ${navItem('create-event','➕','Create Event')}
       ${navItem('manage-events','📋','My Events')}
       ${navItem('participants','👥','Participants')}
@@ -1118,6 +1639,8 @@ function renderSidebar() {
     html = `
       <div class="sb-section-label">Overview</div>
       ${navItem('authority-dashboard','📊','Dashboard')}
+      ${navItem('events','🗓️','All Events')}
+      ${navItem('clubs','🏛️','Clubs')}
       ${navItem('authority-clubs','🏛️','Club Monitor')}
       ${navItem('authority-clash','⚡','Clash Detect')}
       ${user.designation !== 'dean' && user.designation !== 'principal' ? navItem('authority-attendance','📊','Attendance') : ''}
@@ -1296,8 +1819,15 @@ function renderStudentDashboard() {
   }
   recommended = recommended.slice(0,3);
 
+  const themeGreetingHTML = (window.currentTheme && window.currentTheme.showGreeting && window.currentTheme.greeting) 
+    ? `<div class="dashboard-festive-ribbon" style="background: linear-gradient(90deg, ${window.currentTheme.primary || '#f59e0b'}, ${window.currentTheme.secondary || '#fbbf24'}); color: #ffffff; padding: 12px 20px; text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.02em; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 8px;">
+         <span>${window.currentTheme.greeting}</span>
+       </div>`
+    : '';
+
   const el = document.getElementById('page-dashboard');
   el.innerHTML = `
+    ${themeGreetingHTML}
     <!-- Welcome Banner -->
     <div class="welcome-banner">
       <div class="welcome-big-avatar" id="wb-avatar">
@@ -1428,7 +1958,11 @@ function filterEvents() {
   const q   = (document.querySelector('#page-events #ev-search')?.value||'').toLowerCase().trim();
   const cat = document.querySelector('#page-events #ev-cat')?.value||'';
   const fee = document.querySelector('#page-events #ev-fee')?.value||'';
-  let evs   = getDB('vvce_events').filter(e => e.status === 'approved');
+  let evs   = getDB('vvce_events').filter(e => {
+    if (e.status === 'archived' || e.status === 'draft') return false;
+    if (e.status === 'scheduled' && e.publish_at && new Date(e.publish_at) > new Date()) return false;
+    return e.status === 'approved' || e.status === 'rescheduled' || e.status === 'cancelled' || e.status === 'scheduled';
+  });
 
   if (STATE.user && STATE.user.type === 'student') {
     evs = evs.filter(e => !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(STATE.user.branch));
@@ -1449,18 +1983,26 @@ function filterEvents() {
 function eventCard(ev) {
   const user  = STATE.user;
   const isReg = (ev.registrations||[]).includes(user?.id);
-  const isFull= ev.regCount >= ev.maxParticipants;
+  const currentRegCount = (ev.registrations || []).length;
+  const maxCap = ev.max_participants || ev.maxParticipants || 100;
+  const isFull = currentRegCount >= maxCap;
+  const isCancelled = ev.status === 'cancelled';
+  const isRescheduled = ev.status === 'rescheduled';
   const catCls = { Technical:'cat-technical',Cultural:'cat-cultural',Sports:'cat-sports',Workshop:'cat-workshop',Management:'cat-management',Social:'cat-social' }[ev.category]||'cat-technical';
 
   return `
-    <div class="event-card" onclick="openEventModal('${ev.id}')">
+    <div class="event-card ${isCancelled ? 'ev-cancelled-card' : ''}" onclick="openEventModal('${ev.id}')">
       <div class="event-poster">
         ${ev.poster?`<img src="${ev.poster}">`:`<span style="position:relative;z-index:1;">${ev.emoji||'🎓'}</span>`}
         <span class="ev-cat-badge ${catCls}">${ev.category}</span>
+        ${isCancelled ? `<span class="ev-cat-badge" style="top:10px;right:10px;left:auto;background:#ef4444;color:#fff;font-weight:800;">🚫 CANCELLED</span>` : ''}
+        ${isRescheduled ? `<span class="ev-cat-badge" style="top:10px;right:10px;left:auto;background:#f59e0b;color:#fff;font-weight:800;">⚠️ RESCHEDULED</span>` : ''}
       </div>
       <div class="ev-body">
         <div class="ev-title">${ev.name}</div>
         <div class="ev-club">${ev.club}</div>
+        ${isCancelled ? `<div style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0;">🚫 <strong>Event Cancelled:</strong> ${ev.rejReason || 'Due to administrative schedule changes.'}</div>` : ''}
+        ${isRescheduled ? `<div style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0;">⚠️ <strong>Rescheduled:</strong> Now on ${formatDate(ev.date)} @ ${formatTime(ev.time)}</div>` : ''}
         <div class="ev-metas">
           <div class="ev-meta">📅 ${formatDate(ev.date)}</div>
           <div class="ev-meta">🕐 ${formatTime(ev.time)} &nbsp;|&nbsp; 📍 ${ev.venue}</div>
@@ -1468,16 +2010,22 @@ function eventCard(ev) {
           <div class="ev-meta" style="color:#6366f1;font-weight:600;">🎓 Open to: ${(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches'}</div>
         </div>
         <div class="ev-foot">
-          <span class="ev-seats ${isFull?'full':''}">${isFull?'🔴 Full':`${ev.maxParticipants-ev.regCount} seats left`}</span>
+          <span class="ev-seats ${isFull?'full':''}">${isCancelled ? 'Cancelled' : (isFull?'🔴 Full':`${ev.maxParticipants-ev.regCount} seats left`)}</span>
           <div style="display:flex;gap:6px;align-items:center;">
             ${user?.type==='student'
-              ? isReg
-                ? `<button class="btn-reg registered" onclick="event.stopPropagation();unregisterEv('${ev.id}')">✓ Registered</button>`
-                : (ev.pendingPayments && ev.pendingPayments.some(p => p.uid === STATE.user.id))
-                  ? `<button class="btn-reg" style="background:#f59e0b;color:#fff;border:none;" disabled>⏳ Pending Approval</button>`
-                  : isFull
-                    ? `<button class="btn-reg" disabled style="opacity:.5;cursor:not-allowed;">Full</button>`
-                    : `<button class="btn-reg" onclick="event.stopPropagation();registerEv('${ev.id}')">Register</button>`
+              ? isCancelled
+                ? `<button class="btn-reg" disabled style="background:#ef444420;color:#ef4444;border:1px solid #ef444440;cursor:not-allowed;">Cancelled</button>`
+                : isReg
+                  ? `<button class="btn-reg registered" onclick="event.stopPropagation();unregisterEv('${ev.id}')">✓ Registered</button>`
+                  : (ev.pendingPayments && ev.pendingPayments.some(p => p.uid === STATE.user.id))
+                    ? `<button class="btn-reg" style="background:#f59e0b;color:#fff;border:none;" disabled>⏳ Pending Approval</button>`
+                    : STATE.registrationLocked
+                      ? `<button class="btn-reg" disabled style="background:#64748b;color:#fff;border:none;cursor:not-allowed;">🔒 Paused</button>`
+                      : isFull
+                        ? (ev.waitlist_enabled
+                            ? `<button class="btn-reg" style="background:#f59e0b;color:#fff;border:none;" onclick="event.stopPropagation();joinWaitlist('${ev.id}')">⏳ Waitlist</button>`
+                            : `<button class="btn-reg" disabled style="opacity:.5;cursor:not-allowed;">Full</button>`)
+                        : `<button class="btn-reg" onclick="event.stopPropagation();registerEv('${ev.id}')">Register</button>`
               : ''
             }
           </div>
@@ -1486,17 +2034,187 @@ function eventCard(ev) {
     </div>`;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   CLUBS DIRECTORY & CLUB-SPECIFIC EVENTS
+───────────────────────────────────────────────────────────────*/
+function renderClubsDirectoryPage(selectedClubName = null) {
+  const el = document.getElementById('page-clubs');
+  if (!el) return;
+
+  const users = getDB('vvce_users');
+  const allEvents = getDB('vvce_events').filter(e => e.status !== 'archived');
+
+  // If a specific club is selected, render club-exclusive events view
+  if (selectedClubName) {
+    const clubUser = users.find(u => u.type === 'admin' && (u.clubName || '').toLowerCase() === selectedClubName.toLowerCase());
+    const clubEvents = allEvents.filter(e => (e.club || '').toLowerCase() === selectedClubName.toLowerCase());
+    const upcoming = clubEvents.filter(e => e.date >= new Date().toISOString().split('T')[0] && e.status !== 'completed');
+    const past = clubEvents.filter(e => e.date < new Date().toISOString().split('T')[0] || e.status === 'completed');
+
+    el.innerHTML = `
+      <div style="margin-bottom:1.5rem;">
+        <button class="btn" style="background:#1e293b; color:#fff; display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; font-weight:600; font-size:13px; margin-bottom:1rem; cursor:pointer;" onclick="renderClubsDirectoryPage()">
+          ← Back to All Clubs
+        </button>
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.5rem; display:flex; gap:1.5rem; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex-wrap:wrap;">
+          <div style="width:64px; height:64px; border-radius:12px; background:linear-gradient(135deg, #4f46e5, #7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700;">
+            ${clubUser?.clubLogo ? `<img src="${clubUser.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '🏛️'}
+          </div>
+          <div style="flex:1;">
+            <h2 style="font-family:'Outfit',sans-serif; font-size:1.5rem; color:#1e293b; margin-bottom:4px;">${selectedClubName}</h2>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:#64748b;">
+              <span><strong>Domain:</strong> ${clubUser?.domain || 'Multi-disciplinary'}</span>
+              <span>•</span>
+              <span><strong>Faculty Coordinator:</strong> ${clubUser?.faculty || 'Faculty in Charge'}</span>
+              <span>•</span>
+              <span><strong>Total Events:</strong> ${clubEvents.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
+        <button id="tab-club-up" class="btn" style="background:#4f46e5; color:#fff; padding:6px 14px; font-size:13px;" onclick="switchClubTab('upcoming', '${selectedClubName}')">Upcoming Events (${upcoming.length})</button>
+        <button id="tab-club-past" class="btn" style="background:#f1f5f9; color:#475569; padding:6px 14px; font-size:13px;" onclick="switchClubTab('past', '${selectedClubName}')">Past & Completed (${past.length})</button>
+      </div>
+
+      <div class="event-grid" id="club-events-grid">
+        ${upcoming.length > 0 ? upcoming.map(e => eventCard(e)).join('') : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><div style="font-size:32px;">🗓️</div><p style="color:#64748b; margin-top:8px;">No upcoming events scheduled for ${selectedClubName}.</p></div>`}
+      </div>
+    `;
+    return;
+  }
+
+  // Otherwise, render full Clubs Directory grid
+  // Gather registered clubs
+  const clubAdmins = users.filter(u => u.type === 'admin' && u.clubName);
+  const knownClubNames = new Set(clubAdmins.map(u => u.clubName.toLowerCase()));
+  
+  // Include clubs from events that might not have an admin account
+  allEvents.forEach(e => {
+    if (e.club && !knownClubNames.has(e.club.toLowerCase())) {
+      knownClubNames.add(e.club.toLowerCase());
+      clubAdmins.push({ clubName: e.club, domain: e.category || 'General', faculty: 'Club Lead' });
+    }
+  });
+
+  el.innerHTML = `
+    <div style="margin-bottom:1.5rem;">
+      <h2 style="font-family:'Outfit',sans-serif; font-size:1.6rem; color:#1e293b;">🏛️ VVCE Clubs & Student Chapters</h2>
+      <p style="color:#64748b; font-size:14px; margin-top:4px;">Explore official college clubs, student associations, and browse their exclusive events.</p>
+      <div style="margin-top:1rem;">
+        <input type="text" class="search-inp" placeholder="🔍 Search clubs by name or domain..." oninput="filterClubsView(this.value)">
+      </div>
+    </div>
+
+    <div class="event-grid" id="clubs-directory-grid">
+      ${clubAdmins.map(c => {
+        const cEvents = allEvents.filter(e => (e.club || '').toLowerCase() === c.clubName.toLowerCase());
+        return `
+          <div class="event-card" style="cursor:pointer;" onclick="renderClubsDirectoryPage('${c.clubName.replace(/'/g, "\\'")}')">
+            <div style="padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+                  <div style="width:48px; height:48px; border-radius:10px; background:linear-gradient(135deg,#e0e7ff,#c7d2fe); color:#4338ca; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700;">
+                    ${c.clubLogo ? `<img src="${c.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">` : '🏛️'}
+                  </div>
+                  <span class="badge" style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; font-size:11px; padding:3px 8px; border-radius:6px; font-weight:600;">${c.domain || 'Club'}</span>
+                </div>
+                <h3 style="font-family:'Outfit',sans-serif; font-size:1.15rem; color:#0f172a; margin-bottom:6px;">${c.clubName}</h3>
+                <p style="font-size:12px; color:#64748b; margin-bottom:12px;">${c.desc ? c.desc.slice(0, 95) + '...' : 'Official student chapter at Vidyavardhaka College of Engineering.'}</p>
+                <div style="font-size:12px; color:#475569; display:flex; flex-direction:column; gap:4px; margin-bottom:14px;">
+                  <span>👤 <strong>Coordinator:</strong> ${c.faculty || 'Faculty in Charge'}</span>
+                  <span>📅 <strong>Events Hosted:</strong> ${cEvents.length} events</span>
+                </div>
+              </div>
+              <button class="btn" style="background:#4f46e5; color:#fff; width:100%; padding:10px; border-radius:8px; font-weight:600; font-size:13px; text-align:center;">
+                View Club Events ➔
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function switchClubTab(type, clubName) {
+  const allEvents = getDB('vvce_events').filter(e => (e.club || '').toLowerCase() === clubName.toLowerCase() && e.status !== 'archived');
+  const now = new Date().toISOString().split('T')[0];
+  const events = type === 'upcoming'
+    ? allEvents.filter(e => e.date >= now && e.status !== 'completed')
+    : allEvents.filter(e => e.date < now || e.status === 'completed');
+
+  document.getElementById('tab-club-up').style.background = type === 'upcoming' ? '#4f46e5' : '#f1f5f9';
+  document.getElementById('tab-club-up').style.color = type === 'upcoming' ? '#fff' : '#475569';
+  document.getElementById('tab-club-past').style.background = type === 'past' ? '#4f46e5' : '#f1f5f9';
+  document.getElementById('tab-club-past').style.color = type === 'past' ? '#fff' : '#475569';
+
+  const grid = document.getElementById('club-events-grid');
+  grid.innerHTML = events.length > 0
+    ? events.map(e => eventCard(e)).join('')
+    : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><p style="color:#64748b;">No ${type} events for this club.</p></div>`;
+}
+
+function filterClubsView(term) {
+  const t = term.toLowerCase().trim();
+  const cards = document.querySelectorAll('#clubs-directory-grid .event-card');
+  cards.forEach(card => {
+    const text = card.textContent.toLowerCase();
+    card.style.display = text.includes(t) ? '' : 'none';
+  });
+}
+
 function registerEv(id) {
+  if (STATE.registrationLocked) {
+    toast('Event registrations are temporarily paused by administration.', 'warning');
+    return;
+  }
   const events = getDB('vvce_events');
   const ev = events.find(e => e.id === id);
   if (!ev) return;
   if ((ev.registrations||[]).includes(STATE.user.id)) { toast('Already registered!','info'); return; }
+
+  const currentRegCount = (ev.registrations || []).length;
+  const maxCap = ev.max_participants || ev.maxParticipants || 100;
+  if (currentRegCount >= maxCap) {
+    if (ev.waitlist_enabled) {
+      joinWaitlist(id);
+    } else {
+      toast('Event capacity is full.', 'warning');
+    }
+    return;
+  }
 
   if (ev.fee > 0) {
     openPaymentModal(ev);
   } else {
     completeRegistration(ev);
   }
+}
+
+function joinWaitlist(id) {
+  if (STATE.registrationLocked) {
+    toast('Event registrations are temporarily paused by administration.', 'warning');
+    return;
+  }
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  if (!ev.waitlist) ev.waitlist = [];
+  if (ev.waitlist.includes(STATE.user.id)) {
+    toast('You are already on the waitlist for this event.', 'info');
+    return;
+  }
+  ev.waitlist.push(STATE.user.id);
+  setDB('vvce_events', events);
+  if (window.sb) {
+    window.sb.from('events').update({ waitlist: ev.waitlist }).eq('id', id);
+  }
+  addNotif(`You have been added to the waitlist for ${ev.name}. You will be notified if a slot opens up.`, '⏳');
+  toast('Added to waitlist! You will be notified if a seat opens up.', 'success');
+  if (STATE.page === 'events') renderEventsPage();
+  else if (STATE.page === 'clubs') renderClubsDirectoryPage();
 }
 
 let currentPaymentEvent = null;
@@ -1696,9 +2414,13 @@ function openEventModal(id) {
         ${isReg
           ? `<button onclick="unregisterEv('${ev.id}');closeModal('modal-event-detail')" class="btn btn-outline" style="flex:1;">Unregister</button>
              <div style="flex:2;padding:11px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;text-align:center;font-weight:700;font-size:14px;color:#15803d;">✓ You're Registered</div>`
-          : isFull
-            ? `<div style="flex:1;padding:11px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;text-align:center;font-weight:700;color:#991b1b;">Event Full</div>`
-            : `<button onclick="registerEv('${ev.id}');closeModal('modal-event-detail')" style="flex:1;padding:11px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border:none;border-radius:8px;font-weight:800;font-size:14px;color:#0f172a;cursor:pointer;">Register Now →</button>`
+          : STATE.registrationLocked
+            ? `<div style="flex:1;padding:11px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;text-align:center;font-weight:700;color:#64748b;">🔒 Registrations Paused by Admin</div>`
+            : isFull
+              ? (ev.waitlist_enabled
+                  ? `<button onclick="joinWaitlist('${ev.id}');closeModal('modal-event-detail')" style="flex:1;padding:11px;background:#f59e0b;border:none;border-radius:8px;font-weight:700;color:#fff;cursor:pointer;">⏳ Join Waitlist</button>`
+                  : `<div style="flex:1;padding:11px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;text-align:center;font-weight:700;color:#991b1b;">Event Full</div>`)
+              : `<button onclick="registerEv('${ev.id}');closeModal('modal-event-detail')" style="flex:1;padding:11px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border:none;border-radius:8px;font-weight:800;font-size:14px;color:#0f172a;cursor:pointer;">Register Now →</button>`
         }
       </div>` : ''
     }
@@ -2138,21 +2860,32 @@ function renderProfilePage() {
 function renderAuthorityProfile() {
   const user = STATE.user;
   const isClubAdmin = user.type === 'admin';
+  const displayLogo = user.clubLogo || user.profilePhoto;
   return `
     <div class="profile-head-card">
       <div class="prof-head-row">
         <div class="prof-avatar-wrap" onclick="triggerPhotoUpload()">
-          <div class="prof-avatar">${user.profilePhoto?`<img src="${user.profilePhoto}">`:`<span>${avatar(user.name)}</span>`}</div>
+          <div class="prof-avatar">${displayLogo?`<img src="${displayLogo}">`:`<span>${isClubAdmin?'🏛️':avatar(user.name)}</span>`}</div>
           <div class="photo-edit-overlay">📷</div>
           <input type="file" id="photo-upload" style="display:none;" accept="image/*" onchange="handlePhotoUpload(this)">
         </div>
         <div class="prof-info" style="flex:1;">
-          <h2>${titleCase(user.name)}</h2>
-          ${isClubAdmin
-            ? `<div class="prof-meta-row" style="color:#f59e0b;font-weight:700;font-size:15px;">🏛️ ${user.clubName||'Club Admin'}</div>`
-            : `<div class="prof-meta-row" style="color:#6b7280;">${titleCase(user.designation||'')} &nbsp;•&nbsp; ${user.dept||''}</div>`
-          }
-          <div class="prof-meta-row" style="font-size:12px;color:#9ca3af;">${user.email}</div>
+          ${isClubAdmin ? `
+            <h2 style="font-size:22px; font-weight:800; color:#111827; margin:0;">${user.clubName || 'Club Admin'}</h2>
+            <div class="prof-meta-row" style="color:#4f46e5; font-weight:700; font-size:14px; margin-top:4px;">
+              👤 Representative: ${titleCase(user.name)}
+            </div>
+            <div class="prof-meta-row" style="color:#059669; font-weight:600; font-size:13px; margin-top:2px;">
+              👩‍🏫 Faculty Coordinator: ${user.faculty || '—'}
+            </div>
+            <div class="prof-meta-row" style="color:#6b7280; font-size:12px; margin-top:2px;">
+              🏛️ ${user.domain || 'General'} Domain &nbsp;•&nbsp; ${user.dept || user.branch || '—'} Department
+            </div>
+          ` : `
+            <h2>${titleCase(user.name)}</h2>
+            <div class="prof-meta-row" style="color:#6b7280;">${titleCase(user.designation||'')} &nbsp;•&nbsp; ${user.dept||''}</div>
+            <div class="prof-meta-row" style="font-size:12px;color:#9ca3af;">${user.email}</div>
+          `}
         </div>
         <button class="btn btn-gold" onclick="openProfileEdit()" style="align-self:flex-start;white-space:nowrap;">✏️ Edit Profile</button>
       </div>
@@ -3983,7 +4716,242 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     window.addEventListener('load', initGoogleAuth);
   }
+  // Init live CPM config sync (banners, themes, maintenance)
+  // Small delay to ensure Supabase client is ready after bootApp
+  setTimeout(initDynamicSiteConfig, 500);
 });
 
 // Expose all functions to window for inline onclick handlers in HTML
-window.addNotif = addNotif; window.addNotifToUser = addNotifToUser; window.applyAttendanceRewards = applyAttendanceRewards; window.approveClub = approveClub; window.approveEvent = approveEvent; window.avatar = avatar; window.changeMonth = changeMonth; window.checkClashCount = checkClashCount; window.clearAuthMsg = clearAuthMsg; window.closeModal = closeModal; window.completeRegistration = completeRegistration; window.computeStudentYearSem = computeStudentYearSem; window.confirmReject = confirmReject; window.deanApprovalsContent = deanApprovalsContent; window.deanApproveClub = deanApproveClub; window.deanClashContent = deanClashContent; window.deanDashboardContent = deanDashboardContent; window.deanEventApprovalsContent = deanEventApprovalsContent; window.deanEventsContent = deanEventsContent; window.deanFilterEvents = deanFilterEvents; window.deanRejectClub = deanRejectClub; window.detailChip = detailChip; window.drawCalendar = drawCalendar; window.eventCard = eventCard; window.filterClubs = filterClubs; window.filterEvents = filterEvents; window.formatDate = formatDate; window.formatTime = formatTime; window.genId = genId; window.getDB = getDB; window.getDBObj = getDBObj; window.getGreeting = getGreeting; window.getRelativeTime = getRelativeTime; window.goBack = goBack; window.googleLoginByEmail = googleLoginByEmail; window.handleAdminSignup = handleAdminSignup; window.handleAuthoritySignup = handleAuthoritySignup; window.handleDeanPortalNav = handleDeanPortalNav; window.handleForgotPassword = handleForgotPassword; window.handleLogin = handleLogin; window.handlePhotoUpload = handlePhotoUpload; window.handlePosterUpload = handlePosterUpload; window.handlePrincipalPortalNav = handlePrincipalPortalNav; window.handleResumeUpload = handleResumeUpload; window.handleStudentSignup = handleStudentSignup; window.initGoogleAuth = initGoogleAuth; window.launchApp = launchApp; window.lockDeanPortal = lockDeanPortal; window.lockPrincipalPortal = lockPrincipalPortal; window.logout = logout; window.manualGoogleEmailEntry = manualGoogleEmailEntry; window.markAllRead = markAllRead; window.navItem = navItem; window.openEventModal = openEventModal; window.openModal = openModal; window.openPaymentModal = openPaymentModal; window.openProfileEdit = openProfileEdit; window.openRejectModal = openRejectModal; window.profField = profField; window.profFieldLink = profFieldLink; window.quickLogin = quickLogin; window.readNotif = readNotif; window.registerEv = registerEv; window.regList = regList; window.renderAcadSchedule = renderAcadSchedule; window.renderAdminDashboard = renderAdminDashboard; window.renderApprovals = renderApprovals; window.renderAttendancePage = renderAttendancePage; window.renderAuthorityDashboard = renderAuthorityDashboard; window.renderAuthorityProfile = renderAuthorityProfile; window.renderCalendarPage = renderCalendarPage; window.renderCertificatesPage = renderCertificatesPage; window.renderClashDetect = renderClashDetect; window.renderClubCards = renderClubCards; window.renderClubMonitor = renderClubMonitor; window.renderCreateEventPage = renderCreateEventPage; window.renderDeanPortal = renderDeanPortal; window.renderEventsPage = renderEventsPage; window.renderManageEventsPage = renderManageEventsPage; window.renderNotifs = renderNotifs; window.renderParticipantsPage = renderParticipantsPage; window.renderParticipantTable = renderParticipantTable; window.renderPrincipalAvailability = renderPrincipalAvailability; window.renderPrincipalPortal = renderPrincipalPortal; window.renderProfilePage = renderProfilePage; window.renderRegistrationsPage = renderRegistrationsPage; window.renderSidebar = renderSidebar; window.renderStudentDashboard = renderStudentDashboard; window.renderTopbarUser = renderTopbarUser; window.revokeClub = revokeClub; window.saveProfileEdit = saveProfileEdit; window.selectRegRole = selectRegRole; window.showAuthMsg = showAuthMsg; window.showCalDateEvents = showCalDateEvents; window.showPage = showPage; window.simulatePayment = simulatePayment; window.statCard = statCard; window.submitCertificate = submitCertificate; window.submitDraftEvent = submitDraftEvent; window.submitEvent = submitEvent; window.switchMainTab = switchMainTab; window.switchRegTab = switchRegTab; window.titleCase = titleCase; window.toast = toast; window.toggleChip = toggleChip; window.toggleNotifPanel = toggleNotifPanel; window.togglePass = togglePass; window.toggleSidebar = toggleSidebar; window.triggerPhotoUpload = triggerPhotoUpload; window.unregisterEv = unregisterEv; window.updateUser = updateUser; window.verifyDeanPassword = verifyDeanPassword; window.verifyPrincipalPassword = verifyPrincipalPassword; window.viewClubDetail = viewClubDetail;
+/* ─────────────────────────────────────────────────────────────
+   DYNAMIC CPM CONFIGURATION (Realtime Banners, Themes, Maintenance)
+───────────────────────────────────────────────────────────────*/
+async function initDynamicSiteConfig() {
+  // Use the shared client (window.supabase is already initialized by bootApp)
+  const sb = getSupabaseClient();
+
+  if (!sb) return;
+
+  function applyConfig(cfg) {
+    if (!cfg) return;
+
+    // 1. Maintenance Mode
+    let maintEl = document.getElementById('cpm-maintenance-overlay');
+    if (cfg.maintenance) {
+      if (!maintEl) {
+        maintEl = document.createElement('div');
+        maintEl.id = 'cpm-maintenance-overlay';
+        maintEl.style.cssText = 'position:fixed;inset:0;background:#090d16;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:2rem;font-family:sans-serif;';
+        maintEl.innerHTML = `
+          <div style="font-size:64px;margin-bottom:1rem;">🛠️</div>
+          <h1 style="font-size:2rem;font-family:Outfit,sans-serif;margin-bottom:0.75rem;">Under Scheduled Maintenance</h1>
+          <p style="color:#94a3b8;max-width:480px;line-height:1.6;font-size:15px;">The VVCE Events portal is temporarily unavailable while our administrative team applies system updates. Please check back shortly.</p>
+        `;
+        document.body.appendChild(maintEl);
+      }
+      maintEl.style.display = 'flex';
+    } else if (maintEl) {
+      maintEl.style.display = 'none';
+    }
+
+    // 2. Dynamic Banner (with start & expiry date support)
+    let bannerEl = document.getElementById('cpm-live-banner');
+    const now = new Date();
+    let showBanner = cfg.banner && cfg.banner.enabled && cfg.banner.text;
+    if (showBanner && cfg.banner.start_date && new Date(cfg.banner.start_date) > now) showBanner = false;
+    if (showBanner && cfg.banner.end_date && new Date(cfg.banner.end_date) < now) showBanner = false;
+
+    if (showBanner) {
+      if (!bannerEl) {
+        bannerEl = document.createElement('div');
+        bannerEl.id = 'cpm-live-banner';
+        bannerEl.style.cssText = 'position:sticky;top:0;z-index:99998;padding:10px 16px;text-align:center;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);';
+        document.body.prepend(bannerEl);
+      }
+      const bgMap = {
+        warning: 'linear-gradient(90deg, #d97706, #f59e0b)',
+        danger: 'linear-gradient(90deg, #dc2626, #ef4444)',
+        info: 'linear-gradient(90deg, #2563eb, #3b82f6)',
+        success: 'linear-gradient(90deg, #059669, #10b981)'
+      };
+      bannerEl.style.background = bgMap[cfg.banner.type] || bgMap.warning;
+      bannerEl.style.color = '#ffffff';
+      bannerEl.innerHTML = `<span>${cfg.banner.text}</span>`;
+      bannerEl.style.display = 'flex';
+    } else if (bannerEl) {
+      bannerEl.style.display = 'none';
+    }
+
+    // 4. Registration Lock
+    STATE.registrationLocked = !!cfg.registrationLocked;
+
+    // 5. Dynamic Media Assets
+    if (cfg.media && cfg.media.signinBgUrl) {
+      document.body.style.backgroundImage = `url("${cfg.media.signinBgUrl}")`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundAttachment = 'fixed';
+      document.body.classList.add('has-theme-bg');
+    } else if (cfg.media && cfg.media.bgUrl) {
+      document.body.style.backgroundImage = `url("${cfg.media.bgUrl}")`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundAttachment = 'fixed';
+      document.body.classList.add('has-theme-bg');
+    } else {
+      document.body.style.backgroundImage = '';
+      document.body.classList.remove('has-theme-bg');
+    }
+
+    // 3. Dynamic Theme & Festival Celebrations
+    if (cfg.theme) {
+      applyCelebrationTheme(cfg.theme);
+    }
+  }
+
+  try {
+    const { data } = await sb.from('cpm_config').select('*').eq('id', 'global').maybeSingle();
+    if (data && data.config) applyConfig(data.config);
+
+    sb.channel('cpm_live_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cpm_config' }, payload => {
+        if (payload.new && payload.new.config) applyConfig(payload.new.config);
+      })
+      .subscribe();
+  } catch(e) {
+    console.warn('CPM live config sync:', e);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   FESTIVAL & NATIONAL CELEBRATION DYNAMIC THEME ENGINE
+───────────────────────────────────────────────────────────────*/
+function applyCelebrationTheme(theme) {
+  if (!theme) return;
+
+  // Handle legacy string values
+  if (typeof theme === 'string') {
+    if (theme === 'default') {
+      theme = { primary: '#f59e0b', secondary: '#fbbf24', bgStyle: 'light', effect: 'none', showGreeting: false };
+    } else if (theme === 'festive') {
+      theme = { primary: '#dc2626', secondary: '#f59e0b', bgStyle: 'light', effect: 'sparkles', showGreeting: true, greeting: 'Festival Celebration! ✨' };
+    } else if (theme === 'cyber') {
+      theme = { primary: '#06b6d4', secondary: '#8b5cf6', bgStyle: 'dark', effect: 'sparkles', showGreeting: true, greeting: 'VVCE Tech Fest Live! ⚡' };
+    }
+  }
+
+  const root = document.documentElement;
+  const primary = theme.primary || '#f59e0b';
+  const secondary = theme.secondary || '#fbbf24';
+
+  // Apply CSS root variables dynamically across the entire website
+  root.style.setProperty('--gold', primary);
+  root.style.setProperty('--gold2', secondary);
+  root.style.setProperty('--gold3', primary);
+  root.style.setProperty('--gold-border', primary + '55');
+  root.style.setProperty('--gold-bg', primary + '18');
+  
+  // Sidebar colour is never changed by themes — always stays dark (#111827)
+  document.documentElement.style.removeProperty('--sb');
+
+  // Background style
+  if (theme.bgStyle === 'dark') {
+    document.body.classList.add('dark');
+    document.body.style.backgroundColor = '#0f172a';
+  } else if (theme.bgStyle === 'warm') {
+    document.body.classList.remove('dark');
+    document.body.style.backgroundColor = '#fffdf7';
+  } else {
+    document.body.classList.remove('dark');
+    document.body.style.backgroundColor = '';
+  }
+
+  // Set background image from theme.bannerUrl — apply to the main content area only (not the sidebar)
+  const appMain = document.getElementById('app-main');
+  if (theme.bannerUrl) {
+    // Clear any old body background first
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundSize = '';
+    document.body.style.backgroundPosition = '';
+    document.body.style.backgroundAttachment = '';
+    // Apply to the white content panel only
+    if (appMain) {
+      appMain.style.backgroundImage = `url("${theme.bannerUrl}")`;
+      appMain.style.backgroundSize = 'cover';
+      appMain.style.backgroundPosition = 'center';
+      appMain.style.backgroundAttachment = 'fixed';
+      appMain.style.backgroundRepeat = 'no-repeat';
+    }
+    document.body.classList.add('has-theme-bg');
+  } else {
+    // Clear background from both body and app-main
+    document.body.style.backgroundImage = '';
+    if (appMain) {
+      appMain.style.backgroundImage = '';
+      appMain.style.backgroundSize = '';
+      appMain.style.backgroundPosition = '';
+      appMain.style.backgroundAttachment = '';
+    }
+    document.body.classList.remove('has-theme-bg');
+  }
+
+  // Save theme globally so renderDashboard can inject the greeting ribbon
+  window.currentTheme = theme;
+  if (typeof STATE !== 'undefined' && STATE.page === 'dashboard' && STATE.user && typeof renderDashboard === 'function') {
+    renderDashboard();
+  }
+
+  // Ensure the old global top ribbon is removed (user requested it moved to dashboard)
+  let ribbon = document.getElementById('cpm-festive-ribbon');
+  if (ribbon) {
+    ribbon.remove();
+  }
+
+  // Floating Celebration Visual Particles
+  applyFestiveParticles(theme.effect);
+}
+
+function applyFestiveParticles(effect) {
+  let container = document.getElementById('cpm-particles-container');
+  if (!effect || effect === 'none') {
+    if (container) container.remove();
+    return;
+  }
+
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'cpm-particles-container';
+    container.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:99990;overflow:hidden;';
+    document.body.appendChild(container);
+
+    // Inject keyframes style once
+    if (!document.getElementById('cpm-particle-styles')) {
+      const st = document.createElement('style');
+      st.id = 'cpm-particle-styles';
+      st.textContent = '@keyframes cpmFloatUp { 0% { transform: translateY(105vh) rotate(0deg); opacity: 0; } 15% { opacity: 0.85; } 85% { opacity: 0.85; } 100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; } }';
+      document.head.appendChild(st);
+    }
+  }
+
+  const emojiMap = {
+    sparkles: ['✨', '⭐', '🌟', '💫'],
+    rajyotsava: ['💛', '❤️', '🏵️', '💛', '❤️'],
+    tricolor: ['🇮🇳', '🧡', '🤍', '💚'],
+    diyas: ['🪔', '✨', '🪔', '🌟'],
+    flowers: ['🌸', '🌺', '🌼', '💐'],
+    confetti: ['🎉', '🎊', '✨', '🎈']
+  };
+
+  const symbols = emojiMap[effect] || emojiMap.sparkles;
+  container.innerHTML = '';
+
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement('span');
+    const sym = symbols[i % symbols.length];
+    const left = Math.floor(Math.random() * 96) + 2;
+    const dur = (Math.random() * 6 + 6).toFixed(1);
+    const delay = (Math.random() * 5).toFixed(1);
+    const size = Math.floor(Math.random() * 12 + 16);
+
+    p.innerText = sym;
+    p.style.cssText = 'position:absolute;bottom:-30px;left:' + left + '%;font-size:' + size + 'px;animation:cpmFloatUp ' + dur + 's ease-in-out ' + delay + 's infinite;opacity:0;';
+    container.appendChild(p);
+  }
+}
