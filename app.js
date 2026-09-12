@@ -1482,7 +1482,9 @@ function logout() {
   STATE.principalUnlocked = false;
   document.getElementById('app').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
-  document.body.style.background = '#1a2235';
+  if (!window.currentTheme || !window.currentTheme.bannerUrl) {
+    document.body.style.backgroundColor = '#1a2235';
+  }
   // Reset login fields
   const le = document.getElementById('login-email'); if (le) le.value = '';
   const lp = document.getElementById('login-pass');  if (lp) lp.value = '';
@@ -4838,6 +4840,13 @@ function applyCelebrationTheme(theme) {
   root.style.setProperty('--gold3', primary);
   root.style.setProperty('--gold-border', primary + '55');
   root.style.setProperty('--gold-bg', primary + '18');
+  
+  // Festive Sidebar
+  if (theme && theme.primary) {
+    root.style.setProperty('--sb', `linear-gradient(180deg, ${primary}, ${secondary})`);
+  } else {
+    root.style.removeProperty('--sb');
+  }
 
   // Background style
   if (theme.bgStyle === 'dark') {
