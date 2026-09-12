@@ -244,6 +244,10 @@
               <label>Custom Portal Background URL</label>
               <input type="text" id="media-bg-url" class="form-control" placeholder="Optional custom background image URL">
             </div>
+            <div class="form-group">
+              <label>Sign‑In Page Background URL</label>
+              <input type="text" id="media-signin-bg-url" class="form-control" placeholder="Optional sign‑in background image URL">
+            </div>
           </div>
 
           <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Save & Broadcast Media Assets Live</button>
@@ -730,7 +734,7 @@
     let allEvents = [];
     let currentAdminRole = 'super_admin';
     let currentEventStatusFilter = 'all';
-    let currentConfig = { banner: { enabled: false, text: '', type: 'warning', start_date: '', end_date: '' }, media: { heroBanner: '', logoUrl: '', bgUrl: '' }, theme: 'default', maintenance: false, registrationLocked: false };
+    let currentConfig = { banner: { enabled: false, text: '', type: 'warning', start_date: '', end_date: '' }, media: { heroBanner: '', logoUrl: '', bgUrl: '', signinBgUrl: '' }, theme: 'default', maintenance: false, registrationLocked: false };
     let pendingEventPayload = null;
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -1184,6 +1188,7 @@
             document.getElementById('media-hero-banner').value = currentConfig.media.heroBanner || '';
             document.getElementById('media-logo-url').value = currentConfig.media.logoUrl || '';
             document.getElementById('media-bg-url').value = currentConfig.media.bgUrl || '';
+            document.getElementById('media-signin-bg-url').value = currentConfig.media.signinBgUrl || '';
             previewMedia('hero', currentConfig.media.heroBanner || '');
           }
           if (currentConfig.theme) {
@@ -1249,7 +1254,8 @@
       currentConfig.media = {
         heroBanner: document.getElementById('media-hero-banner').value.trim(),
         logoUrl: document.getElementById('media-logo-url').value.trim(),
-        bgUrl: document.getElementById('media-bg-url').value.trim()
+        bgUrl: document.getElementById('media-bg-url').value.trim(),
+        signinBgUrl: document.getElementById('media-signin-bg-url').value.trim()
       };
       await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
       await recordAuditAction({ action: 'Media Assets Updated', target: 'Visual Branding', details: 'Hero Banner and Background updated' });

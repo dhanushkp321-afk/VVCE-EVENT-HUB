@@ -4785,12 +4785,19 @@ async function initDynamicSiteConfig() {
     STATE.registrationLocked = !!cfg.registrationLocked;
 
     // 5. Dynamic Media Assets
-    if (cfg.media && cfg.media.bgUrl) {
+    if (cfg.media && cfg.media.signinBgUrl) {
+      document.body.style.backgroundImage = `url("${cfg.media.signinBgUrl}")`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundAttachment = 'fixed';
+      document.body.classList.add('has-theme-bg');
+    } else if (cfg.media && cfg.media.bgUrl) {
       document.body.style.backgroundImage = `url("${cfg.media.bgUrl}")`;
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundAttachment = 'fixed';
+      document.body.classList.add('has-theme-bg');
     } else {
       document.body.style.backgroundImage = '';
+      document.body.classList.remove('has-theme-bg');
     }
 
     // 3. Dynamic Theme & Festival Celebrations
