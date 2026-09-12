@@ -1817,8 +1817,15 @@ function renderStudentDashboard() {
   }
   recommended = recommended.slice(0,3);
 
+  const themeGreetingHTML = (window.currentTheme && window.currentTheme.showGreeting && window.currentTheme.greeting) 
+    ? `<div class="dashboard-festive-ribbon" style="background: linear-gradient(90deg, ${window.currentTheme.primary || '#f59e0b'}, ${window.currentTheme.secondary || '#fbbf24'}); color: #ffffff; padding: 12px 20px; text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.02em; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 8px;">
+         <span>${window.currentTheme.greeting}</span>
+       </div>`
+    : '';
+
   const el = document.getElementById('page-dashboard');
   el.innerHTML = `
+    ${themeGreetingHTML}
     <!-- Welcome Banner -->
     <div class="welcome-banner">
       <div class="welcome-big-avatar" id="wb-avatar">
@@ -4844,21 +4851,24 @@ function applyCelebrationTheme(theme) {
     document.body.style.backgroundColor = '';
   }
 
-  // Top Celebration Greeting Ribbon
+  // Set background image from theme.bannerUrl if provided
+  if (theme.bannerUrl) {
+    document.body.style.backgroundImage = `url("${theme.bannerUrl}")`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundPosition = 'center';
+    document.body.style.backgroundAttachment = 'fixed';
+  }
+
+  // Save theme globally so renderDashboard can inject the greeting ribbon
+  window.currentTheme = theme;
+  if (typeof STATE !== 'undefined' && STATE.page === 'dashboard' && STATE.user && typeof renderDashboard === 'function') {
+    renderDashboard();
+  }
+
+  // Ensure the old global top ribbon is removed (user requested it moved to dashboard)
   let ribbon = document.getElementById('cpm-festive-ribbon');
-  if (theme.showGreeting && theme.greeting) {
-    if (!ribbon) {
-      ribbon = document.createElement('div');
-      ribbon.id = 'cpm-festive-ribbon';
-      ribbon.style.cssText = 'position:sticky;top:0;z-index:99997;padding:8px 16px;text-align:center;font-size:13px;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);transition:all 0.3s;font-family:Outfit,sans-serif;';
-      document.body.prepend(ribbon);
-    }
-    ribbon.style.background = 'linear-gradient(90deg, ' + primary + ', ' + secondary + ')';
-    ribbon.style.color = '#ffffff';
-    ribbon.innerHTML = '<span>' + theme.greeting + '</span>';
-    ribbon.style.display = 'flex';
-  } else if (ribbon) {
-    ribbon.style.display = 'none';
+  if (ribbon) {
+    ribbon.remove();
   }
 
   // Floating Celebration Visual Particles
