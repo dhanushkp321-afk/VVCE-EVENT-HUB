@@ -1940,7 +1940,11 @@ function filterEvents() {
   const q   = (document.querySelector('#page-events #ev-search')?.value||'').toLowerCase().trim();
   const cat = document.querySelector('#page-events #ev-cat')?.value||'';
   const fee = document.querySelector('#page-events #ev-fee')?.value||'';
-  let evs   = getDB('vvce_events').filter(e => e.status === 'approved');
+  let evs   = getDB('vvce_events').filter(e => {
+    if (e.status === 'archived' || e.status === 'draft') return false;
+    if (e.status === 'scheduled' && e.publish_at && new Date(e.publish_at) > new Date()) return false;
+    return e.status === 'approved' || e.status === 'rescheduled' || e.status === 'cancelled' || e.status === 'scheduled';
+  });
 
   if (STATE.user && STATE.user.type === 'student') {
     evs = evs.filter(e => !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(STATE.user.branch));
@@ -1961,7 +1965,9 @@ function filterEvents() {
 function eventCard(ev) {
   const user  = STATE.user;
   const isReg = (ev.registrations||[]).includes(user?.id);
-  const isFull= ev.regCount >= ev.maxParticipants;
+  const currentRegCount = (ev.registrations || []).length;
+  const maxCap = ev.max_participants || ev.maxParticipants || 100;
+  const isFull = currentRegCount >= maxCap;
   const isCancelled = ev.status === 'cancelled';
   const isRescheduled = ev.status === 'rescheduled';
   const catCls = { Technical:'cat-technical',Cultural:'cat-cultural',Sports:'cat-sports',Workshop:'cat-workshop',Management:'cat-management',Social:'cat-social' }[ev.category]||'cat-technical';
@@ -1995,9 +2001,13 @@ function eventCard(ev) {
                   ? `<button class="btn-reg registered" onclick="event.stopPropagation();unregisterEv('${ev.id}')">✓ Registered</button>`
                   : (ev.pendingPayments && ev.pendingPayments.some(p => p.uid === STATE.user.id))
                     ? `<button class="btn-reg" style="background:#f59e0b;color:#fff;border:none;" disabled>⏳ Pending Approval</button>`
-                    : isFull
-                      ? `<button class="btn-reg" disabled style="opacity:.5;cursor:not-allowed;">Full</button>`
-                      : `<button class="btn-reg" onclick="event.stopPropagation();registerEv('${ev.id}')">Register</button>`
+                    : STATE.registrationLocked
+                      ? `<button class="btn-reg" disabled style="background:#64748b;color:#fff;border:none;cursor:not-allowed;">🔒 Paused</button>`
+                      : isFull
+                        ? (ev.waitlist_enabled
+                            ? `<button class="btn-reg" style="background:#f59e0b;color:#fff;border:none;" onclick="event.stopPropagation();joinWaitlist('${ev.id}')">⏳ Waitlist</button>`
+                            : `<button class="btn-reg" disabled style="opacity:.5;cursor:not-allowed;">Full</button>`)
+                        : `<button class="btn-reg" onclick="event.stopPropagation();registerEv('${ev.id}')">Register</button>`
               : ''
             }
           </div>
@@ -2138,16 +2148,55 @@ function filterClubsView(term) {
 }
 
 function registerEv(id) {
+  if (STATE.registrationLocked) {
+    toast('Event registrations are temporarily paused by administration.', 'warning');
+    return;
+  }
   const events = getDB('vvce_events');
   const ev = events.find(e => e.id === id);
   if (!ev) return;
   if ((ev.registrations||[]).includes(STATE.user.id)) { toast('Already registered!','info'); return; }
+
+  const currentRegCount = (ev.registrations || []).length;
+  const maxCap = ev.max_participants || ev.maxParticipants || 100;
+  if (currentRegCount >= maxCap) {
+    if (ev.waitlist_enabled) {
+      joinWaitlist(id);
+    } else {
+      toast('Event capacity is full.', 'warning');
+    }
+    return;
+  }
 
   if (ev.fee > 0) {
     openPaymentModal(ev);
   } else {
     completeRegistration(ev);
   }
+}
+
+function joinWaitlist(id) {
+  if (STATE.registrationLocked) {
+    toast('Event registrations are temporarily paused by administration.', 'warning');
+    return;
+  }
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  if (!ev.waitlist) ev.waitlist = [];
+  if (ev.waitlist.includes(STATE.user.id)) {
+    toast('You are already on the waitlist for this event.', 'info');
+    return;
+  }
+  ev.waitlist.push(STATE.user.id);
+  setDB('vvce_events', events);
+  if (window.sb) {
+    window.sb.from('events').update({ waitlist: ev.waitlist }).eq('id', id);
+  }
+  addNotif(`You have been added to the waitlist for ${ev.name}. You will be notified if a slot opens up.`, '⏳');
+  toast('Added to waitlist! You will be notified if a seat opens up.', 'success');
+  if (STATE.page === 'events') renderEventsPage();
+  else if (STATE.page === 'clubs') renderClubsDirectoryPage();
 }
 
 let currentPaymentEvent = null;
@@ -2347,9 +2396,13 @@ function openEventModal(id) {
         ${isReg
           ? `<button onclick="unregisterEv('${ev.id}');closeModal('modal-event-detail')" class="btn btn-outline" style="flex:1;">Unregister</button>
              <div style="flex:2;padding:11px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;text-align:center;font-weight:700;font-size:14px;color:#15803d;">✓ You're Registered</div>`
-          : isFull
-            ? `<div style="flex:1;padding:11px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;text-align:center;font-weight:700;color:#991b1b;">Event Full</div>`
-            : `<button onclick="registerEv('${ev.id}');closeModal('modal-event-detail')" style="flex:1;padding:11px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border:none;border-radius:8px;font-weight:800;font-size:14px;color:#0f172a;cursor:pointer;">Register Now →</button>`
+          : STATE.registrationLocked
+            ? `<div style="flex:1;padding:11px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;text-align:center;font-weight:700;color:#64748b;">🔒 Registrations Paused by Admin</div>`
+            : isFull
+              ? (ev.waitlist_enabled
+                  ? `<button onclick="joinWaitlist('${ev.id}');closeModal('modal-event-detail')" style="flex:1;padding:11px;background:#f59e0b;border:none;border-radius:8px;font-weight:700;color:#fff;cursor:pointer;">⏳ Join Waitlist</button>`
+                  : `<div style="flex:1;padding:11px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;text-align:center;font-weight:700;color:#991b1b;">Event Full</div>`)
+              : `<button onclick="registerEv('${ev.id}');closeModal('modal-event-detail')" style="flex:1;padding:11px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border:none;border-radius:8px;font-weight:800;font-size:14px;color:#0f172a;cursor:pointer;">Register Now →</button>`
         }
       </div>` : ''
     }
@@ -4681,9 +4734,14 @@ async function initDynamicSiteConfig() {
       maintEl.style.display = 'none';
     }
 
-    // 2. Dynamic Banner
+    // 2. Dynamic Banner (with start & expiry date support)
     let bannerEl = document.getElementById('cpm-live-banner');
-    if (cfg.banner && cfg.banner.enabled && cfg.banner.text) {
+    const now = new Date();
+    let showBanner = cfg.banner && cfg.banner.enabled && cfg.banner.text;
+    if (showBanner && cfg.banner.start_date && new Date(cfg.banner.start_date) > now) showBanner = false;
+    if (showBanner && cfg.banner.end_date && new Date(cfg.banner.end_date) < now) showBanner = false;
+
+    if (showBanner) {
       if (!bannerEl) {
         bannerEl = document.createElement('div');
         bannerEl.id = 'cpm-live-banner';
@@ -4702,6 +4760,18 @@ async function initDynamicSiteConfig() {
       bannerEl.style.display = 'flex';
     } else if (bannerEl) {
       bannerEl.style.display = 'none';
+    }
+
+    // 4. Registration Lock
+    STATE.registrationLocked = !!cfg.registrationLocked;
+
+    // 5. Dynamic Media Assets
+    if (cfg.media && cfg.media.bgUrl) {
+      document.body.style.backgroundImage = `url("${cfg.media.bgUrl}")`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundAttachment = 'fixed';
+    } else {
+      document.body.style.backgroundImage = '';
     }
 
     // 3. Dynamic Theme
