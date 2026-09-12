@@ -9,6 +9,8 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
   <!-- Tesseract.js for OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,8 +41,8 @@
 
       <!-- Tab switcher: Sign In / Register -->
       <div class="auth-tab-row">
-        <button class="auth-main-tab active" id="tab-signin" onclick="switchMainTab('signin')">Sign In</button>
-        <button class="auth-main-tab" id="tab-register" onclick="switchMainTab('register')">Register</button>
+        <button type="button" class="auth-main-tab active" id="tab-signin" onclick="if(window.switchMainTab) { switchMainTab('signin'); } else { document.getElementById('panel-signin').style.display='block'; document.getElementById('panel-register').style.display='none'; this.classList.add('active'); document.getElementById('tab-register').classList.remove('active'); }">Sign In</button>
+        <button type="button" class="auth-main-tab" id="tab-register" onclick="if(window.switchMainTab) { switchMainTab('register'); } else { document.getElementById('panel-signin').style.display='none'; document.getElementById('panel-register').style.display='block'; this.classList.add('active'); document.getElementById('tab-signin').classList.remove('active'); }">Register</button>
       </div>
 
       <!-- Feedback -->
@@ -164,7 +166,7 @@
             <div class="reg-two-col">
               <div class="auth-field-group">
                 <label class="auth-label">USN (Verified &amp; Locked)</label>
-                <input class="auth-input" type="text" id="s-usn" placeholder="USN" readonly style="opacity:0.7; cursor:not-allowed;">
+                <input class="auth-input" type="text" id="s-usn" placeholder="e.g. 4VV25CS047">
               </div>
               <div class="auth-field-group">
                 <label class="auth-label">Full Name</label>
@@ -295,74 +297,99 @@
             <div class="auth-notice-info">
               ⏳ Club accounts require <strong>Dean Student Welfare approval</strong> before you can log in.
             </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Your Full Name</label>
-            <input class="auth-input" type="text" id="a-name" placeholder="Club representative name">
-          </div>
-          <div class="reg-two-col">
-            <div class="auth-field-group">
-              <label class="auth-label">Club Name</label>
-              <input class="auth-input" type="text" id="a-club" placeholder="CSE Club">
-            </div>
-            <div class="auth-field-group">
-              <label class="auth-label">Category</label>
-              <select class="auth-input" id="a-domain">
-                <option value="Technical">Technical</option>
-                <option value="Cultural">Cultural</option>
-                <option value="Sports">Sports</option>
-                <option value="Management">Management</option>
-                <option value="Social">Social</option>
-                <option value="Workshop">Workshop</option>
-              </select>
-            </div>
-          </div>
 
-          <!-- Branch & USN row -->
-          <div class="reg-two-col">
+            <!-- Faculty Coordinator Name -->
+            <div class="auth-field-group" style="background:rgba(99,102,241,0.08); padding:14px; border-radius:12px; border:1px solid rgba(99,102,241,0.25); margin-bottom:15px;">
+              <label class="auth-label" style="color:#a5b4fc; font-weight:700; font-size:14px;">👩‍🏫 Faculty Coordinator Name *</label>
+              <input class="auth-input" type="text" id="a-faculty" placeholder="Dr. / Prof. Name (e.g. Dr. Ramesh Kumar)" style="background:rgba(15,23,42,0.6); border-color:rgba(99,102,241,0.4);">
+            </div>
+
+            <!-- Club Logo Upload -->
+            <div class="auth-field-group" style="margin-bottom:15px;">
+              <label class="auth-label">Club Logo (Optional)</label>
+              <div style="display:flex; align-items:center; gap:15px;">
+                <div id="a-logo-preview" style="width:54px; height:54px; border-radius:12px; background:rgba(99,102,241,0.15); border:2px dashed rgba(99,102,241,0.4); display:flex; align-items:center; justify-content:center; font-size:24px; color:#a5b4fc; overflow:hidden; flex-shrink:0;">
+                  🏛️
+                </div>
+                <label class="btn-dark-register" style="margin:0; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); cursor:pointer; font-size:13px; padding:10px 14px;">
+                  📷 Upload Club Logo
+                  <input type="file" id="a-logo-file" accept="image/*" style="display:none;" onchange="handleClubLogoUpload(event)">
+                </label>
+              </div>
+            </div>
+
+            <!-- Club Name & Category -->
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Club Name *</label>
+                <input class="auth-input" type="text" id="a-club" placeholder="e.g. CSE Club">
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Category *</label>
+                <select class="auth-input" id="a-domain">
+                  <option value="Technical">Technical</option>
+                  <option value="Cultural">Cultural</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Management">Management</option>
+                  <option value="Social">Social</option>
+                  <option value="Workshop">Workshop</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Representative Name & USN -->
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Representative Full Name *</label>
+                <input class="auth-input" type="text" id="a-name" placeholder="Club representative name">
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Representative USN (Verified) *</label>
+                <input class="auth-input" type="text" id="a-usn" placeholder="e.g. 4VV21CS001">
+              </div>
+            </div>
+
+            <!-- Branch & Club Email -->
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Department / Branch *</label>
+                <select class="auth-input" id="a-branch">
+                  <option value="CSE">CSE — Computer Science &amp; Engineering</option>
+                  <option value="CSE/AIML">CSE / AI&amp;ML — Artificial Intelligence &amp; ML</option>
+                  <option value="ECE">ECE — Electronics &amp; Communication</option>
+                  <option value="ME">ME — Mechanical Engineering</option>
+                  <option value="EEE">EEE — Electrical &amp; Electronics</option>
+                  <option value="CV">CV — Civil Engineering</option>
+                  <option value="ISE">ISE — Information Science &amp; Engineering</option>
+                </select>
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Club Email</label>
+                <input class="auth-input" type="email" id="a-club-email" placeholder="cseclub@vvce.ac.in">
+              </div>
+            </div>
+
+            <!-- Representative Email & Phone -->
+            <div class="reg-two-col">
+              <div class="auth-field-group">
+                <label class="auth-label">Your VVCE Email *</label>
+                <input class="auth-input" type="email" id="a-email" placeholder="yourname@vvce.ac.in">
+              </div>
+              <div class="auth-field-group">
+                <label class="auth-label">Phone Number *</label>
+                <input class="auth-input" type="tel" id="a-phone" placeholder="+91 98765 43210">
+              </div>
+            </div>
+
             <div class="auth-field-group">
-              <label class="auth-label">Department / Branch</label>
-              <select class="auth-input" id="a-branch">
-                <option value="CSE">CSE — Computer Science &amp; Engineering</option>
-                <option value="CSE/AIML">CSE / AI&amp;ML — Artificial Intelligence &amp; ML</option>
-                <option value="ECE">ECE — Electronics &amp; Communication</option>
-                <option value="ME">ME — Mechanical Engineering</option>
-                <option value="EEE">EEE — Electrical &amp; Electronics</option>
-                <option value="CV">CV — Civil Engineering</option>
-                <option value="ISE">ISE — Information Science &amp; Engineering</option>
-              </select>
+              <label class="auth-label">Club Description</label>
+              <textarea class="auth-input" id="a-desc" rows="2" placeholder="Brief description of club activities..."></textarea>
             </div>
             <div class="auth-field-group">
-              <label class="auth-label">Club Representative USN (Auto-filled)</label>
-              <input class="auth-input" type="text" id="a-usn" placeholder="e.g. 4VV21CS001" readonly style="opacity:0.7; cursor:not-allowed;">
+              <label class="auth-label">Password *</label>
+              <input class="auth-input" type="password" id="a-pass" placeholder="••••••••">
             </div>
-          </div>
-
-          <div class="auth-field-group">
-            <label class="auth-label">Faculty Coordinator Name</label>
-            <input class="auth-input" type="text" id="a-faculty" placeholder="Dr. / Prof. Name">
-          </div>
-
-          <div class="auth-field-group">
-            <label class="auth-label">Club Email</label>
-            <input class="auth-input" type="email" id="a-club-email" placeholder="cseclub@vvce.ac.in">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Your VVCE Email</label>
-            <input class="auth-input" type="email" id="a-email" placeholder="yourname@vvce.ac.in">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Phone Number</label>
-            <input class="auth-input" type="tel" id="a-phone" placeholder="+91 98765 43210">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Club Description</label>
-            <textarea class="auth-input" id="a-desc" rows="2" placeholder="Brief description of club activities..."></textarea>
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Password</label>
-            <input class="auth-input" type="password" id="a-pass" placeholder="••••••••">
-          </div>
-          <button class="btn-dark-register" onclick="handleAdminSignup()">Create Club Account →</button>
+            <button class="btn-dark-register" onclick="handleAdminSignup()">Create Club Account →</button>
           </div> <!-- /admin-manual-fields -->
         </div>
 
@@ -499,6 +526,8 @@
     <div class="page active" id="page-dashboard"></div>
     <!-- Student: Events Feed -->
     <div class="page" id="page-events"></div>
+    <!-- Shared: Clubs Directory & Club-Specific Events -->
+    <div class="page" id="page-clubs"></div>
     <!-- Student: Calendar -->
     <div class="page" id="page-calendar"></div>
     <!-- Student: Registrations -->
@@ -754,9 +783,49 @@
   </div>
 </div>
 
+<!-- Email OTP Verification Modal -->
+<div class="modal-overlay" id="modal-otp">
+  <div class="modal-box" style="max-width:420px; text-align:center; padding:24px; border-radius:16px;">
+    <div style="font-size:42px; margin-bottom:8px;">📧</div>
+    <h2 style="font-size:20px; font-weight:800; color:#111827; margin-bottom:6px;">Verify Your VVCE Email</h2>
+    <p style="font-size:13px; color:#6b7280; margin-bottom:16px; line-height:1.5;">
+      We have dispatched a 6-digit security code to<br>
+      <strong id="otp-target-email" style="color:#4f46e5; font-size:14px; font-weight:700;">yourname@vvce.ac.in</strong>
+    </p>
+
+    <!-- Security notice -->
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; margin-bottom:18px; font-size:12px; color:#475569; display:flex; align-items:center; gap:8px; text-align:left;">
+      <span style="font-size:18px;">🔒</span>
+      <span>Check your inbox or spam folder for the one-time passcode.</span>
+    </div>
+
+    <!-- OTP Input Group -->
+    <div class="otp-inputs-row" style="display:flex; justify-content:center; gap:8px; margin-bottom:16px;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d1" oninput="handleOtpInput(1, event)" onkeydown="handleOtpKey(1, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d2" oninput="handleOtpInput(2, event)" onkeydown="handleOtpKey(2, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d3" oninput="handleOtpInput(3, event)" onkeydown="handleOtpKey(3, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d4" oninput="handleOtpInput(4, event)" onkeydown="handleOtpKey(4, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d5" oninput="handleOtpInput(5, event)" onkeydown="handleOtpKey(5, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+      <input type="text" maxlength="1" class="otp-digit" id="otp-d6" oninput="handleOtpInput(6, event)" onkeydown="handleOtpKey(6, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
+    </div>
+
+    <div id="otp-error-msg" style="color:#ef4444; font-size:12px; font-weight:600; margin-bottom:12px; display:none;"></div>
+
+    <button class="btn-dark-register" onclick="verifyRegistrationOtp()" style="width:100%; padding:13px; font-size:15px; font-weight:700; background:linear-gradient(135deg, #4f46e5, #4338ca); border-radius:10px; margin-bottom:14px; cursor:pointer;">
+      Verify &amp; Create Account →
+    </button>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#6b7280; padding:0 4px;">
+      <span id="otp-timer">Resend code in <strong id="otp-countdown">60</strong>s</span>
+      <button id="btn-resend-otp" onclick="resendRegistrationOtp()" style="background:none; border:none; color:#4f46e5; font-weight:700; cursor:pointer; padding:0; display:none;">Resend Code</button>
+      <button onclick="closeModal('modal-otp')" style="background:none; border:none; color:#9ca3af; cursor:pointer; padding:0;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast Container -->
 <div id="toast-wrap"></div>
 
-  <script type="module" src="app.js"></script>
+  <script src="app.js?v=3.1"></script>
 </body>
 </html>
