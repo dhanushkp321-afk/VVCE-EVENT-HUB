@@ -8,64 +8,88 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
+    :root {
+      --gold: #f59e0b;
+      --gold-light: #fbbf24;
+      --gold-dark: #d97706;
+      --gold-bg: rgba(245, 158, 11, 0.1);
+      --gold-border: rgba(245, 158, 11, 0.35);
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --text-subtle: #94a3b8;
+      --border: #e2e8f0;
+      --border-focus: #f59e0b;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', sans-serif; background: #090d16; color: #f1f5f9; min-height: 100vh; display: flex; flex-direction: column; }
-    header { background: #0f172a; border-bottom: 1px solid #1e293b; padding: 0.9rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    header { background: #ffffff; border-bottom: 2px solid #f59e0b; padding: 0.9rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand img { width: 36px; height: 36px; border-radius: 8px; background: #fff; padding: 2px; }
-    .brand h1 { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; color: #fff; }
-    .badge { background: #3b82f625; color: #60a5fa; border: 1px solid #3b82f640; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: .05em; }
-    .nav-tabs { display: flex; gap: 6px; background: #090d16; padding: 4px; border-radius: 10px; border: 1px solid #1e293b; }
-    .tab-btn { background: none; border: none; color: #94a3b8; font-weight: 600; font-size: 0.82rem; padding: 6px 14px; border-radius: 7px; cursor: pointer; transition: 0.2s; white-space: nowrap; }
-    .tab-btn.active { background: #1e293b; color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-    .btn { cursor: pointer; padding: 0.55rem 1.1rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; border: none; transition: 0.2s; }
-    .btn-danger { background: #ef444420; color: #f87171; border: 1px solid #ef444440; }
-    .btn-danger:hover { background: #ef444440; }
-    .btn-primary { background: #3b82f6; color: #fff; }
-    .btn-primary:hover { background: #2563eb; }
-    .btn-warning { background: #f59e0b20; color: #fbbf24; border: 1px solid #f59e0b40; }
+    .brand img { width: 44px; height: 44px; border-radius: 50%; background: #fff; padding: 2px; border: 1.5px solid #fde68a; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15); object-fit: contain; }
+    .brand h1 { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+    .badge { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 3px 9px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: .04em; }
+    
+    .nav-tabs { display: flex; gap: 6px; background: #f1f5f9; padding: 5px; border-radius: 12px; border: 1px solid #e2e8f0; }
+    .tab-btn { background: none; border: none; color: #64748b; font-weight: 600; font-size: 0.82rem; padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .tab-btn:hover { color: #0f172a; background: rgba(255,255,255,0.6); }
+    .tab-btn.active { background: #ffffff; color: #0f172a; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.05); border-bottom: 2.5px solid #f59e0b; }
+    
+    .btn { cursor: pointer; padding: 0.55rem 1.15rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-primary { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #0f172a; border: 1px solid #f59e0b; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25); }
+    .btn-primary:hover { background: linear-gradient(135deg, #d97706, #f59e0b); color: #0f172a; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.35); }
+    .btn-danger { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+    .btn-danger:hover { background: #fee2e2; }
+    .btn-warning { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .btn-warning:hover { background: #fef3c7; }
 
-    #auth-overlay { position: fixed; inset: 0; background: #090d16f2; backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .login-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; width: 100%; max-width: 420px; padding: 2.2rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); }
-    .login-box h2 { font-family: 'Outfit', sans-serif; font-size: 1.5rem; text-align: center; margin-bottom: 0.4rem; }
-    .login-box p { color: #94a3b8; font-size: 0.85rem; text-align: center; margin-bottom: 1.5rem; }
-    .form-group { margin-bottom: 1.1rem; }
-    .form-group label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.4rem; color: #cbd5e1; }
-    .form-control { width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 0.75rem 1rem; color: #fff; font-size: 0.9rem; outline: none; }
-    .form-control:focus { border-color: #3b82f6; }
-    .err-msg { color: #f87171; font-size: 0.8rem; margin-top: 0.4rem; display: none; }
+    #auth-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .login-box { background: #ffffff; border: 1px solid #fde68a; border-radius: 20px; width: 100%; max-width: 440px; padding: 2.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.18); }
+    .login-box h2 { font-family: 'Outfit', sans-serif; font-size: 1.55rem; text-align: center; margin-bottom: 0.2rem; color: #0f172a; font-weight: 800; }
+    .login-box p { color: #64748b; font-size: 0.85rem; text-align: center; margin-bottom: 1.6rem; }
+    .form-group { margin-bottom: 1.15rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 0.45rem; color: #334155; }
+    .form-control { width: 100%; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 9px; padding: 0.75rem 1rem; color: #0f172a; font-size: 0.9rem; outline: none; transition: all 0.2s; }
+    .form-control:focus { border-color: #f59e0b; background: #ffffff; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15); }
+    .err-msg { color: #ef4444; font-size: 0.8rem; margin-top: 0.4rem; display: none; font-weight: 600; }
 
-    main { flex: 1; max-width: 1200px; width: 100%; margin: 0 auto; padding: 2rem; }
+    main { flex: 1; max-width: 1240px; width: 100%; margin: 0 auto; padding: 2rem; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; margin-top: 1.25rem; }
-    .event-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; }
-    .event-meta { font-size: 0.85rem; color: #cbd5e1; margin: 0.8rem 0; display: flex; flex-direction: column; gap: 6px; }
+    .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.35rem; margin-top: 1.25rem; }
+    .event-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1.4rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.03); transition: all 0.2s; }
+    .event-card:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.06); transform: translateY(-2px); border-color: #fde68a; }
+    .event-meta { font-size: 0.85rem; color: #475569; margin: 0.9rem 0; display: flex; flex-direction: column; gap: 6px; }
 
-    .settings-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; padding: 1.75rem; margin-bottom: 1.5rem; }
-    .settings-card h3 { font-family: 'Outfit', sans-serif; font-size: 1.2rem; margin-bottom: 0.5rem; }
-    .settings-card p { color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.25rem; }
+    .settings-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.85rem; margin-bottom: 1.6rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .settings-card h3 { font-family: 'Outfit', sans-serif; font-size: 1.25rem; margin-bottom: 0.4rem; color: #0f172a; font-weight: 800; }
+    .settings-card p { color: #64748b; font-size: 0.85rem; margin-bottom: 1.35rem; }
 
-    #edit-modal { position: fixed; inset: 0; background: #090d16c0; backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
-    .modal-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 2rem; }
+    #edit-modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 500; padding: 1rem; }
+    .modal-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 18px; width: 100%; max-width: 620px; max-height: 90vh; overflow-y: auto; padding: 2.2rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); color: #0f172a; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    #toast { position: fixed; bottom: 2rem; right: 2rem; background: #10b981; color: #fff; padding: 0.85rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem; display: none; z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-    .status-filter-btn { background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-    .status-filter-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    #toast { position: fixed; bottom: 2rem; right: 2rem; background: #0f172a; color: #fbbf24; border: 1px solid #f59e0b; padding: 0.9rem 1.6rem; border-radius: 10px; font-weight: 700; font-size: 0.9rem; display: none; z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .status-filter-btn { background: #ffffff; color: #64748b; border: 1.5px solid #e2e8f0; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+    .status-filter-btn:hover { border-color: #cbd5e1; color: #0f172a; }
+    .status-filter-btn.active { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #0f172a; border-color: #f59e0b; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25); }
   </style>
 </head>
 <body>
 
   <header>
     <div class="brand">
-      <img src="vvce-logo-header.png" alt="VVCE">
-      <h1>VVCE Events CPM</h1>
-      <span class="badge">Control Panel</span>
-      <span class="badge" id="header-role-badge" style="background:#10b98125; color:#34d399; border-color:#10b98140;">Super Admin</span>
+      <img src="vvce-logo-header.png" alt="VVCE College Symbol">
+      <div>
+        <h1>VVCE Events CPM</h1>
+        <div style="font-size: 0.72rem; color: #64748b; font-weight: 600; margin-top: -2px;">Control Panel & Management</div>
+      </div>
+      <span class="badge" id="header-role-badge" style="margin-left: 6px;">Super Admin</span>
     </div>
 
-    <div class="nav-tabs" id="portal-nav" style="display: none; max-width: 65vw; overflow-x: auto;">
+    <div class="nav-tabs" id="portal-nav" style="display: none; max-width: 62vw; overflow-x: auto;">
       <button class="tab-btn active" id="nav-events" onclick="switchTab('events', this)">📅 Events</button>
       <button class="tab-btn" id="nav-recycle" onclick="switchTab('recycle', this)">🗑️ Recycle Bin</button>
       <button class="tab-btn" id="nav-banner" onclick="switchTab('banner', this)">📢 Announcements</button>
@@ -77,16 +101,22 @@
     </div>
 
     <div style="display: flex; gap: 12px; align-items: center;">
-      <a href="/" target="_blank" style="color:#94a3b8; text-decoration:none; font-size:0.85rem; font-weight:600;">View Live Site ↗</a>
+      <a href="/" target="_blank" style="color: #475569; text-decoration: none; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; gap: 4px;">View Live Site ↗</a>
       <button class="btn btn-danger" onclick="logout()">Logout</button>
     </div>
   </header>
 
-  <!-- Login Modal with Role-Based Access Control -->
+  <!-- Login Modal with Role-Based Access Control & Prominent VVCE Symbol -->
   <div id="auth-overlay">
     <div class="login-box">
-      <h2>CPM Portal Login</h2>
-      <p>Secure Role-Based Administrator Access</p>
+      <div style="text-align: center; margin-bottom: 1.4rem;">
+        <div style="width: 76px; height: 76px; margin: 0 auto 12px; border-radius: 50%; background: #ffffff; border: 2.5px solid #f59e0b; padding: 4px; box-shadow: 0 6px 16px rgba(245, 158, 11, 0.25); display: flex; align-items: center; justify-content: center;">
+          <img src="vvce-logo-header.png" alt="VVCE College Symbol" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
+        </div>
+        <h2>VVCE Events CPM</h2>
+        <p>Vidyavardhaka College of Engineering<br><strong style="color: #b45309;">Control Panel & Management Portal</strong></p>
+      </div>
+
       <form onsubmit="handleLogin(event)">
         <div class="form-group">
           <label>Administrator Role</label>
@@ -102,7 +132,7 @@
           <input type="password" id="cpm-pass" class="form-control" placeholder="••••••••" autofocus required>
           <div id="login-err" class="err-msg">Invalid password. Access denied.</div>
         </div>
-        <button type="submit" id="login-btn" class="btn btn-primary" style="width: 100%; padding: 0.8rem;">Access CPM Portal →</button>
+        <button type="submit" id="login-btn" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-size: 0.95rem; margin-top: 0.5rem;">Access CPM Portal →</button>
       </form>
     </div>
   </div>
@@ -111,16 +141,16 @@
   <main id="cpm-content" style="display: none;">
     <!-- TAB 1: EVENTS -->
     <section id="tab-events" class="tab-content active">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
         <div>
-          <h2 style="font-family:'Outfit'; font-size:1.4rem;">Manage & Reschedule Events</h2>
-          <p style="color:#94a3b8; font-size:0.85rem;">Modify dates, venues, timings, waitlists, or visibility dynamically without redeploying.</p>
+          <h2 style="font-family:'Outfit'; font-size:1.5rem; color:#0f172a; font-weight:800;">Manage & Reschedule Events</h2>
+          <p style="color:#64748b; font-size:0.88rem; margin-top:2px;">Modify dates, venues, timings, waitlists, or visibility dynamically without redeploying.</p>
         </div>
-        <input type="text" id="event-search-input" class="form-control" style="width: 280px;" placeholder="Search event, club, or venue..." oninput="applyEventFilters()">
+        <input type="text" id="event-search-input" class="form-control" style="width: 290px; background:#ffffff;" placeholder="🔍 Search event, club, or venue..." oninput="applyEventFilters()">
       </div>
 
       <!-- Status Filter Pills -->
-      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1.25rem;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1.4rem;">
         <button class="status-filter-btn active" onclick="setEventStatusFilter('all', this)">All Events</button>
         <button class="status-filter-btn" onclick="setEventStatusFilter('approved', this)">Published</button>
         <button class="status-filter-btn" onclick="setEventStatusFilter('scheduled', this)">Scheduled</button>
@@ -148,8 +178,8 @@
         <p>Broadcast temporary global notices across the top of the entire website without any redeployment.</p>
         <form onsubmit="saveBannerConfig(event)">
           <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-bottom:1.5rem;">
-            <input type="checkbox" id="banner-enabled" style="width:20px; height:20px; cursor:pointer;">
-            <label for="banner-enabled" style="margin:0; font-size:0.95rem; cursor:pointer;"><strong>Enable Announcement Banner</strong></label>
+            <input type="checkbox" id="banner-enabled" style="width:20px; height:20px; cursor:pointer; accent-color:#f59e0b;">
+            <label for="banner-enabled" style="margin:0; font-size:0.95rem; cursor:pointer; color:#0f172a;"><strong>Enable Announcement Banner</strong></label>
           </div>
           <div class="form-group">
             <label>Banner Text / Announcement Message</label>
@@ -188,17 +218,17 @@
           <div class="form-group">
             <label>Homepage Hero Banner / Poster Image URL</label>
             <input type="text" id="media-hero-banner" class="form-control" placeholder="https://... or paste image URL" oninput="previewMedia('hero', this.value)">
-            <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="btn" style="font-size:11px; padding:3px 8px; background:#1e293b; color:#cbd5e1;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200')">Campus Tech Fest Preset</button>
-              <button type="button" class="btn" style="font-size:11px; padding:3px 8px; background:#1e293b; color:#cbd5e1;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=1200')">Cultural Utsav Preset</button>
-              <button type="button" class="btn" style="font-size:11px; padding:3px 8px; background:#1e293b; color:#cbd5e1;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200')">Sports League Preset</button>
-              <button type="button" class="btn" style="font-size:11px; padding:3px 8px; background:#1e293b; color:#cbd5e1;" onclick="setMediaPreset('hero', '')">Default (None)</button>
+            <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn" style="font-size:11px; padding:4px 9px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200')">Campus Tech Fest Preset</button>
+              <button type="button" class="btn" style="font-size:11px; padding:4px 9px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=1200')">Cultural Utsav Preset</button>
+              <button type="button" class="btn" style="font-size:11px; padding:4px 9px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;" onclick="setMediaPreset('hero', 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200')">Sports League Preset</button>
+              <button type="button" class="btn" style="font-size:11px; padding:4px 9px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;" onclick="setMediaPreset('hero', '')">Default (None)</button>
             </div>
           </div>
           
           <div class="form-group">
             <label>Live Preview:</label>
-            <div id="media-hero-preview" style="height:120px; border-radius:10px; border:1px dashed #334155; display:flex; align-items:center; justify-content:center; color:#64748b; background-size:cover; background-position:center; overflow:hidden;">
+            <div id="media-hero-preview" style="height:140px; border-radius:12px; border:2px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; background-size:cover; background-position:center; overflow:hidden; background-color:#f8fafc;">
               No image specified
             </div>
           </div>
@@ -225,17 +255,17 @@
         <h3>🎨 Dynamic Website Theme</h3>
         <p>Switch the aesthetic of the portal dynamically for college fests or hackathons.</p>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
-          <button class="btn" style="background:#0f172a; border:2px solid #3b82f6; color:#fff; padding:1.2rem; text-align:left;" onclick="setTheme('default')">
-            <strong>VVCE Classic</strong>
-            <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Institutional Navy & Gold</div>
+          <button class="btn" style="background:#ffffff; border:2px solid #f59e0b; color:#0f172a; padding:1.2rem; text-align:left; border-radius:12px; box-shadow:0 2px 8px rgba(245,158,11,0.15);" onclick="setTheme('default')">
+            <strong style="color:#b45309;">VVCE Classic (Yellow & White)</strong>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Institutional Gold & Crisp White</div>
           </button>
-          <button class="btn" style="background:#180b18; border:2px solid #ec4899; color:#fff; padding:1.2rem; text-align:left;" onclick="setTheme('festive')">
-            <strong>Festive / Utsav</strong>
-            <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Vibrant Crimson & Gold</div>
+          <button class="btn" style="background:#ffffff; border:2px solid #ec4899; color:#0f172a; padding:1.2rem; text-align:left; border-radius:12px;" onclick="setTheme('festive')">
+            <strong style="color:#db2777;">Festive / Utsav</strong>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Vibrant Crimson & Gold</div>
           </button>
-          <button class="btn" style="background:#050505; border:2px solid #10b981; color:#fff; padding:1.2rem; text-align:left;" onclick="setTheme('cyber')">
-            <strong>Cyberpunk / Tech</strong>
-            <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">High-tech Emerald & Dark</div>
+          <button class="btn" style="background:#ffffff; border:2px solid #10b981; color:#0f172a; padding:1.2rem; text-align:left; border-radius:12px;" onclick="setTheme('cyber')">
+            <strong style="color:#059669;">Cyberpunk / Tech</strong>
+            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">High-tech Emerald & Dark</div>
           </button>
         </div>
       </div>
@@ -244,25 +274,25 @@
     <!-- TAB 6: PRIVACY-SAFE ANALYTICS -->
     <section id="tab-analytics" class="tab-content">
       <div class="stats-bar" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
-        <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:1.25rem;">
-          <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">TOTAL REGISTERED USERS</div>
-          <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem;" id="analytics-total-users">0</div>
-          <small style="color:#94a3b8;" id="analytics-user-breakdown">Students / Faculty</small>
+        <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">TOTAL REGISTERED USERS</div>
+          <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#0f172a;" id="analytics-total-users">0</div>
+          <small style="color:#64748b;" id="analytics-user-breakdown">Students / Faculty</small>
         </div>
-        <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:1.25rem;">
-          <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">DAILY ACTIVE USERS</div>
-          <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#34d399;" id="analytics-daily-active">0</div>
-          <small style="color:#94a3b8;">Active past 24 hours</small>
+        <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">DAILY ACTIVE USERS</div>
+          <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#059669;" id="analytics-daily-active">0</div>
+          <small style="color:#64748b;">Active past 24 hours</small>
         </div>
-        <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:1.25rem;">
-          <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">TOTAL EVENT REGISTRATIONS</div>
-          <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#60a5fa;" id="analytics-total-regs">0</div>
-          <small style="color:#94a3b8;">Across all published events</small>
+        <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">TOTAL EVENT REGISTRATIONS</div>
+          <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#2563eb;" id="analytics-total-regs">0</div>
+          <small style="color:#64748b;">Across all published events</small>
         </div>
-        <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:1.25rem;">
-          <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">ACTIVE CLUBS</div>
-          <div style="font-size:1.8rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#fbbf24;" id="analytics-active-clubs">0</div>
-          <small style="color:#94a3b8;">Official student chapters</small>
+        <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">ACTIVE CLUBS</div>
+          <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#d97706;" id="analytics-active-clubs">0</div>
+          <small style="color:#64748b;">Official student chapters</small>
         </div>
       </div>
 
@@ -270,7 +300,7 @@
         <div class="settings-card">
           <h3>Event Category Distribution (%)</h3>
           <p>Real-time breakdown of event interactions by domain.</p>
-          <div id="category-chart-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+          <div id="category-chart-container" style="display:flex; flex-direction:column; gap:10px;"></div>
         </div>
 
         <div class="settings-card">
@@ -289,12 +319,12 @@
         <div style="overflow-x: auto;">
           <table style="width:100%; border-collapse:collapse; margin-top:1rem; font-size:0.85rem;">
             <thead>
-              <tr style="background:#1e293b; color:#94a3b8;">
-                <th style="padding:10px; text-align:left;">Timestamp</th>
-                <th style="padding:10px; text-align:left;">Admin / Role</th>
-                <th style="padding:10px; text-align:left;">Action</th>
-                <th style="padding:10px; text-align:left;">Target Event / Asset</th>
-                <th style="padding:10px; text-align:left;">Change Details</th>
+              <tr style="background:#f8fafc; color:#475569; border-bottom:2px solid #e2e8f0;">
+                <th style="padding:12px; text-align:left;">Timestamp</th>
+                <th style="padding:12px; text-align:left;">Admin / Role</th>
+                <th style="padding:12px; text-align:left;">Action</th>
+                <th style="padding:12px; text-align:left;">Target Event / Asset</th>
+                <th style="padding:12px; text-align:left;">Change Details</th>
               </tr>
             </thead>
             <tbody id="audit-log-body"></tbody>
@@ -305,22 +335,22 @@
 
     <!-- TAB 8: EMERGENCY & SYSTEM HEALTH -->
     <section id="tab-emergency" class="tab-content">
-      <div class="settings-card" style="border-color:#ef444440;">
-        <h3 style="color:#f87171;">🚨 Emergency & Maintenance Controls (Super Admin Only)</h3>
+      <div class="settings-card" style="border-color:#fecaca; background:#fffafa;">
+        <h3 style="color:#dc2626;">🚨 Emergency & Maintenance Controls (Super Admin Only)</h3>
         <p>Temporarily disable user actions during technical difficulties or site updates.</p>
         <div style="display:flex; flex-direction:column; gap:12px; margin-top:1rem;">
-          <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:1rem; border-radius:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:1.2rem; border-radius:12px;">
             <div>
-              <strong>Site Maintenance Mode</strong>
-              <div style="font-size:0.8rem; color:#94a3b8;">Shows a polite maintenance screen to all students and visitors.</div>
+              <strong style="color:#0f172a;">Site Maintenance Mode</strong>
+              <div style="font-size:0.82rem; color:#64748b; margin-top:2px;">Shows a polite maintenance screen to all students and visitors.</div>
             </div>
             <button id="btn-toggle-maint" class="btn btn-danger" onclick="triggerMaintenanceToggle()">Enable Maintenance Mode</button>
           </div>
 
-          <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:1rem; border-radius:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:1.2rem; border-radius:12px;">
             <div>
-              <strong>Pause Event Registrations</strong>
-              <div style="font-size:0.8rem; color:#94a3b8;">Temporarily prevents new registrations while keeping the site readable.</div>
+              <strong style="color:#0f172a;">Pause Event Registrations</strong>
+              <div style="font-size:0.82rem; color:#64748b; margin-top:2px;">Temporarily prevents new registrations while keeping the site readable.</div>
             </div>
             <button id="btn-toggle-regs" class="btn btn-warning" onclick="toggleRegistrationLock()">Pause Registrations</button>
           </div>
@@ -331,21 +361,21 @@
         <h3>🟢 System Health & Service Status</h3>
         <p>Operational status of key application infrastructure.</p>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
-          <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:1rem;">
-            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🟢 Database (Supabase)</div>
-            <div style="font-size:1rem; font-weight:700; color:#34d399; margin-top:4px;">Operational</div>
+          <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">🟢 Database (Supabase)</div>
+            <div style="font-size:1.05rem; font-weight:800; color:#059669; margin-top:4px;">Operational</div>
           </div>
-          <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:1rem;">
-            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🟢 Authentication System</div>
-            <div style="font-size:1rem; font-weight:700; color:#34d399; margin-top:4px;">Operational</div>
+          <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">🟢 Authentication System</div>
+            <div style="font-size:1.05rem; font-weight:800; color:#059669; margin-top:4px;">Operational</div>
           </div>
-          <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:1rem;">
-            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🟢 Event Realtime Sync</div>
-            <div style="font-size:1rem; font-weight:700; color:#34d399; margin-top:4px;">Active</div>
+          <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">🟢 Event Realtime Sync</div>
+            <div style="font-size:1.05rem; font-weight:800; color:#059669; margin-top:4px;">Active</div>
           </div>
-          <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; border-radius:10px; padding:1rem;">
-            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">🟢 Media CDN</div>
-            <div style="font-size:1rem; font-weight:700; color:#34d399; margin-top:4px;">Operational</div>
+          <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:700;">🟢 Media CDN</div>
+            <div style="font-size:1.05rem; font-weight:800; color:#059669; margin-top:4px;">Operational</div>
           </div>
         </div>
       </div>
@@ -355,9 +385,9 @@
   <!-- Edit Modal -->
   <div id="edit-modal">
     <div class="modal-box">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-        <h3 id="modal-event-title" style="font-family:'Outfit'; font-size:1.3rem;">Modify Event</h3>
-        <button style="background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer;" onclick="closeEditModal()">&times;</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.8rem;">
+        <h3 id="modal-event-title" style="font-family:'Outfit'; font-size:1.35rem; color:#0f172a; font-weight:800;">Modify Event</h3>
+        <button style="background:none; border:none; color:#64748b; font-size:1.5rem; cursor:pointer;" onclick="closeEditModal()">&times;</button>
       </div>
       <form onsubmit="saveEvent(event)">
         <input type="hidden" id="edit-id">
@@ -404,12 +434,12 @@
           </div>
         </div>
         <div class="form-group" id="scheduled-time-group" style="display:none;">
-          <label style="color:#60a5fa;">Scheduled Publishing Date & Time</label>
+          <label style="color:#2563eb;">Scheduled Publishing Date & Time</label>
           <input type="datetime-local" id="edit-publish-at" class="form-control">
-          <small style="color:#94a3b8; font-size:11px;">System will automatically publish event once current time passes this timestamp.</small>
+          <small style="color:#64748b; font-size:11px;">System will automatically publish event once current time passes this timestamp.</small>
         </div>
         <div class="form-group" id="cancel-reason-group" style="display:none;">
-          <label style="color:#f87171;">Cancellation Reason (Communicated to Students)</label>
+          <label style="color:#ef4444;">Cancellation Reason (Communicated to Students)</label>
           <input type="text" id="edit-cancel-reason" class="form-control" placeholder="e.g. Rescheduled due to faculty symposium.">
         </div>
         <div class="grid-2">
@@ -423,33 +453,33 @@
           </div>
         </div>
         <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-bottom:1rem;">
-          <input type="checkbox" id="edit-waitlist-enabled" style="width:18px; height:18px; cursor:pointer;">
-          <label for="edit-waitlist-enabled" style="margin:0; font-size:0.85rem; cursor:pointer;">Allow Waitlist when Capacity is Reached</label>
+          <input type="checkbox" id="edit-waitlist-enabled" style="width:18px; height:18px; cursor:pointer; accent-color:#f59e0b;">
+          <label for="edit-waitlist-enabled" style="margin:0; font-size:0.85rem; cursor:pointer; color:#334155;">Allow Waitlist when Capacity is Reached</label>
         </div>
         <div class="form-group">
           <label>Description</label>
           <textarea id="edit-desc" class="form-control" rows="3"></textarea>
         </div>
 
-        <div style="background:#1e293b; padding:10px 14px; border-radius:8px; font-size:12px; color:#94a3b8; margin-bottom:1rem;">
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; font-size:12px; color:#475569; margin-bottom:1rem;">
           <div id="edit-registered-count-info">Checking registration status...</div>
         </div>
 
         <!-- Event Change History Accordion -->
-        <div style="background:#090d16; border:1px solid #1e293b; border-radius:10px; padding:12px; margin-bottom:1.5rem;">
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:1.5rem;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <strong style="font-size:13px; color:#cbd5e1;">📜 Event Change History</strong>
-            <span style="font-size:11px; color:#94a3b8;" id="history-entry-count">0 entries</span>
+            <strong style="font-size:13px; color:#334155;">📜 Event Change History</strong>
+            <span style="font-size:11px; color:#64748b;" id="history-entry-count">0 entries</span>
           </div>
           <div id="event-history-list" style="max-height:140px; overflow-y:auto; font-size:12px; display:flex; flex-direction:column; gap:6px;">
-            <div style="color:#64748b; font-style:italic;">No previous changes recorded.</div>
+            <div style="color:#94a3b8; font-style:italic;">No previous changes recorded.</div>
           </div>
         </div>
 
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem; border-top:1px solid #e2e8f0; padding-top:1rem;">
           <button type="button" class="btn btn-danger" onclick="openDeleteModal()">Delete / Archive Event 🗑️</button>
           <div style="display:flex; gap:10px;">
-            <button type="button" class="btn" style="background:#334155; color:#fff;" onclick="closeEditModal()">Cancel</button>
+            <button type="button" class="btn" style="background:#e2e8f0; color:#334155;" onclick="closeEditModal()">Cancel</button>
             <button type="submit" id="save-btn" class="btn btn-primary">Save & Publish Live</button>
           </div>
         </div>
@@ -458,44 +488,44 @@
   </div>
 
   <!-- Safety Warning Modal (For Registered Users) -->
-  <div id="safety-modal" class="modal-overlay" style="position:fixed; inset:0; background:#080c14c0; backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
-    <div class="modal-box" style="max-width: 480px; border:1px solid #f59e0b; background:#0f172a; padding:2rem; border-radius:16px;">
-      <h3 style="color:#fbbf24; margin-bottom:0.75rem;">⚠️ IMPORTANT: Registered Participants</h3>
-      <p style="font-size:0.9rem; color:#cbd5e1; line-height:1.5; margin-bottom:1.5rem;" id="safety-warning-msg"></p>
+  <div id="safety-modal" class="modal-overlay" style="position:fixed; inset:0; background:rgba(15, 23, 42, 0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:2px solid #f59e0b; background:#ffffff; padding:2rem; border-radius:18px;">
+      <h3 style="color:#b45309; margin-bottom:0.75rem; font-family:'Outfit'; font-weight:800;">⚠️ IMPORTANT: Registered Participants</h3>
+      <p style="font-size:0.9rem; color:#475569; line-height:1.5; margin-bottom:1.5rem;" id="safety-warning-msg"></p>
       <div style="display:flex; justify-content:flex-end; gap:10px;">
-        <button class="btn" style="background:#334155; color:#fff;" onclick="closeSafetyModal()">Cancel</button>
+        <button class="btn" style="background:#e2e8f0; color:#334155;" onclick="closeSafetyModal()">Cancel</button>
         <button class="btn btn-warning" onclick="confirmSaveEventWithNotification()">Proceed & Notify Users</button>
       </div>
     </div>
   </div>
 
   <!-- Two-Step Delete Confirmation Modal -->
-  <div id="delete-modal" class="modal-overlay" style="position:fixed; inset:0; background:#080c14c0; backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
-    <div class="modal-box" style="max-width: 480px; border:1px solid #ef4444; background:#0f172a; padding:2rem; border-radius:16px;">
-      <h3 style="color:#f87171; margin-bottom:0.75rem;">⚠️ Remove Event from Feed</h3>
-      <p style="font-size:0.85rem; color:#cbd5e1; line-height:1.5; margin-bottom:1rem;">
-        Warning: You are about to remove this event from the published event feed. This action may affect event registrations and visibility.
+  <div id="delete-modal" class="modal-overlay" style="position:fixed; inset:0; background:rgba(15, 23, 42, 0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:2px solid #ef4444; background:#ffffff; padding:2rem; border-radius:18px;">
+      <h3 style="color:#dc2626; margin-bottom:0.75rem; font-family:'Outfit'; font-weight:800;">⚠️ Remove Event from Feed</h3>
+      <p style="font-size:0.88rem; color:#475569; line-height:1.5; margin-bottom:1rem;">
+        Warning: You are about to remove this event from the published event feed. This action preserves registered student records in the Recycle Bin.
       </p>
       <div class="form-group">
         <label>Type <strong>DELETE</strong> below to confirm removal:</label>
         <input type="text" id="delete-confirm-input" class="form-control" placeholder="DELETE">
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:1rem;">
-        <button class="btn" style="background:#334155; color:#fff;" onclick="closeDeleteModal()">Cancel</button>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:1.2rem;">
+        <button class="btn" style="background:#e2e8f0; color:#334155;" onclick="closeDeleteModal()">Cancel</button>
         <button class="btn btn-danger" id="confirm-delete-btn" onclick="executeSoftDeleteEvent()">Move to Recycle Bin</button>
       </div>
     </div>
   </div>
 
   <!-- Maintenance Confirmation Modal -->
-  <div id="maint-modal" class="modal-overlay" style="position:fixed; inset:0; background:#080c14c0; backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
-    <div class="modal-box" style="max-width: 480px; border:1px solid #ef4444; background:#0f172a; padding:2rem; border-radius:16px;">
-      <h3 style="color:#f87171; margin-bottom:0.75rem;">🚨 WARNING: Emergency Maintenance</h3>
-      <p style="font-size:0.9rem; color:#cbd5e1; line-height:1.5; margin-bottom:1.5rem;">
-        Activating maintenance mode will immediately block user access to the live event portal and display a maintenance message to all students and faculty.
+  <div id="maint-modal" class="modal-overlay" style="position:fixed; inset:0; background:rgba(15, 23, 42, 0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:600; padding:1rem;">
+    <div class="modal-box" style="max-width: 480px; border:2px solid #ef4444; background:#ffffff; padding:2rem; border-radius:18px;">
+      <h3 style="color:#dc2626; margin-bottom:0.75rem; font-family:'Outfit'; font-weight:800;">🚨 WARNING: Emergency Maintenance</h3>
+      <p style="font-size:0.9rem; color:#475569; line-height:1.5; margin-bottom:1.5rem;">
+        Activating maintenance mode will immediately block user access to the live event portal and display a polite maintenance message to all students and faculty.
       </p>
       <div style="display:flex; justify-content:flex-end; gap:10px;">
-        <button class="btn" style="background:#334155; color:#fff;" onclick="closeMaintModal()">Cancel</button>
+        <button class="btn" style="background:#e2e8f0; color:#334155;" onclick="closeMaintModal()">Cancel</button>
         <button class="btn btn-danger" onclick="confirmMaintenanceMode()">Confirm & Activate</button>
       </div>
     </div>
@@ -664,17 +694,17 @@
     function renderEvents(events) {
       const c = document.getElementById('events-container');
       if (!events.length) {
-        c.innerHTML = '<div style="color:#94a3b8; grid-column:1/-1; text-align:center; padding:3rem;">No events match current filter.</div>';
+        c.innerHTML = '<div style="color:#64748b; grid-column:1/-1; text-align:center; padding:3rem;">No events match current filter.</div>';
         return;
       }
       const statusColors = {
-        approved: { bg: '#10b98125', col: '#34d399', bd: '#10b981' },
-        scheduled: { bg: '#3b82f625', col: '#60a5fa', bd: '#3b82f6' },
-        draft: { bg: '#64748b25', col: '#94a3b8', bd: '#64748b' },
-        rescheduled: { bg: '#f59e0b25', col: '#fbbf24', bd: '#f59e0b' },
-        cancelled: { bg: '#ef444425', col: '#f87171', bd: '#ef4444' },
-        completed: { bg: '#8b5cf625', col: '#a78bfa', bd: '#8b5cf6' },
-        expired: { bg: '#47556925', col: '#94a3b8', bd: '#475569' }
+        approved: { bg: '#f0fdf4', col: '#15803d', bd: '#bbf7d0' },
+        scheduled: { bg: '#eff6ff', col: '#2563eb', bd: '#bfdbfe' },
+        draft: { bg: '#f8fafc', col: '#64748b', bd: '#cbd5e1' },
+        rescheduled: { bg: '#fffbeb', col: '#b45309', bd: '#fde68a' },
+        cancelled: { bg: '#fef2f2', col: '#dc2626', bd: '#fecaca' },
+        completed: { bg: '#f5f3ff', col: '#7c3aed', bd: '#ddd6fe' },
+        expired: { bg: '#f1f5f9', col: '#64748b', bd: '#e2e8f0' }
       };
 
       c.innerHTML = events.map(e => {
@@ -686,8 +716,8 @@
             <div>
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                 <div>
-                  <strong style="font-size:1.05rem;">${e.emoji || '📅'} ${e.name}</strong>
-                  <div style="font-size:0.8rem; color:#94a3b8; margin-top:2px;">${e.club || 'VVCE Club'}</div>
+                  <strong style="font-size:1.05rem; color:#0f172a;">${e.emoji || '📅'} ${e.name}</strong>
+                  <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">${e.club || 'VVCE Club'}</div>
                 </div>
                 <span class="badge" style="border-color:${sc.bd}; color:${sc.col}; background:${sc.bg};">
                   ${e.status ? e.status.toUpperCase() : 'APPROVED'}
@@ -697,7 +727,7 @@
                 <div>📅 <strong>Date:</strong> ${e.date}</div>
                 <div>⏰ <strong>Time:</strong> ${e.time || 'TBD'}</div>
                 <div>📍 <strong>Venue:</strong> ${e.venue || 'TBD'}</div>
-                <div>👥 <strong>Capacity:</strong> ${regCount} / ${e.max_participants || 100} ${waitCount > 0 ? `(${waitCount} on waitlist)` : ''}</div>
+                <div>👥 <strong>Capacity:</strong> ${regCount} / ${e.max_participants || 100} ${waitCount > 0 ? `<span style="color:#b45309;">(${waitCount} on waitlist)</span>` : ''}</div>
               </div>
             </div>
             <button class="btn btn-primary" style="width:100%; margin-top:0.75rem;" onclick="openEditModal('${e.id}')">Reschedule / Modify ✎</button>
@@ -737,15 +767,15 @@
       const hist = ev.change_history || [];
       document.getElementById('history-entry-count').innerText = `${hist.length} entries`;
       if (hist.length === 0) {
-        historyList.innerHTML = '<div style="color:#64748b; font-style:italic;">No previous changes recorded for this event.</div>';
+        historyList.innerHTML = '<div style="color:#94a3b8; font-style:italic;">No previous changes recorded for this event.</div>';
       } else {
         historyList.innerHTML = hist.map(h => `
-          <div style="background:#1e293b; padding:8px 12px; border-radius:6px;">
-            <div style="display:flex; justify-content:space-between; color:#94a3b8; font-size:11px;">
+          <div style="background:#ffffff; border:1px solid #e2e8f0; padding:8px 12px; border-radius:8px;">
+            <div style="display:flex; justify-content:space-between; color:#64748b; font-size:11px;">
               <span><strong>${h.admin || 'Admin'}</strong></span>
               <span>${h.timestamp}</span>
             </div>
-            <div style="color:#e2e8f0; margin-top:3px; font-weight:500;">${h.details}</div>
+            <div style="color:#0f172a; margin-top:3px; font-weight:600;">${h.details}</div>
           </div>
         `).join('');
       }
@@ -913,15 +943,15 @@
       if (!box) return;
 
       if (!data || !data.length) {
-        box.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:2rem;">Recycle bin is empty. No archived events.</div>';
+        box.innerHTML = '<div style="color:#64748b; text-align:center; padding:2rem;">Recycle bin is empty. No archived events.</div>';
         return;
       }
 
       box.innerHTML = data.map(ev => `
-        <div style="background:#1e293b; padding:1.25rem; border-radius:10px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:1.25rem; border-radius:12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <strong>${ev.name}</strong>
-            <div style="font-size:12px; color:#94a3b8; margin-top:2px;">
+            <strong style="color:#0f172a; font-size:1.05rem;">${ev.name}</strong>
+            <div style="font-size:12px; color:#64748b; margin-top:3px;">
               Club: ${ev.club || 'VVCE'} • Originally: ${ev.date} at ${ev.venue} • Deleted by: ${ev.deleted_by || 'Admin'}
             </div>
           </div>
@@ -1058,12 +1088,12 @@
         const pct = Math.round((catCount[cat] / totalPoints) * 100);
         return `
           <div>
-            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
-              <span>${cat}</span>
-              <strong>${pct}%</strong>
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+              <span style="color:#334155; font-weight:600;">${cat}</span>
+              <strong style="color:#0f172a;">${pct}%</strong>
             </div>
-            <div style="background:#1e293b; height:8px; border-radius:4px; overflow:hidden;">
-              <div style="background:#3b82f6; width:${pct}%; height:100%; border-radius:4px;"></div>
+            <div style="background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
+              <div style="background:linear-gradient(90deg, #f59e0b, #fbbf24); width:${pct}%; height:100%; border-radius:4px;"></div>
             </div>
           </div>
         `;
@@ -1077,12 +1107,12 @@
         const rem = Math.max(0, max - reg);
         const isFull = reg >= max;
         return `
-          <div style="padding:8px 0; border-bottom:1px solid #1e293b; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+          <div style="padding:10px 0; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
             <div>
-              <strong>${e.name}</strong>
-              <div style="color:#94a3b8;">${reg} / ${max} registered (${rem} seats left)${wait > 0 ? ` • ${wait} waitlisted` : ''}</div>
+              <strong style="color:#0f172a; font-size:13px;">${e.name}</strong>
+              <div style="color:#64748b; margin-top:2px;">${reg} / ${max} registered (${rem} seats left)${wait > 0 ? ` • <span style="color:#b45309; font-weight:600;">${wait} waitlisted</span>` : ''}</div>
             </div>
-            <span class="badge" style="border-color:${isFull ? '#ef4444' : '#10b981'}; color:${isFull ? '#f87171' : '#34d399'};">
+            <span class="badge" style="border-color:${isFull ? '#fecaca' : '#bbf7d0'}; color:${isFull ? '#dc2626' : '#15803d'}; background:${isFull ? '#fef2f2' : '#f0fdf4'}; font-weight:700;">
               ${isFull ? 'FULL' : 'OPEN'}
             </span>
           </div>
@@ -1119,16 +1149,16 @@
         logs = JSON.parse(localStorage.getItem('cpm_audit') || '[]');
       }
       if (!logs.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8;">No activity logged yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b; padding:2rem;">No activity logged yet.</td></tr>';
         return;
       }
       tbody.innerHTML = logs.map(l => `
-        <tr>
-          <td>${l.timestamp}</td>
-          <td><span class="badge" style="border-color:#3b82f640;">${l.admin}</span></td>
-          <td><strong>${l.action}</strong></td>
-          <td>${l.target}</td>
-          <td style="font-size:12px; color:#94a3b8;">${l.details}</td>
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding:10px; color:#475569;">${l.timestamp}</td>
+          <td style="padding:10px;"><span class="badge" style="background:#f1f5f9; color:#334155; border-color:#e2e8f0;">${l.admin}</span></td>
+          <td style="padding:10px; color:#0f172a;"><strong>${l.action}</strong></td>
+          <td style="padding:10px; color:#334155;">${l.target}</td>
+          <td style="padding:10px; font-size:12px; color:#64748b;">${l.details}</td>
         </tr>
       `).join('');
     }
