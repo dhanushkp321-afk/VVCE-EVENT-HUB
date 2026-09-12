@@ -4774,12 +4774,9 @@ async function initDynamicSiteConfig() {
       document.body.style.backgroundImage = '';
     }
 
-    // 3. Dynamic Theme
+    // 3. Dynamic Theme & Festival Celebrations
     if (cfg.theme) {
-      document.body.classList.remove('theme-festive', 'theme-cyber', 'theme-minimal');
-      if (cfg.theme === 'festive') document.body.classList.add('theme-festive');
-      if (cfg.theme === 'cyber') document.body.classList.add('theme-cyber');
-      if (cfg.theme === 'minimal') document.body.classList.add('theme-minimal');
+      applyCelebrationTheme(cfg.theme);
     }
   }
 

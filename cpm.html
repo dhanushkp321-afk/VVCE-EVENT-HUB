@@ -249,24 +249,204 @@
       </div>
     </section>
 
-    <!-- TAB 5: THEMES -->
+    <!-- TAB 5: FESTIVAL & CELEBRATION THEMES -->
     <section id="tab-theme" class="tab-content">
       <div class="settings-card">
-        <h3>🎨 Dynamic Website Theme</h3>
-        <p>Switch the aesthetic of the portal dynamically for college fests or hackathons.</p>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
-          <button class="btn" style="background:#ffffff; border:2px solid #f59e0b; color:#0f172a; padding:1.2rem; text-align:left; border-radius:12px; box-shadow:0 2px 8px rgba(245,158,11,0.15);" onclick="setTheme('default')">
-            <strong style="color:#b45309;">VVCE Classic (Yellow & White)</strong>
-            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Institutional Gold & Crisp White</div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem;">
+          <div>
+            <h3>🎨 Festival & National Celebration Themes</h3>
+            <p style="margin-bottom:0;">Customize the website theme dynamically for national holidays, state festivals, or create your own custom celebration theme.</p>
+          </div>
+          <button type="button" class="btn" style="background:#f1f5f9; color:#0f172a; border:1px solid #e2e8f0;" onclick="resetThemeToDefault()">
+            🔄 Reset to Default VVCE Classic
           </button>
-          <button class="btn" style="background:#ffffff; border:2px solid #ec4899; color:#0f172a; padding:1.2rem; text-align:left; border-radius:12px;" onclick="setTheme('festive')">
-            <strong style="color:#db2777;">Festive / Utsav</strong>
-            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Vibrant Crimson & Gold</div>
-          </button>
-          <button class="btn" style="background:#ffffff; border:2px solid #10b981; color:#0f172a; padding:1.2rem; text-align:left; border-radius:12px;" onclick="setTheme('cyber')">
-            <strong style="color:#059669;">Cyberpunk / Tech</strong>
-            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">High-tech Emerald & Dark</div>
-          </button>
+        </div>
+
+        <!-- Quick Celebration Presets -->
+        <label style="display:block; font-size:0.82rem; font-weight:700; color:#334155; margin-bottom:0.6rem;">QUICK FESTIVAL & CELEBRATION PRESETS (Click to Load & Customize):</label>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:0.85rem; margin-bottom:1.75rem;">
+          
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('rajyotsava')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">💛❤️</span>
+                <strong style="color:#0f172a; font-size:13px;">Kannada Rajyotsava</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Karnataka Yellow & Crimson</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('dasara')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🐘✨</span>
+                <strong style="color:#0f172a; font-size:13px;">Mysuru Dasara Utsav</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Mysore Palace Gold & Crimson</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('independence')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🇮🇳</span>
+                <strong style="color:#0f172a; font-size:13px;">Independence / Republic Day</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Indian Saffron, White & Green</div>
+            </div>
+            <span class="badge" style="background:#f0fdf4; color:#15803d; border-color:#bbf7d0;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('diwali')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🪔✨</span>
+                <strong style="color:#0f172a; font-size:13px;">Diwali / Deepavali</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Warm Glowing Amber & Gold</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('ganesh')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🌺🙏</span>
+                <strong style="color:#0f172a; font-size:13px;">Ganesh Chaturthi</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Festive Marigold & Sun Yellow</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('holi')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🎨🌈</span>
+                <strong style="color:#0f172a; font-size:13px;">Holi Celebration</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Vibrant Coral Pink & Cyan</div>
+            </div>
+            <span class="badge" style="background:#fdf2f8; color:#be185d; border-color:#fbcfe8;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('techfest')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">⚡🚀</span>
+                <strong style="color:#0f172a; font-size:13px;">College Tech Fest / Vidyuth</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Cyber Cyan & Electric Violet</div>
+            </div>
+            <span class="badge" style="background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe;">Load ➔</span>
+          </div>
+
+          <div class="preset-card" style="background:#ffffff; border:1.5px solid #e2e8f0; padding:1rem; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; justify-content:space-between; align-items:center;" onclick="loadFestivalPreset('classic')">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:18px;">🎓💛</span>
+                <strong style="color:#0f172a; font-size:13px;">VVCE Institutional Classic</strong>
+              </div>
+              <div style="font-size:11px; color:#64748b; margin-top:2px;">Institutional Gold & White</div>
+            </div>
+            <span class="badge" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">Load ➔</span>
+          </div>
+        </div>
+
+        <!-- Custom Celebration Theme Editor ("Edit by Yourself") -->
+        <div style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:14px; padding:1.5rem;">
+          <h4 style="font-family:'Outfit'; font-size:1.15rem; color:#0f172a; margin-bottom:0.3rem;">🛠️ Custom Celebration Theme Editor</h4>
+          <p style="color:#64748b; font-size:0.85rem; margin-bottom:1.25rem;">Adjust the festival name, colors, top ribbon greeting, and celebration effects for any event or national day.</p>
+          
+          <form onsubmit="saveCelebrationTheme(event)">
+            <input type="hidden" id="theme-id" value="custom">
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Celebration / Festival Name</label>
+                <input type="text" id="theme-name" class="form-control" placeholder="e.g. Kannada Rajyotsava 2025" required oninput="updateThemeLivePreview()">
+              </div>
+              <div class="form-group">
+                <label>Floating Visual Effect / Confetti</label>
+                <select id="theme-effect" class="form-control" onchange="updateThemeLivePreview()">
+                  <option value="none">None (Standard Display)</option>
+                  <option value="sparkles">✨ Golden Sparkles & Lights</option>
+                  <option value="rajyotsava">💛❤️ Karnataka Yellow & Red Confetti</option>
+                  <option value="tricolor">🇮🇳 Indian Tricolor Petals & Flags</option>
+                  <option value="diyas">🪔 Diwali Diyas & Glow</option>
+                  <option value="flowers">🌸 Festive Flower Petals</option>
+                  <option value="confetti">🎉 Colorful Party Confetti</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                <label style="margin:0;">Top Celebration Greeting Message</label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; cursor:pointer; color:#0f172a;">
+                  <input type="checkbox" id="theme-show-greeting" checked style="accent-color:#f59e0b; width:16px; height:16px;" onchange="updateThemeLivePreview()">
+                  <strong>Show Top Greeting Ribbon</strong>
+                </label>
+              </div>
+              <input type="text" id="theme-greeting" class="form-control" placeholder="e.g. ಕನ್ನಡ ರಾಜ್ಯೋತ್ಸವದ ಹಾರ್ದಿಕ ಶುಭಾಶಯಗಳು! 💛❤️" oninput="updateThemeLivePreview()">
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Primary Accent Color (Buttons, Active Tabs & Highlights)</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <input type="color" id="theme-primary-color" value="#f59e0b" style="width:48px; height:38px; border:none; border-radius:8px; cursor:pointer; padding:0; background:none;" oninput="syncColorInput('primary', this.value)">
+                  <input type="text" id="theme-primary-hex" class="form-control" value="#f59e0b" style="flex:1;" oninput="syncHexInput('primary', this.value)">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Secondary / Gradient Highlight Color</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <input type="color" id="theme-secondary-color" value="#fbbf24" style="width:48px; height:38px; border:none; border-radius:8px; cursor:pointer; padding:0; background:none;" oninput="syncColorInput('secondary', this.value)">
+                  <input type="text" id="theme-secondary-hex" class="form-control" value="#fbbf24" style="flex:1;" oninput="syncHexInput('secondary', this.value)">
+                </div>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Background Aesthetic Tone</label>
+                <select id="theme-bg-style" class="form-control" onchange="updateThemeLivePreview()">
+                  <option value="light">Crisp Light (Clean Institutional White)</option>
+                  <option value="warm">Festive Warm Cream (#fffdf7)</option>
+                  <option value="dark">Midnight Celebration Dark (#0f172a)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Optional Celebration Artwork / Banner URL</label>
+                <input type="text" id="theme-banner-url" class="form-control" placeholder="Optional background banner link">
+              </div>
+            </div>
+
+            <!-- Live Theme Preview -->
+            <div style="margin:1.25rem 0; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem;">
+              <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:8px;">Live Theme Interactive Preview:</div>
+              <div id="preview-ribbon" style="padding:8px 14px; border-radius:8px; font-weight:800; font-size:12px; text-align:center; color:#fff; margin-bottom:12px; display:flex; justify-content:center; align-items:center; gap:6px;">
+                Preview Ribbon Text
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <span id="preview-badge" class="badge">SAMPLE BADGE</span>
+                  <span style="font-size:13px; font-weight:700; color:#0f172a;" id="preview-title">Celebration Active</span>
+                </div>
+                <button type="button" id="preview-btn" class="btn" style="padding:6px 16px; font-size:12px;">Sample Action Button</button>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button type="submit" id="save-theme-btn" class="btn btn-primary" style="padding:0.75rem 1.75rem; font-size:0.95rem;">
+                🚀 Save & Broadcast Celebration Theme Live
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </section>
@@ -997,6 +1177,25 @@
             document.getElementById('media-bg-url').value = currentConfig.media.bgUrl || '';
             previewMedia('hero', currentConfig.media.heroBanner || '');
           }
+          if (currentConfig.theme) {
+            if (typeof currentConfig.theme === 'object') {
+              const t = currentConfig.theme;
+              if (document.getElementById('theme-name')) {
+                document.getElementById('theme-id').value = t.id || 'custom';
+                document.getElementById('theme-name').value = t.name || '';
+                document.getElementById('theme-greeting').value = t.greeting || '';
+                document.getElementById('theme-show-greeting').checked = !!t.showGreeting;
+                document.getElementById('theme-primary-color').value = t.primary || '#f59e0b';
+                document.getElementById('theme-primary-hex').value = t.primary || '#f59e0b';
+                document.getElementById('theme-secondary-color').value = t.secondary || '#fbbf24';
+                document.getElementById('theme-secondary-hex').value = t.secondary || '#fbbf24';
+                document.getElementById('theme-effect').value = t.effect || 'none';
+                document.getElementById('theme-bg-style').value = t.bgStyle || 'light';
+                document.getElementById('theme-banner-url').value = t.bannerUrl || '';
+                updateThemeLivePreview();
+              }
+            }
+          }
           updateEmergencyButtonStates();
         }
       } catch(e) {}
@@ -1048,11 +1247,194 @@
       showToast('Visual media assets broadcasted live!');
     }
 
-    async function setTheme(t) {
-      currentConfig.theme = t;
+    const festivalPresets = {
+      rajyotsava: {
+        id: 'rajyotsava',
+        name: 'Kannada Rajyotsava Celebration',
+        greeting: 'ಕನ್ನಡ ರಾಜ್ಯೋತ್ಸವದ ಹಾರ್ದಿಕ ಶುಭಾಶಯಗಳು! 💛❤️ Celebrating Karnataka Heritage',
+        showGreeting: true,
+        primary: '#fbbf24',
+        secondary: '#dc2626',
+        effect: 'rajyotsava',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      dasara: {
+        id: 'dasara',
+        name: 'Mysuru Dasara & Vijayadashami Utsav',
+        greeting: 'ನಾಡಹಬ್ಬ ಮೈಸೂರು ದಸರಾ ಮಹೋತ್ಸವದ ಶುಭಾಶಯಗಳು! 🐘✨ Royal Heritage of Mysuru',
+        showGreeting: true,
+        primary: '#d97706',
+        secondary: '#991b1b',
+        effect: 'sparkles',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      independence: {
+        id: 'independence',
+        name: 'Independence & Republic Day (Desh Bhakti)',
+        greeting: 'Happy Independence Day! 🇮🇳 Celebrating Freedom, Unity & Excellence',
+        showGreeting: true,
+        primary: '#ea580c',
+        secondary: '#15803d',
+        effect: 'tricolor',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      diwali: {
+        id: 'diwali',
+        name: 'Diwali / Deepavali (Festival of Lights)',
+        greeting: 'Wishing You a Joyous, Bright & Prosperous Deepavali! 🪔✨ May Light Prevail',
+        showGreeting: true,
+        primary: '#d97706',
+        secondary: '#f59e0b',
+        effect: 'diyas',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      ganesh: {
+        id: 'ganesh',
+        name: 'Ganesh Chaturthi Mahotsav',
+        greeting: 'Happy Ganesh Chaturthi! 🌺🙏 Wishing Wisdom, Prosperity & Joy',
+        showGreeting: true,
+        primary: '#ea580c',
+        secondary: '#eab308',
+        effect: 'flowers',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      holi: {
+        id: 'holi',
+        name: 'Holi (Festival of Colors)',
+        greeting: 'Happy Holi! Celebrating Colors of Friendship & Happiness 🎨🌈',
+        showGreeting: true,
+        primary: '#db2777',
+        secondary: '#06b6d4',
+        effect: 'confetti',
+        bgStyle: 'light',
+        bannerUrl: ''
+      },
+      techfest: {
+        id: 'techfest',
+        name: 'VVCE National Tech Fest (Vidyuth / Hackathon)',
+        greeting: 'VVCE Annual Tech Fest & Hackathon is Live! ⚡🚀 Innovate & Build',
+        showGreeting: true,
+        primary: '#2563eb',
+        secondary: '#7c3aed',
+        effect: 'sparkles',
+        bgStyle: 'dark',
+        bannerUrl: ''
+      },
+      classic: {
+        id: 'default',
+        name: 'VVCE Institutional Classic',
+        greeting: '',
+        showGreeting: false,
+        primary: '#f59e0b',
+        secondary: '#fbbf24',
+        effect: 'none',
+        bgStyle: 'light',
+        bannerUrl: ''
+      }
+    };
+
+    function loadFestivalPreset(key) {
+      const p = festivalPresets[key] || festivalPresets.classic;
+      document.getElementById('theme-id').value = p.id;
+      document.getElementById('theme-name').value = p.name;
+      document.getElementById('theme-greeting').value = p.greeting;
+      document.getElementById('theme-show-greeting').checked = p.showGreeting;
+      document.getElementById('theme-primary-color').value = p.primary;
+      document.getElementById('theme-primary-hex').value = p.primary;
+      document.getElementById('theme-secondary-color').value = p.secondary;
+      document.getElementById('theme-secondary-hex').value = p.secondary;
+      document.getElementById('theme-effect').value = p.effect;
+      document.getElementById('theme-bg-style').value = p.bgStyle;
+      document.getElementById('theme-banner-url').value = p.bannerUrl || '';
+      updateThemeLivePreview();
+      showToast('Loaded preset: ' + p.name + '. Click Save to apply live.');
+    }
+
+    function syncColorInput(type, val) {
+      if (type === 'primary') document.getElementById('theme-primary-hex').value = val;
+      if (type === 'secondary') document.getElementById('theme-secondary-hex').value = val;
+      updateThemeLivePreview();
+    }
+
+    function syncHexInput(type, val) {
+      if (!val.startsWith('#')) val = '#' + val;
+      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+        if (type === 'primary') document.getElementById('theme-primary-color').value = val;
+        if (type === 'secondary') document.getElementById('theme-secondary-color').value = val;
+        updateThemeLivePreview();
+      }
+    }
+
+    function updateThemeLivePreview() {
+      const p = document.getElementById('theme-primary-color')?.value || '#f59e0b';
+      const s = document.getElementById('theme-secondary-color')?.value || '#fbbf24';
+      const greeting = document.getElementById('theme-greeting')?.value || 'Celebration Greeting Message';
+      const showGreeting = document.getElementById('theme-show-greeting')?.checked;
+      const name = document.getElementById('theme-name')?.value || 'Celebration Theme';
+
+      const rib = document.getElementById('preview-ribbon');
+      if (rib) {
+        rib.style.display = showGreeting ? 'flex' : 'none';
+        rib.style.background = `linear-gradient(90deg, ${p}, ${s})`;
+        rib.innerText = greeting;
+      }
+
+      const btn = document.getElementById('preview-btn');
+      if (btn) {
+        btn.style.background = `linear-gradient(135deg, ${p}, ${s})`;
+        btn.style.color = '#0f172a';
+        btn.style.fontWeight = '700';
+      }
+
+      const badge = document.getElementById('preview-badge');
+      if (badge) {
+        badge.style.background = p + '25';
+        badge.style.color = p;
+        badge.style.borderColor = p + '60';
+        badge.innerText = name.toUpperCase();
+      }
+    }
+
+    async function saveCelebrationTheme(e) {
+      e.preventDefault();
+      const themeObj = {
+        id: document.getElementById('theme-id').value || 'custom',
+        name: document.getElementById('theme-name').value.trim(),
+        greeting: document.getElementById('theme-greeting').value.trim(),
+        showGreeting: document.getElementById('theme-show-greeting').checked,
+        primary: document.getElementById('theme-primary-color').value,
+        secondary: document.getElementById('theme-secondary-color').value,
+        effect: document.getElementById('theme-effect').value,
+        bgStyle: document.getElementById('theme-bg-style').value,
+        bannerUrl: document.getElementById('theme-banner-url').value.trim(),
+        updated_at: new Date().toISOString()
+      };
+
+      currentConfig.theme = themeObj;
       await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
-      await recordAuditAction({ action: 'Theme Activated', target: t, details: 'Dynamic visual theme updated' });
-      showToast('Theme switched to ' + t + '!');
+      await recordAuditAction({
+        action: 'Festival / Celebration Theme Activated',
+        target: themeObj.name,
+        details: `Primary: ${themeObj.primary} | Secondary: ${themeObj.secondary} | Effect: ${themeObj.effect}`
+      });
+      showToast('Celebration Theme applied & broadcasted live to all users!');
+    }
+
+    async function resetThemeToDefault() {
+      loadFestivalPreset('classic');
+      currentConfig.theme = festivalPresets.classic;
+      await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
+      await recordAuditAction({
+        action: 'Theme Reset to Default',
+        target: 'VVCE Institutional Classic',
+        details: 'Restored standard yellow & white institutional theme'
+      });
+      showToast('Theme reset to default VVCE Classic!');
     }
 
     async function loadAnalytics() {
