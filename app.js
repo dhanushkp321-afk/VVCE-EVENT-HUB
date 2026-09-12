@@ -368,6 +368,15 @@ async function bootApp() {
       SUPABASE_CACHE.vvce_princ_attend = [];
     }
     setupRealtimeSync();
+    
+    // Refresh UI to display the freshly loaded data from Supabase
+    if (STATE.page && !document.activeElement.tagName.match(/INPUT|TEXTAREA|SELECT/)) {
+      if (STATE.page === 'participants' && typeof renderParticipantTable === 'function') {
+        renderParticipantTable();
+      } else {
+        showPage(STATE.page);
+      }
+    }
   } catch (err) {
     console.error('Failed to load from Supabase:', err);
   }
