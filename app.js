@@ -4798,3 +4798,113 @@ document.addEventListener('DOMContentLoaded', () => {
   initDynamicSiteConfig();
 });
 
+
+
+/* ─────────────────────────────────────────────────────────────
+   FESTIVAL & NATIONAL CELEBRATION DYNAMIC THEME ENGINE
+───────────────────────────────────────────────────────────────*/
+function applyCelebrationTheme(theme) {
+  if (!theme) return;
+
+  // Handle legacy string values
+  if (typeof theme === 'string') {
+    if (theme === 'default') {
+      theme = { primary: '#f59e0b', secondary: '#fbbf24', bgStyle: 'light', effect: 'none', showGreeting: false };
+    } else if (theme === 'festive') {
+      theme = { primary: '#dc2626', secondary: '#f59e0b', bgStyle: 'light', effect: 'sparkles', showGreeting: true, greeting: 'Festival Celebration! ✨' };
+    } else if (theme === 'cyber') {
+      theme = { primary: '#06b6d4', secondary: '#8b5cf6', bgStyle: 'dark', effect: 'sparkles', showGreeting: true, greeting: 'VVCE Tech Fest Live! ⚡' };
+    }
+  }
+
+  const root = document.documentElement;
+  const primary = theme.primary || '#f59e0b';
+  const secondary = theme.secondary || '#fbbf24';
+
+  // Apply CSS root variables dynamically across the entire website
+  root.style.setProperty('--gold', primary);
+  root.style.setProperty('--gold2', secondary);
+  root.style.setProperty('--gold3', primary);
+  root.style.setProperty('--gold-border', primary + '55');
+  root.style.setProperty('--gold-bg', primary + '18');
+
+  // Background style
+  if (theme.bgStyle === 'dark') {
+    document.body.classList.add('dark');
+    document.body.style.backgroundColor = '#0f172a';
+  } else if (theme.bgStyle === 'warm') {
+    document.body.classList.remove('dark');
+    document.body.style.backgroundColor = '#fffdf7';
+  } else {
+    document.body.classList.remove('dark');
+    document.body.style.backgroundColor = '';
+  }
+
+  // Top Celebration Greeting Ribbon
+  let ribbon = document.getElementById('cpm-festive-ribbon');
+  if (theme.showGreeting && theme.greeting) {
+    if (!ribbon) {
+      ribbon = document.createElement('div');
+      ribbon.id = 'cpm-festive-ribbon';
+      ribbon.style.cssText = 'position:sticky;top:0;z-index:99997;padding:8px 16px;text-align:center;font-size:13px;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.12);transition:all 0.3s;font-family:Outfit,sans-serif;';
+      document.body.prepend(ribbon);
+    }
+    ribbon.style.background = 'linear-gradient(90deg, ' + primary + ', ' + secondary + ')';
+    ribbon.style.color = '#ffffff';
+    ribbon.innerHTML = '<span>' + theme.greeting + '</span>';
+    ribbon.style.display = 'flex';
+  } else if (ribbon) {
+    ribbon.style.display = 'none';
+  }
+
+  // Floating Celebration Visual Particles
+  applyFestiveParticles(theme.effect);
+}
+
+function applyFestiveParticles(effect) {
+  let container = document.getElementById('cpm-particles-container');
+  if (!effect || effect === 'none') {
+    if (container) container.remove();
+    return;
+  }
+
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'cpm-particles-container';
+    container.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:99990;overflow:hidden;';
+    document.body.appendChild(container);
+
+    // Inject keyframes style once
+    if (!document.getElementById('cpm-particle-styles')) {
+      const st = document.createElement('style');
+      st.id = 'cpm-particle-styles';
+      st.textContent = '@keyframes cpmFloatUp { 0% { transform: translateY(105vh) rotate(0deg); opacity: 0; } 15% { opacity: 0.85; } 85% { opacity: 0.85; } 100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; } }';
+      document.head.appendChild(st);
+    }
+  }
+
+  const emojiMap = {
+    sparkles: ['✨', '⭐', '🌟', '💫'],
+    rajyotsava: ['💛', '❤️', '🏵️', '💛', '❤️'],
+    tricolor: ['🇮🇳', '🧡', '🤍', '💚'],
+    diyas: ['🪔', '✨', '🪔', '🌟'],
+    flowers: ['🌸', '🌺', '🌼', '💐'],
+    confetti: ['🎉', '🎊', '✨', '🎈']
+  };
+
+  const symbols = emojiMap[effect] || emojiMap.sparkles;
+  container.innerHTML = '';
+
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement('span');
+    const sym = symbols[i % symbols.length];
+    const left = Math.floor(Math.random() * 96) + 2;
+    const dur = (Math.random() * 6 + 6).toFixed(1);
+    const delay = (Math.random() * 5).toFixed(1);
+    const size = Math.floor(Math.random() * 12 + 16);
+
+    p.innerText = sym;
+    p.style.cssText = 'position:absolute;bottom:-30px;left:' + left + '%;font-size:' + size + 'px;animation:cpmFloatUp ' + dur + 's ease-in-out ' + delay + 's infinite;opacity:0;';
+    container.appendChild(p);
+  }
+}
