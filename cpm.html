@@ -78,6 +78,8 @@
   </style>
 </head>
 <body>
+<div id="theme-bg"></div>
+<div id="emoji-container"></div>
 
   <header>
     <div class="brand">
@@ -421,24 +423,31 @@
                 </select>
               </div>
               <div class="form-group">
-                <label>Optional Celebration Artwork / Banner URL</label>
-                <input type="text" id="theme-banner-url" class="form-control" placeholder="Optional background banner link">
+                <label>Custom Theme Background (Upload)</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="text" id="theme-banner-url" class="form-control" placeholder="Image URL or upload" oninput="updateThemeLivePreview()">
+                  <label for="theme-bg-upload" class="btn" style="cursor:pointer; display:flex; align-items:center; background:#e2e8f0; color:#334155; border-radius:8px; padding:0 12px; font-size:12px; margin:0; border:1px solid #cbd5e1; box-shadow:none;" id="theme-bg-upload-btn">Upload</label>
+                  <input type="file" id="theme-bg-upload" accept="image/*" style="display:none;" onchange="uploadThemeBackground(this)">
+                </div>
               </div>
             </div>
 
             <!-- Live Theme Preview -->
-            <div style="margin:1.25rem 0; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem;">
-              <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:8px;">Live Theme Interactive Preview:</div>
-              <div id="preview-ribbon" style="padding:8px 14px; border-radius:8px; font-weight:800; font-size:12px; text-align:center; color:#fff; margin-bottom:12px; display:flex; justify-content:center; align-items:center; gap:6px;">
-                Preview Ribbon Text
-              </div>
-              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <span id="preview-badge" class="badge">SAMPLE BADGE</span>
-                  <span style="font-size:13px; font-weight:700; color:#0f172a;" id="preview-title">Celebration Active</span>
+            <div id="live-theme-preview-box" style="margin:1.25rem 0; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:1.25rem; position:relative; overflow:hidden;">
+              <div style="position:relative; z-index:2;">
+                <div style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:8px; text-shadow:0 1px 2px rgba(255,255,255,0.8);" id="preview-header-text">Live Theme Interactive Preview:</div>
+                <div id="preview-ribbon" style="padding:8px 14px; border-radius:8px; font-weight:800; font-size:12px; text-align:center; color:#fff; margin-bottom:12px; display:flex; justify-content:center; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                  Preview Ribbon Text
                 </div>
-                <button type="button" id="preview-btn" class="btn" style="padding:6px 16px; font-size:12px;">Sample Action Button</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <span id="preview-badge" class="badge" style="background:rgba(255,255,255,0.9);">SAMPLE BADGE</span>
+                    <span style="font-size:13px; font-weight:700; color:#0f172a; background:rgba(255,255,255,0.8); padding:2px 8px; border-radius:4px;" id="preview-title">Celebration Active</span>
+                  </div>
+                  <button type="button" id="preview-btn" class="btn" style="padding:6px 16px; font-size:12px; box-shadow:0 2px 4px rgba(0,0,0,0.1);">Sample Action Button</button>
+                </div>
               </div>
+              <div style="position:absolute; inset:0; background:rgba(255,255,255,0.15); z-index:1; pointer-events:none;"></div>
             </div>
 
             <div style="display:flex; gap:10px; justify-content:flex-end;">
@@ -1376,6 +1385,7 @@
       const greeting = document.getElementById('theme-greeting')?.value || 'Celebration Greeting Message';
       const showGreeting = document.getElementById('theme-show-greeting')?.checked;
       const name = document.getElementById('theme-name')?.value || 'Celebration Theme';
+      const bgUrl = document.getElementById('theme-banner-url')?.value || '';
 
       const rib = document.getElementById('preview-ribbon');
       if (rib) {
@@ -1397,6 +1407,17 @@
         badge.style.color = p;
         badge.style.borderColor = p + '60';
         badge.innerText = name.toUpperCase();
+      }
+
+      const previewBox = document.getElementById('live-theme-preview-box');
+      if (previewBox) {
+        if (bgUrl) {
+          previewBox.style.backgroundImage = `url('${bgUrl}')`;
+          previewBox.style.backgroundSize = 'cover';
+          previewBox.style.backgroundPosition = 'center';
+        } else {
+          previewBox.style.backgroundImage = 'none';
+        }
       }
     }
 
@@ -1585,6 +1606,41 @@
       if (rBtn) {
         rBtn.innerText = currentConfig.registrationLocked ? 'Resume Registrations' : 'Pause Registrations';
         rBtn.className = currentConfig.registrationLocked ? 'btn btn-primary' : 'btn btn-warning';
+      }
+    }
+
+    async function uploadThemeBackground(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const btn = document.getElementById('theme-bg-upload-btn');
+      const originalText = btn.innerText;
+      btn.innerText = 'Uploading...';
+      
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `backgrounds/${fileName}`;
+
+        const { data, error } = await sb.storage
+          .from('cpm_backgrounds')
+          .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+        if (error) throw error;
+
+        const { data: pubData } = sb.storage
+          .from('cpm_backgrounds')
+          .getPublicUrl(filePath);
+
+        document.getElementById('theme-banner-url').value = pubData.publicUrl;
+        updateThemeLivePreview();
+        showToast('Background uploaded successfully!');
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert('Failed to upload image: ' + err.message);
+      } finally {
+        btn.innerText = originalText;
+        input.value = ''; // Reset input
       }
     }
 
