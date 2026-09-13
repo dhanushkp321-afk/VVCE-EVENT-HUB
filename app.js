@@ -4871,6 +4871,7 @@ function applyCelebrationTheme(theme) {
     document.body.style.backgroundSize = '';
     document.body.style.backgroundPosition = '';
     document.body.style.backgroundAttachment = '';
+    const authScreen = document.getElementById('auth-screen');
     // Apply to the white content panel only
     if (appMain) {
       appMain.style.backgroundImage = `url("${theme.bannerUrl}")`;
@@ -4878,15 +4879,29 @@ function applyCelebrationTheme(theme) {
       appMain.style.backgroundPosition = 'center';
       appMain.style.backgroundRepeat = 'no-repeat';
     }
+    // Also apply to the auth/sign-in screen
+    if (authScreen) {
+      authScreen.style.backgroundImage = `url("${theme.bannerUrl}")`;
+      authScreen.style.backgroundSize = 'cover';
+      authScreen.style.backgroundPosition = 'center';
+      authScreen.style.backgroundRepeat = 'no-repeat';
+    }
     document.body.classList.add('has-theme-bg');
   } else {
     // Clear background from both body and app-main
     document.body.style.backgroundImage = '';
+    const authScreen = document.getElementById('auth-screen');
     if (appMain) {
       appMain.style.backgroundImage = '';
       appMain.style.backgroundSize = '';
       appMain.style.backgroundPosition = '';
       appMain.style.backgroundAttachment = '';
+    }
+    if (authScreen) {
+      authScreen.style.backgroundImage = '';
+      authScreen.style.backgroundSize = '';
+      authScreen.style.backgroundPosition = '';
+      authScreen.style.backgroundAttachment = '';
     }
     document.body.classList.remove('has-theme-bg');
   }

@@ -550,12 +550,12 @@ body.has-theme-bg .app-main {
   background-color: transparent;
 }
 @media (min-width: 769px) {
-  body.has-theme-bg .app-main {
+  body.has-theme-bg .app-main, body.has-theme-bg #auth-screen {
     background-attachment: fixed !important;
   }
 }
 @media (max-width: 768px) {
-  body.has-theme-bg .app-main {
+  body.has-theme-bg .app-main, body.has-theme-bg #auth-screen {
     background-attachment: scroll !important;
     background-position: top center !important;
   }
