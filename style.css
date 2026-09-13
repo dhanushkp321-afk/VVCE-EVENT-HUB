@@ -547,7 +547,18 @@ textarea.auth-input { resize: vertical; }
 
 /* When a theme background image is active on app-main, let it show through */
 body.has-theme-bg .app-main {
-  background: transparent;
+  background-color: transparent;
+}
+@media (min-width: 769px) {
+  body.has-theme-bg .app-main {
+    background-attachment: fixed !important;
+  }
+}
+@media (max-width: 768px) {
+  body.has-theme-bg .app-main {
+    background-attachment: scroll !important;
+    background-position: top center !important;
+  }
 }
 body.has-theme-bg .topbar {
   background: rgba(255,255,255,0.88);

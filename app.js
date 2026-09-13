@@ -4876,7 +4876,6 @@ function applyCelebrationTheme(theme) {
       appMain.style.backgroundImage = `url("${theme.bannerUrl}")`;
       appMain.style.backgroundSize = 'cover';
       appMain.style.backgroundPosition = 'center';
-      appMain.style.backgroundAttachment = 'fixed';
       appMain.style.backgroundRepeat = 'no-repeat';
     }
     document.body.classList.add('has-theme-bg');
