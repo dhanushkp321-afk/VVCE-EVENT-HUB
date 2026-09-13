@@ -1107,26 +1107,32 @@
     function closeDeleteModal() { document.getElementById('delete-modal').style.display = 'none'; }
 
     async function executeSoftDeleteEvent() {
-      const confirmVal = document.getElementById('delete-confirm-input').value.trim();
-      if (confirmVal !== 'DELETE') {
-        alert('Please type DELETE to confirm removal.');
-        return;
+      try {
+        const confirmVal = document.getElementById('delete-confirm-input').value.trim();
+        if (confirmVal !== 'DELETE') {
+          alert('Please type DELETE to confirm removal.');
+          return;
+        }
+        const id = document.getElementById('edit-id').value;
+        const ev = allEvents.find(e => String(e.id) === String(id));
+
+        const { error } = await sb.from('events').update({ status: 'archived' }).eq('id', id);
+        if (error) throw error;
+
+        await recordAuditAction({
+          action: 'Event Soft-Deleted / Archived',
+          target: ev?.name || id,
+          details: 'Moved to Recycle Bin'
+        });
+
+        closeDeleteModal();
+        closeEditModal();
+        loadEvents();
+        loadRecycleBin();
+        showToast('Event moved to Recycle Bin.');
+      } catch (err) {
+        alert('Failed to delete event: ' + err.message);
       }
-      const id = document.getElementById('edit-id').value;
-      const ev = allEvents.find(e => String(e.id) === String(id));
-
-      await sb.from('events').update({ status: 'archived', deleted_at: new Date().toISOString(), deleted_by: currentAdminRole }).eq('id', id);
-      await recordAuditAction({
-        action: 'Event Soft-Deleted / Archived',
-        target: ev?.name || id,
-        details: 'Moved to Recycle Bin'
-      });
-
-      closeDeleteModal();
-      closeEditModal();
-      loadEvents();
-      loadRecycleBin();
-      showToast('Event moved to Recycle Bin.');
     }
 
     async function loadRecycleBin() {
@@ -1144,7 +1150,7 @@
           <div>
             <strong style="color:#0f172a; font-size:1.05rem;">${ev.name}</strong>
             <div style="font-size:12px; color:#64748b; margin-top:3px;">
-              Club: ${ev.club || 'VVCE'} • Originally: ${ev.date} at ${ev.venue} • Deleted by: ${ev.deleted_by || 'Admin'}
+              Club: ${ev.club || 'VVCE'} • Originally: ${ev.date} at ${ev.venue}
             </div>
           </div>
           <div style="display:flex; gap:8px;">
@@ -1156,19 +1162,29 @@
     }
 
     async function restoreEvent(id) {
-      await sb.from('events').update({ status: 'approved', deleted_at: null }).eq('id', id);
-      await recordAuditAction({ action: 'Event Restored', target: id, details: 'Restored from Recycle Bin to Live Feed' });
-      loadEvents();
-      loadRecycleBin();
-      showToast('Event restored to live feeds!');
+      try {
+        const { error } = await sb.from('events').update({ status: 'approved' }).eq('id', id);
+        if (error) throw error;
+        await recordAuditAction({ action: 'Event Restored', target: id, details: 'Restored from Recycle Bin to Live Feed' });
+        loadEvents();
+        loadRecycleBin();
+        showToast('Event restored to live feeds!');
+      } catch (err) {
+        alert('Failed to restore event: ' + err.message);
+      }
     }
 
     async function permanentDeleteEvent(id) {
       if (!confirm('Are you sure? This action is irreversible.')) return;
-      await sb.from('events').delete().eq('id', id);
-      await recordAuditAction({ action: 'Event Permanently Destroyed', target: id, details: 'Deleted from database' });
-      loadRecycleBin();
-      showToast('Event permanently deleted.');
+      try {
+        const { error } = await sb.from('events').delete().eq('id', id);
+        if (error) throw error;
+        await recordAuditAction({ action: 'Event Permanently Destroyed', target: id, details: 'Deleted from database' });
+        loadRecycleBin();
+        showToast('Event permanently deleted.');
+      } catch (err) {
+        alert('Failed to permanently delete event: ' + err.message);
+      }
     }
 
     async function loadConfig() {
