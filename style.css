@@ -575,11 +575,10 @@ body.has-theme-bg .topbar {
   background: rgba(255,255,255,0.88);
   backdrop-filter: blur(4px);
 }
-/* Give content pages a light semi-transparent overlay so text stays readable */
+/* Allow original background image to show directly on content pages without any light tint */
 body.has-theme-bg .page {
-  background: rgba(241, 245, 249, 0.80);
-  backdrop-filter: blur(2px);
-  border-radius: var(--r-md);
+  background: transparent;
+  backdrop-filter: none;
 }
 
 /* Topbar */
