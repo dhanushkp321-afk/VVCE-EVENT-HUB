@@ -309,6 +309,7 @@ async function bootApp() {
   }
   
   await checkSupabaseEmailVerification();
+  checkTeamInviteUrl();
 
   try {
     const [uRes, eRes, cRes, aRes, psRes, pscRes, paRes] = await Promise.all([
@@ -1878,6 +1879,7 @@ function eventCard(ev) {
           <div class="ev-meta">🕐 ${formatTime(ev.time)} &nbsp;|&nbsp; 📍 ${ev.venue}</div>
           <div class="ev-meta">⭐ ${ev.points||0} pts &nbsp;|&nbsp; ${ev.fee>0?`<span style="color:#b45309;">₹${ev.fee}</span>`:`<span style="color:#15803d;">FREE</span>`}</div>
           <div class="ev-meta" style="color:#6366f1;font-weight:600;">🎓 Open to: ${(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches'}</div>
+          ${ev.isTeamEvent ? `<div class="ev-meta" style="color:#7c3aed;font-weight:700;">👥 Team Event &nbsp;|&nbsp; ${ev.minTeamSize}–${ev.maxTeamSize} members</div>` : ''}
         </div>
         <div class="ev-foot">
           <span class="ev-seats ${isFull?'full':''}">${isCancelled ? 'Cancelled' : (isFull?'🔴 Full':`${ev.maxParticipants-ev.regCount} seats left`)}</span>
@@ -2056,12 +2058,252 @@ function registerEv(id) {
     return;
   }
 
+  // Team event → open team registration modal
+  if (ev.isTeamEvent) {
+    openTeamRegisterModal(ev);
+    return;
+  }
+
   if (ev.fee > 0) {
     openPaymentModal(ev);
   } else {
     completeRegistration(ev);
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   TEAM REGISTRATION
+───────────────────────────────────────────────────────────────*/
+let _teamRegEventId = null;
+let _teamMembers = []; // array of email strings added by leader
+
+function toggleTeamFields() {
+  const wrap = document.getElementById('ev-team-wrap');
+  if (wrap) wrap.style.display = document.getElementById('ev-is-team').checked ? '' : 'none';
+}
+
+function openTeamRegisterModal(ev) {
+  _teamRegEventId = ev.id;
+  _teamMembers = [];
+
+  document.getElementById('team-modal-event-name').textContent = '📅 ' + ev.name;
+  document.getElementById('team-name-input').value = '';
+  document.getElementById('team-leader-name').textContent = STATE.user.name;
+  document.getElementById('team-leader-email').textContent = STATE.user.email;
+  document.getElementById('team-members-list').innerHTML = '';
+  document.getElementById('team-member-email-input').value = '';
+  document.getElementById('team-member-error').style.display = 'none';
+
+  const min = ev.minTeamSize || 2;
+  const max = ev.maxTeamSize || 4;
+  document.getElementById('team-size-hint').textContent =
+    `ℹ️ This event requires teams of ${min}–${max} members (including yourself).`;
+
+  openModal('modal-team-register');
+}
+
+function renderTeamMembersList() {
+  const list = document.getElementById('team-members-list');
+  if (!list) return;
+  list.innerHTML = _teamMembers.map((email, idx) => `
+    <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; font-size:13px;">
+      <span style="font-size:15px;">👤</span>
+      <span style="flex:1; color:#374151;">${email}</span>
+      <span style="font-size:11px; color:#f59e0b; font-weight:600; background:#fef3c7; padding:2px 8px; border-radius:20px;">Invite Pending</span>
+      <button onclick="removeTeamMember(${idx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; padding:0 4px;">×</button>
+    </div>
+  `).join('');
+}
+
+function addTeamMember() {
+  const input = document.getElementById('team-member-email-input');
+  const errEl = document.getElementById('team-member-error');
+  const email = input.value.trim().toLowerCase();
+
+  errEl.style.display = 'none';
+
+  if (!email) return;
+  if (!email.endsWith('@vvce.ac.in')) {
+    errEl.textContent = '❌ Only @vvce.ac.in email addresses are allowed.';
+    errEl.style.display = 'block'; return;
+  }
+  if (email === STATE.user.email.toLowerCase()) {
+    errEl.textContent = '❌ You are already the team leader — no need to add yourself.';
+    errEl.style.display = 'block'; return;
+  }
+  if (_teamMembers.includes(email)) {
+    errEl.textContent = '❌ This email has already been added.';
+    errEl.style.display = 'block'; return;
+  }
+
+  const ev = getDB('vvce_events').find(e => e.id === _teamRegEventId);
+  const maxTeam = (ev?.maxTeamSize || 4) - 1; // subtract leader
+  if (_teamMembers.length >= maxTeam) {
+    errEl.textContent = `❌ Maximum ${ev?.maxTeamSize || 4} members per team (including you).`;
+    errEl.style.display = 'block'; return;
+  }
+
+  _teamMembers.push(email);
+  input.value = '';
+  renderTeamMembersList();
+}
+
+function removeTeamMember(idx) {
+  _teamMembers.splice(idx, 1);
+  renderTeamMembersList();
+}
+
+async function submitTeamRegistration() {
+  const teamName = document.getElementById('team-name-input').value.trim();
+  const errEl = document.getElementById('team-member-error');
+  errEl.style.display = 'none';
+
+  if (!teamName) {
+    errEl.textContent = '❌ Please enter a team name.';
+    errEl.style.display = 'block'; return;
+  }
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === _teamRegEventId);
+  if (!ev) return;
+
+  const totalMembers = 1 + _teamMembers.length; // leader + added members
+  if (totalMembers < (ev.minTeamSize || 1)) {
+    errEl.textContent = `❌ You need at least ${ev.minTeamSize} members (including yourself). Add ${ev.minTeamSize - totalMembers} more.`;
+    errEl.style.display = 'block'; return;
+  }
+
+  // Check if team name already exists
+  if ((ev.teams || []).some(t => t.name.toLowerCase() === teamName.toLowerCase())) {
+    errEl.textContent = '❌ A team with this name already exists. Choose a different name.';
+    errEl.style.display = 'block'; return;
+  }
+
+  const teamId = genId('team');
+  const siteUrl = window.location.origin + window.location.pathname;
+  const inviteBase = `${siteUrl}?teamInvite=${teamId}&event=${ev.id}`;
+
+  // Create the team record
+  const team = {
+    id: teamId,
+    name: teamName,
+    leaderId: STATE.user.id,
+    leaderName: STATE.user.name,
+    leaderEmail: STATE.user.email,
+    memberEmails: [..._teamMembers],
+    memberIds: [STATE.user.id],
+    pendingEmails: [..._teamMembers],
+    createdAt: new Date().toISOString()
+  };
+
+  if (!ev.teams) ev.teams = [];
+  ev.teams.push(team);
+
+  // Register the leader
+  if (!ev.registrations) ev.registrations = [];
+  ev.registrations.push(STATE.user.id);
+  ev.regCount = (ev.regCount || 0) + 1;
+  setDB('vvce_events', events);
+
+  // Send invites via Supabase
+  const sb = getSupabaseClient();
+  for (const email of _teamMembers) {
+    try {
+      if (sb && sb.auth) {
+        await sb.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: inviteBase,
+            data: { teamInvite: true, teamId, teamName, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+          }
+        });
+      }
+    } catch(e) { console.warn('Invite email failed for', email, e); }
+  }
+
+  closeModal('modal-team-register');
+  addNotif(`You registered your team "${teamName}" for "${ev.name}"! 🎉 Invite emails sent to ${_teamMembers.length} member(s).`, '👥');
+  toast(`Team "${teamName}" registered! Invite emails sent to your members. 🎉`, 'success', 5000);
+
+  if (STATE.page === 'events') filterEvents();
+  if (STATE.page === 'dashboard') renderStudentDashboard();
+}
+
+// Called on page load — checks if URL has a teamInvite param
+function checkTeamInviteUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const teamId = params.get('teamInvite');
+  const eventId = params.get('event');
+  if (!teamId || !eventId) return;
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === eventId);
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => t.id === teamId);
+  if (!team) return;
+
+  // Show invite banner
+  const banner = document.getElementById('team-invite-banner');
+  const msgEl = document.getElementById('invite-banner-msg');
+  const subEl = document.getElementById('invite-banner-sub');
+  if (banner && msgEl) {
+    msgEl.textContent = `You've been invited to join "${team.name}" for ${ev.name}!`;
+    subEl.textContent = `Invited by ${team.leaderName}. Click Accept to register for this event.`;
+    banner.style.display = '';
+    // Store invite info for accept action
+    window._pendingTeamInvite = { teamId, eventId };
+    // Clear URL params without reload
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
+function acceptTeamInvite() {
+  if (!window._pendingTeamInvite) return;
+  const { teamId, eventId } = window._pendingTeamInvite;
+
+  if (!STATE.user) {
+    toast('Please sign in first to accept the team invite.', 'warning');
+    document.getElementById('team-invite-banner').style.display = 'none';
+    return;
+  }
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === eventId);
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => t.id === teamId);
+  if (!team) return;
+
+  if ((ev.registrations || []).includes(STATE.user.id)) {
+    toast('You are already registered for this event!', 'info');
+    document.getElementById('team-invite-banner').style.display = 'none';
+    return;
+  }
+
+  // Check email matches an invite
+  const userEmail = STATE.user.email.toLowerCase();
+  if (!team.pendingEmails.map(e => e.toLowerCase()).includes(userEmail)) {
+    toast('This invite was not sent to your email address.', 'error');
+    return;
+  }
+
+  // Accept: register user, move from pending to memberIds
+  if (!ev.registrations) ev.registrations = [];
+  ev.registrations.push(STATE.user.id);
+  ev.regCount = (ev.regCount || 0) + 1;
+  team.memberIds.push(STATE.user.id);
+  team.pendingEmails = team.pendingEmails.filter(e => e.toLowerCase() !== userEmail);
+  setDB('vvce_events', events);
+
+  document.getElementById('team-invite-banner').style.display = 'none';
+  window._pendingTeamInvite = null;
+
+  addNotif(`You joined team "${team.name}" for "${ev.name}"! 🎉`, '👥');
+  toast(`Welcome to team "${team.name}"! You are now registered for ${ev.name}. 🎉`, 'success', 5000);
+
+  if (STATE.page === 'events') filterEvents();
+  if (STATE.page === 'dashboard') renderStudentDashboard();
+}
+
 
 function joinWaitlist(id) {
   if (STATE.registrationLocked) {
@@ -3122,6 +3364,26 @@ function renderCreateEventPage() {
         </div>
 
         <div class="toggle-row">
+          <label class="toggle-sw"><input type="checkbox" id="ev-is-team" onchange="toggleTeamFields()"><span class="toggle-track"></span></label>
+          <div class="toggle-info">
+            <div class="toggle-lbl">👥 This is a Team / Group Event</div>
+            <div class="toggle-desc">Students will register as teams with a team name and invite their members via email</div>
+          </div>
+        </div>
+        <div id="ev-team-wrap" style="display:none; margin-left:56px; margin-bottom:10px;">
+          <div class="form-row" style="grid-template-columns:1fr 1fr;">
+            <div class="form-group">
+              <label>Min Team Size</label>
+              <input type="number" id="ev-team-min" value="2" min="1" max="20">
+            </div>
+            <div class="form-group">
+              <label>Max Team Size</label>
+              <input type="number" id="ev-team-max" value="4" min="1" max="20">
+            </div>
+          </div>
+        </div>
+
+        <div class="toggle-row">
           <label class="toggle-sw"><input type="checkbox" id="ev-needs-payment"><span class="toggle-track"></span></label>
           <div class="toggle-info">
             <div class="toggle-lbl">Require Payment Proof</div>
@@ -3192,6 +3454,10 @@ function submitEvent(status='pending') {
     return;
   }
 
+  const isTeamEvent = document.getElementById('ev-is-team')?.checked || false;
+  const minTeamSize = isTeamEvent ? parseInt(document.getElementById('ev-team-min')?.value || '2') : 1;
+  const maxTeamSize = isTeamEvent ? parseInt(document.getElementById('ev-team-max')?.value || '4') : 1;
+
   const events = getDB('vvce_events');
   const ev = {
     id: genId('ev'), name, club, adminId: STATE.user.id,
@@ -3206,6 +3472,8 @@ function submitEvent(status='pending') {
     rules: document.getElementById('ev-rules').value.trim(),
     poster: document.getElementById('ev-poster-data').value||null,
     branches: branches.length ? branches : ['All'],
+    isTeamEvent, minTeamSize, maxTeamSize,
+    teams: [],
     status, rejReason: null, registrations: [], pendingPayments: []
   };
   events.push(ev);
@@ -3385,11 +3653,48 @@ function renderParticipantTable() {
 
   if (!parts.length) { wrap.innerHTML=`<div class="empty-state"><div class="ei">👥</div><div class="et">No participants yet</div></div>`; return; }
 
+  // If team event, prepend a team groupings section
+  let teamHtml = '';
+  if (ev?.isTeamEvent && (ev.teams||[]).length > 0) {
+    teamHtml = `
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px; font-weight:700; color:#a5b4fc; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;">👥 Teams (${ev.teams.length})</div>
+        ${ev.teams.map((team, ti) => {
+          const members = allUsers.filter(u => team.memberIds.includes(u.id));
+          return `
+          <div style="background:linear-gradient(135deg,#0f172a,#1a2744); border:1px solid rgba(99,102,241,0.2); border-radius:12px; padding:14px 16px; margin-bottom:10px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+              <span style="font-size:20px;">🏆</span>
+              <div style="flex:1;">
+                <div style="font-weight:800; color:#e2e8f0; font-size:15px;">${team.name}</div>
+                <div style="font-size:11px; color:#6b7280;">Lead: ${team.leaderName} &bull; ${members.length} confirmed, ${team.pendingEmails.length} pending</div>
+              </div>
+              <span style="font-size:11px; font-weight:600; color:#10b981; background:rgba(16,185,129,0.1); padding:3px 10px; border-radius:20px;">Team ${ti+1}</span>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              ${members.map(m => `
+                <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:5px 10px; font-size:12px; color:#cbd5e1;">
+                  ${m.id === team.leaderId ? '⭐' : '👤'} <span>${titleCase(m.name)}</span>
+                  <span style="color:#6b7280; font-size:11px;">${m.usn||m.email}</span>
+                </div>`).join('')}
+              ${team.pendingEmails.map(email => `
+                <div style="display:flex; align-items:center; gap:6px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); border-radius:8px; padding:5px 10px; font-size:12px; color:#fbbf24;">
+                  ✉️ <span>${email}</span>
+                  <span style="font-size:10px; color:#f59e0b; background:rgba(245,158,11,0.1); padding:1px 6px; border-radius:10px;">Invite Sent</span>
+                </div>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
   const attendedCount = parts.filter(p=>attended.includes(p.id)).length;
   const absentCount   = parts.length - attendedCount;
   const attendPct     = parts.length ? Math.round(attendedCount/parts.length*100) : 0;
 
   wrap.innerHTML=`
+    ${teamHtml}
     <!-- Attendance Summary Bar -->
     <div style="display:flex;align-items:center;gap:18px;margin-bottom:16px;padding:14px 18px;
       background:linear-gradient(135deg,#0f172a,#1a2744);border-radius:12px;
