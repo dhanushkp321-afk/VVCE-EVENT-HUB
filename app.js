@@ -307,6 +307,8 @@ async function bootApp() {
     console.warn('Supabase client not ready yet, working in persistent local mode.');
     return;
   }
+  
+  await checkSupabaseEmailVerification();
 
   try {
     const [uRes, eRes, cRes, aRes, psRes, pscRes, paRes] = await Promise.all([
@@ -964,231 +966,92 @@ function quickLogin(role) {
 
 
 /* ─────────────────────────────────────────────────────────────
-   EMAIL OTP VERIFICATION SYSTEM
+   SUPABASE EMAIL VERIFICATION (MAGIC LINK SIGNUP)
 ───────────────────────────────────────────────────────────────*/
-let otpTimerInterval = null;
-
-function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-function startOtpCountdown(seconds = 60) {
-  if (otpTimerInterval) clearInterval(otpTimerInterval);
-  let remaining = seconds;
-  const countdownEl = document.getElementById('otp-countdown');
-  const timerWrapEl = document.getElementById('otp-timer');
-  const resendBtnEl = document.getElementById('btn-resend-otp');
-
-  if (timerWrapEl) timerWrapEl.style.display = '';
-  if (resendBtnEl) resendBtnEl.style.display = 'none';
-  if (countdownEl) countdownEl.textContent = remaining;
-
-  otpTimerInterval = setInterval(() => {
-    remaining--;
-    if (countdownEl) countdownEl.textContent = remaining;
-    if (remaining <= 0) {
-      clearInterval(otpTimerInterval);
-      if (timerWrapEl) timerWrapEl.style.display = 'none';
-      if (resendBtnEl) resendBtnEl.style.display = '';
-    }
-  }, 1000);
-}
-
-function finalizeRegistration(role, userPayload) {
-  const otp = generateOtp();
-  STATE.pendingOtpData = {
-    role,
-    userPayload,
-    otp,
-    expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
-  };
-
-  const emailEl = document.getElementById('otp-target-email');
-  if (emailEl) emailEl.textContent = userPayload.email;
-
-  const errEl = document.getElementById('otp-error-msg');
-  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-
-  // Clear inputs
-  for (let i = 1; i <= 6; i++) {
-    const d = document.getElementById(`otp-d${i}`);
-    if (d) d.value = '';
-  }
-
-  openModal('modal-otp');
-  startOtpCountdown(60);
-
-  // Auto-focus first input
-  setTimeout(() => {
-    const d1 = document.getElementById('otp-d1');
-    if (d1) d1.focus();
-  }, 200);
-
-  toast(`📧 Security code dispatched to ${userPayload.email}. Please check your inbox!`, 'info', 5000);
-
-  // 1. Dispatch real email via serverless /api/send-otp
-  try {
-    fetch('/api/send-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: userPayload.email,
-        otp: otp,
-        name: userPayload.name
-      })
-    }).catch(err => console.warn('API send-otp fetch error:', err));
-  } catch(e) {}
-
-  // 2. Background dispatch via Supabase Auth OTP if configured
+async function finalizeRegistration(role, userPayload) {
   const sb = getSupabaseClient();
-  if (sb && sb.auth && typeof sb.auth.signInWithOtp === 'function') {
-    sb.auth.signInWithOtp({ email: userPayload.email }).catch(() => {});
-  }
-}
-
-function handleOtpInput(index, event) {
-  const val = event.target.value;
-  // If user pasted a multi-digit string
-  if (val.length > 1) {
-    const digits = val.replace(/\D/g, '').slice(0, 6);
-    for (let i = 0; i < digits.length; i++) {
-      const d = document.getElementById(`otp-d${i + 1}`);
-      if (d) d.value = digits[i];
-    }
-    const nextIdx = Math.min(digits.length + 1, 6);
-    const nextEl = document.getElementById(`otp-d${nextIdx}`);
-    if (nextEl) nextEl.focus();
+  if (!sb || !sb.auth) {
+    showAuthMsg('Supabase is not configured. Cannot process sign up.', 'error');
     return;
   }
 
-  // Auto-advance
-  if (val && index < 6) {
-    const nextEl = document.getElementById(`otp-d${index + 1}`);
-    if (nextEl) nextEl.focus();
-  }
-}
+  toast('Sending verification email...', 'info');
 
-function handleOtpKey(index, event) {
-  if (event.key === 'Backspace' && !event.target.value && index > 1) {
-    const prevEl = document.getElementById(`otp-d${index - 1}`);
-    if (prevEl) {
-      prevEl.focus();
-      prevEl.value = '';
+  // Supabase Auth SignUp
+  const { data, error } = await sb.auth.signUp({
+    email: userPayload.email,
+    password: userPayload.pass,
+    options: {
+      data: userPayload // Store all user details in metadata so we can access them after email verification
     }
-  } else if (event.key === 'Enter') {
-    verifyRegistrationOtp();
-  }
-}
+  });
 
-function autoFillOtp() {
-  if (!STATE.pendingOtpData || !STATE.pendingOtpData.otp) return;
-  const otp = STATE.pendingOtpData.otp;
-  for (let i = 0; i < 6; i++) {
-    const d = document.getElementById(`otp-d${i + 1}`);
-    if (d) d.value = otp[i] || '';
-  }
-  const d6 = document.getElementById('otp-d6');
-  if (d6) d6.focus();
-}
-
-function resendRegistrationOtp() {
-  if (!STATE.pendingOtpData) {
-    closeModal('modal-otp');
+  if (error) {
+    showAuthMsg('Signup error: ' + error.message, 'error');
     return;
   }
-  const newOtp = generateOtp();
-  STATE.pendingOtpData.otp = newOtp;
-  STATE.pendingOtpData.expiresAt = Date.now() + 5 * 60 * 1000;
 
-  const errEl = document.getElementById('otp-error-msg');
-  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+  showAuthMsg(`🎉 Verification email sent to ${userPayload.email}. Please check your inbox and click the Verify button. Once verified, you can sign in.`, 'success');
+  
+  // Clear password fields and switch to sign in
+  const passFields = ['s-pass', 'a-pass', 'f-pass'];
+  passFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  
+  switchAuthTab('signin');
+}
 
-  for (let i = 1; i <= 6; i++) {
-    const d = document.getElementById(`otp-d${i}`);
-    if (d) d.value = '';
-  }
+// Function to handle the redirect back from email verification
+async function checkSupabaseEmailVerification() {
+  const sb = getSupabaseClient();
+  if (!sb || !sb.auth) return;
 
-  startOtpCountdown(60);
-  const d1 = document.getElementById('otp-d1');
-  if (d1) d1.focus();
-
-  toast(`📧 A new verification code was sent to ${STATE.pendingOtpData.userPayload.email}!`, 'info', 5000);
-
-  // Dispatch real email via /api/send-otp
   try {
-    fetch('/api/send-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: STATE.pendingOtpData.userPayload.email,
-        otp: newOtp,
-        name: STATE.pendingOtpData.userPayload.name
-      })
-    }).catch(err => console.warn('API send-otp fetch error:', err));
-  } catch(e) {}
-}
+    // Supabase automatically parses the session from the URL hash on load
+    const { data: { session } } = await sb.auth.getSession();
+    
+    if (session && session.user) {
+      const meta = session.user.user_metadata;
+      
+      // Check if this is a newly verified signup by checking if they are not yet in our DB
+      if (meta && meta.type && meta.email) {
+        let users = getDB('vvce_users');
+        const existing = users.find(u => u.email.toLowerCase() === session.user.email.toLowerCase());
+        
+        if (!existing) {
+          // It's a newly verified user! Save to our DB!
+          const newUser = { ...meta };
+          users.push(newUser);
+          setDB('vvce_users', users);
+          
+          // Sync to Supabase public users table
+          const mapped = {
+            id: meta.id, type: meta.type, name: meta.name, email: meta.email, pass: meta.pass,
+            usn: meta.usn, branch: meta.branch, section: meta.section, year: meta.year,
+            sem: meta.sem, admission_year: meta.admissionYear, dept: meta.dept, phone: meta.phone,
+            interests: meta.interests, skills: meta.skills, bio: meta.bio, linkedin: meta.linkedin,
+            github: meta.github, achievements: meta.achievements, profile_photo: meta.profilePhoto,
+            resume: meta.resume, points: meta.points, points_by_sem: meta.pointsBySem,
+            notifs: meta.notifs, club_name: meta.clubName, club_email: meta.clubEmail,
+            domain: meta.domain, faculty: meta.faculty, approved: meta.approved, desc: meta.desc,
+            designation: meta.designation
+          };
+          await sb.from('users').upsert([mapped]);
 
-function verifyRegistrationOtp() {
-  const errEl = document.getElementById('otp-error-msg');
-  let entered = '';
-  for (let i = 1; i <= 6; i++) {
-    const d = document.getElementById(`otp-d${i}`);
-    entered += (d ? d.value.trim() : '');
-  }
-
-  if (entered.length < 6) {
-    if (errEl) {
-      errEl.textContent = '❌ Please enter the full 6-digit verification code.';
-      errEl.style.display = 'block';
+          if (newUser.type === 'admin') {
+             showAuthMsg('🎉 Email verified! Club registration submitted. Awaiting Dean Student Welfare approval.', 'success');
+             toast('✅ Email verified! Club account submitted for approval.', 'success');
+          } else {
+             toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
+             setTimeout(() => launchApp(newUser), 1000);
+          }
+        }
+      }
     }
-    return;
-  }
-
-  if (!STATE.pendingOtpData) {
-    closeModal('modal-otp');
-    showAuthMsg('Session expired. Please fill the registration form again.', 'error');
-    return;
-  }
-
-  if (Date.now() > STATE.pendingOtpData.expiresAt) {
-    if (errEl) {
-      errEl.textContent = '❌ Verification code expired. Please click Resend Code.';
-      errEl.style.display = 'block';
-    }
-    return;
-  }
-
-  if (entered !== STATE.pendingOtpData.otp) {
-    if (errEl) {
-      errEl.textContent = '❌ Invalid verification code. Please check and try again.';
-      errEl.style.display = 'block';
-    }
-    return;
-  }
-
-  // OTP verified successfully!
-  if (errEl) { errEl.style.display = 'none'; }
-  if (otpTimerInterval) clearInterval(otpTimerInterval);
-  closeModal('modal-otp');
-
-  const { role, userPayload } = STATE.pendingOtpData;
-  STATE.pendingOtpData = null;
-
-  finalizeRegistration(role, userPayload);
-}
-
-function finalizeRegistration(role, newUser) {
-  const users = getDB('vvce_users');
-  users.push(newUser);
-  setDB('vvce_users', users);
-
-  if (role === 'admin') {
-    showAuthMsg('🎉 Email verified! Club registration submitted. Awaiting Dean Student Welfare approval.', 'success');
-    toast('✅ Email verified! Club account submitted for approval.', 'success');
-  } else {
-    showAuthMsg('🎉 Email verified! Account created successfully! Signing you in…', 'success');
-    toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
-    setTimeout(() => launchApp(newUser), 1000);
+  } catch(e) {
+    console.error("Email verification check failed:", e);
   }
 }
 
