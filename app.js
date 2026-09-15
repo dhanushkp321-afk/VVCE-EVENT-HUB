@@ -1882,7 +1882,12 @@ function eventCard(ev) {
           ${ev.isTeamEvent ? `<div class="ev-meta" style="color:#7c3aed;font-weight:700;">👥 Team Event &nbsp;|&nbsp; ${ev.minTeamSize}–${ev.maxTeamSize} members</div>` : ''}
         </div>
         <div class="ev-foot">
-          <span class="ev-seats ${isFull?'full':''}">${isCancelled ? 'Cancelled' : (isFull?'🔴 Full':`${ev.maxParticipants-ev.regCount} seats left`)}</span>
+          <span class="ev-seats ${isFull?'full':''}">${
+            isCancelled ? 'Cancelled' : 
+            isFull ? '🔴 Full' : 
+            ev.isTeamEvent ? `👥 ${(ev.teams||[]).length} team(s) (${currentRegCount}/${maxCap} people)` : 
+            `${maxCap - currentRegCount} seats left`
+          }</span>
           <div style="display:flex;gap:6px;align-items:center;">
             ${user?.type==='student'
               ? isCancelled
@@ -2168,8 +2173,22 @@ async function submitTeamRegistration() {
   if (!ev) return;
 
   const totalMembers = 1 + _teamMembers.length; // leader + added members
-  if (totalMembers < (ev.minTeamSize || 1)) {
-    errEl.textContent = `❌ You need at least ${ev.minTeamSize} members (including yourself). Add ${ev.minTeamSize - totalMembers} more.`;
+  const minTeam = ev.minTeamSize || 2;
+  const maxTeam = ev.maxTeamSize || 4;
+
+  if (totalMembers < minTeam) {
+    errEl.textContent = `❌ You need at least ${minTeam} members (including yourself). Add ${minTeam - totalMembers} more.`;
+    errEl.style.display = 'block'; return;
+  }
+  if (totalMembers > maxTeam) {
+    errEl.textContent = `❌ Maximum allowed team size is ${maxTeam} members (including yourself). Remove ${totalMembers - maxTeam} member(s).`;
+    errEl.style.display = 'block'; return;
+  }
+
+  const currentRegCount = (ev.registrations || []).length;
+  const maxCap = ev.max_participants || ev.maxParticipants || 100;
+  if (currentRegCount + totalMembers > maxCap) {
+    errEl.textContent = `❌ Adding this team (${totalMembers} members) exceeds the total event capacity (${maxCap} people). Only ${maxCap - currentRegCount} spot(s) remaining.`;
     errEl.style.display = 'block'; return;
   }
 
@@ -2512,7 +2531,8 @@ function openEventModal(id) {
       ${detailChip('📅','Date',formatDate(ev.date))}
       ${detailChip('🕐','Time',formatTime(ev.time))}
       ${detailChip('📍','Venue',ev.venue)}
-      ${detailChip('👥','Seats',`${ev.regCount}/${ev.maxParticipants}`)}
+      ${detailChip('👥','Capacity', ev.isTeamEvent ? `${(ev.teams||[]).length} teams (${ev.regCount}/${ev.maxParticipants} people)` : `${ev.regCount}/${ev.maxParticipants} seats`)}
+      ${ev.isTeamEvent ? detailChip('👥','Team Size', `${ev.minTeamSize || 2}–${ev.maxTeamSize || 4} members`) : detailChip('👤','Event Type', 'Solo Event')}
       ${detailChip('⭐','AICTE Points',`${ev.points||0} pts`)}
       ${detailChip('🎓','Target Branches',(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches')}
       <div style="grid-column:1/-1;">${detailChip('💰','Fee',ev.fee>0?`₹${ev.fee}`:'FREE')}</div>
