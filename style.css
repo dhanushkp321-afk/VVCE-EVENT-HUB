@@ -556,12 +556,16 @@ body.has-theme-bg .app-main {
 @media (min-width: 769px) {
   body.has-theme-bg .app-main, body.has-theme-bg #auth-screen {
     background-attachment: fixed !important;
+    background-size: cover !important;
+    background-position: center center !important;
   }
 }
 @media (max-width: 768px) {
   body.has-theme-bg .app-main, body.has-theme-bg #auth-screen {
     background-attachment: scroll !important;
+    background-size: 100% auto !important;
     background-position: top center !important;
+    background-repeat: no-repeat !important;
   }
 }
 body.has-theme-bg .topbar {
