@@ -991,6 +991,13 @@ async function finalizeRegistration(role, userPayload) {
     return;
   }
 
+  // If the user already exists in Supabase Auth (but maybe didn't verify yet), Supabase returns success but DOES NOT send an email!
+  // We can detect this because data.user.identities will be empty.
+  if (data?.user?.identities?.length === 0) {
+    // Force Supabase to resend the verification email for this existing unverified account
+    await sb.auth.resend({ type: 'signup', email: userPayload.email });
+  }
+
   showAuthMsg(`🎉 Verification email sent to ${userPayload.email}. Please check your inbox and click the Verify button. Once verified, you can sign in.`, 'success');
   
   // Clear password fields and switch to sign in
