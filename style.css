@@ -106,11 +106,14 @@ a { text-decoration: none; color: inherit; }
   min-height: 100vh;
   background: transparent;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 #auth-screen::before {
   content: '';
@@ -135,6 +138,7 @@ a { text-decoration: none; color: inherit; }
   align-items: center;
   position: relative;
   z-index: 1;
+  margin: auto;
 }
 
 /* Logo outside card */

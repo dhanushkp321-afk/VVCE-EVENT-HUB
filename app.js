@@ -4912,6 +4912,27 @@ function applyCelebrationTheme(theme) {
     renderDashboard();
   }
 
+  // Auth Screen Festive Greeting Ribbon (configured in CPM Theme tab)
+  let authRibbon = document.getElementById('auth-festive-ribbon');
+  const authOuter = document.querySelector('.auth-outer');
+  if (!authRibbon && authOuter) {
+    authRibbon = document.createElement('div');
+    authRibbon.id = 'auth-festive-ribbon';
+    authRibbon.style.cssText = 'display:none; width:100%; padding:11px 18px; text-align:center; font-weight:800; font-size:14px; color:#ffffff; letter-spacing:0.02em; border-radius:12px; margin-bottom:18px; box-shadow:0 4px 14px rgba(0,0,0,0.18); align-items:center; justify-content:center; gap:8px; font-family:\'Outfit\',sans-serif; box-sizing:border-box;';
+    authOuter.prepend(authRibbon);
+  }
+
+  if (authRibbon) {
+    if (theme.showGreeting && theme.greeting) {
+      authRibbon.style.background = `linear-gradient(90deg, ${primary}, ${secondary})`;
+      authRibbon.style.color = '#ffffff';
+      authRibbon.innerHTML = `<span>${theme.greeting}</span>`;
+      authRibbon.style.display = 'flex';
+    } else {
+      authRibbon.style.display = 'none';
+    }
+  }
+
   // Ensure the old global top ribbon is removed (user requested it moved to dashboard)
   let ribbon = document.getElementById('cpm-festive-ribbon');
   if (ribbon) {
