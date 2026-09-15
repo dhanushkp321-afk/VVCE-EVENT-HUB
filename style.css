@@ -555,22 +555,6 @@ body.has-theme-bg .app-main {
   min-height: 100vh;
 }
 
-/* Dark overlay on top of background image for dashboard readability */
-body.has-theme-bg .app-main::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  left: var(--sb-w);
-  background: rgba(0, 0, 0, 0.45);
-  pointer-events: none;
-  z-index: 0;
-}
-@media (max-width: 768px) {
-  body.has-theme-bg .app-main::before {
-    left: 0;
-  }
-}
-
 @media (min-width: 769px) {
   body.has-theme-bg .app-main, body.has-theme-bg #auth-screen {
     background-attachment: fixed !important;
@@ -590,21 +574,12 @@ body.has-theme-bg .app-main::before {
 body.has-theme-bg .topbar {
   background: rgba(255,255,255,0.88);
   backdrop-filter: blur(4px);
-  position: relative;
-  z-index: 1;
 }
-/* Give content pages a slightly dark overlay so text stays readable over the image */
+/* Give content pages a light semi-transparent overlay so text stays readable */
 body.has-theme-bg .page {
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(3px);
+  background: rgba(241, 245, 249, 0.80);
+  backdrop-filter: blur(2px);
   border-radius: var(--r-md);
-  position: relative;
-  z-index: 1;
-  color: #f1f5f9;
-}
-body.has-theme-bg .page * {
-  position: relative;
-  z-index: 1;
 }
 
 /* Topbar */
