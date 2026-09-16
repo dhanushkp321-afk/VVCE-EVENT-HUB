@@ -2148,6 +2148,7 @@ function registerEv(id) {
    TEAM REGISTRATION
 ───────────────────────────────────────────────────────────────*/
 let _teamRegEventId = null;
+let _teamRegTeamId = null;
 let _teamMembers = []; // array of email strings added by leader
 
 function toggleTeamFields() {
@@ -2167,6 +2168,7 @@ function toggleTeamFields() {
 
 function openTeamRegisterModal(ev) {
   _teamRegEventId = ev.id;
+  _teamRegTeamId = genId('team');
   _teamMembers = [];
 
   document.getElementById('team-modal-event-name').textContent = '📅 ' + ev.name;
@@ -2180,7 +2182,7 @@ function openTeamRegisterModal(ev) {
   const min = ev.minTeamSize || 2;
   const max = ev.maxTeamSize || 4;
   document.getElementById('team-size-hint').textContent =
-    `ℹ️ This event requires teams of ${min}–${max} members (including yourself).`;
+    `ℹ️ This event requires teams of ${min}–${max} members (including yourself). Verification emails are sent immediately when you add each member.`;
 
   openModal('modal-team-register');
 }
@@ -2188,17 +2190,35 @@ function openTeamRegisterModal(ev) {
 function renderTeamMembersList() {
   const list = document.getElementById('team-members-list');
   if (!list) return;
-  list.innerHTML = _teamMembers.map((email, idx) => `
-    <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; font-size:13px;">
-      <span style="font-size:15px;">👤</span>
-      <span style="flex:1; color:#374151;">${email}</span>
-      <span style="font-size:11px; color:#f59e0b; font-weight:600; background:#fef3c7; padding:2px 8px; border-radius:20px;">Invite Pending</span>
-      <button onclick="removeTeamMember(${idx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; padding:0 4px;">×</button>
-    </div>
-  `).join('');
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === _teamRegEventId);
+  const team = (ev?.teams || []).find(t => t.id === _teamRegTeamId);
+  const allUsers = getDB('vvce_users', []);
+
+  list.innerHTML = _teamMembers.map((email, idx) => {
+    // Check if teammate has already verified/accepted
+    const isVerified = team && (team.memberIds || []).some(uid => {
+      const u = allUsers.find(user => user.id === uid);
+      return u && u.email.toLowerCase() === email.toLowerCase();
+    });
+
+    return `
+      <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; font-size:13px;">
+        <span style="font-size:15px;">👤</span>
+        <span style="flex:1; color:#374151; font-weight:500;">${email}</span>
+        ${isVerified ? `
+          <span style="font-size:11px; color:#15803d; font-weight:700; background:#dcfce7; border:1px solid #86efac; padding:2px 8px; border-radius:12px;">✓ Added</span>
+        ` : `
+          <span style="font-size:11px; color:#b45309; font-weight:700; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:12px;">⏳ Invite Pending</span>
+        `}
+        <button onclick="removeTeamMember(${idx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; padding:0 4px;" title="Remove">×</button>
+      </div>
+    `;
+  }).join('');
 }
 
-function addTeamMember() {
+async function addTeamMember() {
   const input = document.getElementById('team-member-email-input');
   const errEl = document.getElementById('team-member-error');
   const email = input.value.trim().toLowerCase();
@@ -2219,20 +2239,90 @@ function addTeamMember() {
     errEl.style.display = 'block'; return;
   }
 
-  const ev = getDB('vvce_events').find(e => e.id === _teamRegEventId);
-  const maxTeam = (ev?.maxTeamSize || 4) - 1; // subtract leader
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === _teamRegEventId);
+  if (!ev) return;
+
+  const maxTeam = (ev.maxTeamSize || 4) - 1; // subtract leader
   if (_teamMembers.length >= maxTeam) {
-    errEl.textContent = `❌ Maximum ${ev?.maxTeamSize || 4} members per team (including you).`;
+    errEl.textContent = `❌ Maximum ${ev.maxTeamSize || 4} members per team (including you).`;
     errEl.style.display = 'block'; return;
   }
 
   _teamMembers.push(email);
   input.value = '';
+
+  // Ensure team draft exists in database immediately so invite links can be accepted right away
+  if (!ev.teams) ev.teams = [];
+  let team = ev.teams.find(t => t.id === _teamRegTeamId);
+  const teamNameInput = document.getElementById('team-name-input')?.value.trim() || `Team ${STATE.user.name}`;
+  if (!team) {
+    team = {
+      id: _teamRegTeamId,
+      name: teamNameInput,
+      leaderId: STATE.user.id,
+      leaderName: STATE.user.name,
+      leaderEmail: STATE.user.email,
+      memberEmails: [..._teamMembers],
+      memberIds: [STATE.user.id],
+      pendingEmails: [..._teamMembers],
+      paymentStatus: ev.fee > 0 ? 'pending' : 'free',
+      createdAt: new Date().toISOString()
+    };
+    ev.teams.push(team);
+  } else {
+    team.memberEmails = [..._teamMembers];
+    team.pendingEmails = _teamMembers.filter(em => !(team.memberIds || []).some(uid => {
+      const u = getDB('vvce_users', []).find(usr => usr.id === uid);
+      return u && u.email.toLowerCase() === em.toLowerCase();
+    }));
+  }
+
+  // Register leader in event
+  if (!ev.registrations) ev.registrations = [];
+  if (!ev.registrations.includes(STATE.user.id)) {
+    ev.registrations.push(STATE.user.id);
+    ev.regCount = (ev.regCount || 0) + 1;
+  }
+
+  await setDB('vvce_events', events);
+
+  // Send verification email immediately to the newly added member!
+  const siteUrl = window.location.origin + window.location.pathname;
+  const inviteBase = `${siteUrl}?teamInvite=${_teamRegTeamId}&event=${ev.id}`;
+  const sb = getSupabaseClient();
+  try {
+    if (sb && sb.auth) {
+      sb.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: inviteBase,
+          data: { teamInvite: true, teamId: _teamRegTeamId, teamName: teamNameInput, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+        }
+      }).catch(e => console.warn('Invite email failed for', email, e));
+    }
+  } catch(e) { console.warn('Invite error:', e); }
+
+  toast(`✉️ Verification email sent immediately to ${email}!`, 'success', 4000);
   renderTeamMembersList();
 }
 
-function removeTeamMember(idx) {
+async function removeTeamMember(idx) {
+  const removedEmail = _teamMembers[idx];
   _teamMembers.splice(idx, 1);
+
+  // Update DB team draft
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === _teamRegEventId);
+  if (ev && ev.teams) {
+    const team = ev.teams.find(t => t.id === _teamRegTeamId);
+    if (team) {
+      team.memberEmails = (team.memberEmails || []).filter(e => e.toLowerCase() !== removedEmail.toLowerCase());
+      team.pendingEmails = (team.pendingEmails || []).filter(e => e.toLowerCase() !== removedEmail.toLowerCase());
+      await setDB('vvce_events', events);
+    }
+  }
+
   renderTeamMembersList();
 }
 
@@ -2270,70 +2360,50 @@ async function submitTeamRegistration() {
     errEl.style.display = 'block'; return;
   }
 
-  // Check if team name already exists
-  if ((ev.teams || []).some(t => t.name.toLowerCase() === teamName.toLowerCase())) {
-    errEl.textContent = '❌ A team with this name already exists. Choose a different name.';
-    errEl.style.display = 'block'; return;
+  // Update or create team record
+  if (!ev.teams) ev.teams = [];
+  let team = ev.teams.find(t => t.id === _teamRegTeamId);
+  if (!team) {
+    team = {
+      id: _teamRegTeamId,
+      name: teamName,
+      leaderId: STATE.user.id,
+      leaderName: STATE.user.name,
+      leaderEmail: STATE.user.email,
+      memberEmails: [..._teamMembers],
+      memberIds: [STATE.user.id],
+      pendingEmails: [..._teamMembers],
+      paymentStatus: ev.fee > 0 ? 'pending' : 'free',
+      createdAt: new Date().toISOString()
+    };
+    ev.teams.push(team);
+  } else {
+    team.name = teamName;
+    team.memberEmails = [..._teamMembers];
   }
 
-  const teamId = genId('team');
-  const siteUrl = window.location.origin + window.location.pathname;
-  const inviteBase = `${siteUrl}?teamInvite=${teamId}&event=${ev.id}`;
-
-  // Create the team record immediately so members can be invited
-  const team = {
-    id: teamId,
-    name: teamName,
-    leaderId: STATE.user.id,
-    leaderName: STATE.user.name,
-    leaderEmail: STATE.user.email,
-    memberEmails: [..._teamMembers],
-    memberIds: [STATE.user.id],
-    pendingEmails: [..._teamMembers],
-    paymentStatus: ev.fee > 0 ? 'pending' : 'free',
-    createdAt: new Date().toISOString()
-  };
-
-  if (!ev.teams) ev.teams = [];
-  ev.teams.push(team);
-
-  // Register the leader
+  // Register leader
   if (!ev.registrations) ev.registrations = [];
   if (!ev.registrations.includes(STATE.user.id)) {
     ev.registrations.push(STATE.user.id);
     ev.regCount = (ev.regCount || 0) + 1;
   }
+
   await setDB('vvce_events', events);
-
-  // Send invites via Supabase immediately
-  const sb = getSupabaseClient();
-  for (const email of _teamMembers) {
-    try {
-      if (sb && sb.auth) {
-        sb.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: inviteBase,
-            data: { teamInvite: true, teamId, teamName, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
-          }
-        }).catch(e => console.warn('Invite email failed for', email, e));
-      }
-    } catch(e) { console.warn('Invite dispatch error:', e); }
-  }
-
   closeModal('modal-team-register');
 
   if (ev.fee > 0) {
-    STATE.pendingTeamReg = { evId: ev.id, teamId, teamName };
-    toast(`Team "${teamName}" registered & invites sent! 🎉 Please upload payment proof to complete.`, 'info', 5000);
+    STATE.pendingTeamReg = { evId: ev.id, teamId: _teamRegTeamId, teamName };
+    toast(`Team "${teamName}" registered! Please upload payment proof to complete.`, 'info', 5000);
     openPaymentModal(ev);
   } else {
-    addNotif(`You registered your team "${teamName}" for "${ev.name}"! 🎉 Invite emails sent to ${_teamMembers.length} member(s).`, '👥');
-    toast(`Team "${teamName}" registered! Invite emails sent to your members. 🎉`, 'success', 5000);
+    addNotif(`You registered your team "${teamName}" for "${ev.name}"! 🎉 Verification emails sent to all members.`, '👥');
+    toast(`Team "${teamName}" registered! Teammates can verify from their email links. 🎉`, 'success', 5000);
   }
 
   if (STATE.page === 'events') filterEvents();
   if (STATE.page === 'dashboard') renderStudentDashboard();
+  if (STATE.page === 'registrations') renderRegistrationsPage();
 }
 
 // Called on page load & after auth/event sync — checks if URL or session has a teamInvite param
