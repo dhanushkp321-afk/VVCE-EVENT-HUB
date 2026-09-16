@@ -166,29 +166,29 @@ async function setDB(key, val) {
 }
 
 /* Branch Matching Helper */
+function getCanonicalBranch(branch) {
+  if (!branch) return '';
+  const b = String(branch).toUpperCase().replace(/[^A-Z0-9/]/g, '').trim();
+  if (b === 'ALL') return 'ALL';
+  if (b.includes('AIML') || b.includes('AI') || b.includes('ML')) return 'CSE/AIML';
+  if (b === 'CS' || b === 'CSE' || b.includes('COMPUTERSCIENCE') || b.includes('COMPUTER')) return 'CSE';
+  if (b === 'IS' || b === 'ISE' || b.includes('INFORMATION')) return 'ISE';
+  if (b === 'EC' || b === 'ECE' || b.includes('ELECTRONICS')) return 'ECE';
+  if (b === 'EE' || b === 'EEE' || b.includes('ELECTRICAL')) return 'EEE';
+  if (b === 'ME' || b === 'MECH' || b.includes('MECHANICAL')) return 'ME';
+  if (b === 'CV' || b === 'CIVIL') return 'CV';
+  return b;
+}
+
 function isBranchMatch(eventBranches, userBranch) {
   if (!eventBranches || !eventBranches.length) return true;
-  if (eventBranches.includes('All') || eventBranches.includes('ALL') || eventBranches.includes('all')) return true;
-  if (!userBranch) return true;
-  
-  const ub = String(userBranch).toUpperCase().trim();
+  const userCanon = getCanonicalBranch(userBranch);
+  if (!userCanon) return true;
+
   return eventBranches.some(eb => {
-    const b = String(eb).toUpperCase().trim();
-    if (b === 'ALL') return true;
-    if (b === ub) return true;
-    // Map CS / CSE / AIML equivalents
-    if ((ub === 'CS' || ub === 'CSE' || ub.includes('COMP')) && (b === 'CS' || b === 'CSE' || b.includes('CSE') || b.includes('COMP'))) return true;
-    // Map IS / ISE equivalents
-    if ((ub === 'IS' || ub === 'ISE' || ub.includes('INFO')) && (b === 'IS' || b === 'ISE' || b.includes('ISE') || b.includes('INFO'))) return true;
-    // Map EC / ECE equivalents
-    if ((ub === 'EC' || ub === 'ECE') && (b === 'EC' || b === 'ECE')) return true;
-    // Map EE / EEE equivalents
-    if ((ub === 'EE' || ub === 'EEE') && (b === 'EE' || b === 'EEE')) return true;
-    // Map ME / MECH equivalents
-    if ((ub === 'ME' || ub.includes('MECH')) && (b === 'ME' || b.includes('MECH'))) return true;
-    // Map CV / CIVIL equivalents
-    if ((ub === 'CV' || ub.includes('CIVIL')) && (b === 'CV' || b.includes('CIVIL'))) return true;
-    return b.includes(ub) || ub.includes(b);
+    const evCanon = getCanonicalBranch(eb);
+    if (evCanon === 'ALL') return true;
+    return evCanon === userCanon;
   });
 }
 
