@@ -1666,10 +1666,12 @@ function renderStudentDashboard() {
   const totalPts = user.points || 0;
   const pct = Math.min(100, Math.round(totalPts / 100 * 100));
 
-  const approved = events.filter(e => 
-    e.status === 'approved' &&
-    (!e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(user.branch))
-  );
+  const approved = events.filter(e => {
+    const isVisibleStatus = e.status === 'approved' || e.status === 'rescheduled' || 
+                            (e.status === 'scheduled' && (!e.publish_at || new Date(e.publish_at) <= new Date()));
+    const isTargetBranch = !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(user.branch);
+    return isVisibleStatus && isTargetBranch;
+  });
   let recommended = approved.filter(e => {
     const evCat = e.category || 'Technical';
     const hasInterests = user.interests && user.interests.length > 0;
