@@ -2176,7 +2176,8 @@ function openTeamRegisterModal(ev) {
   document.getElementById('team-leader-name').textContent = STATE.user.name;
   document.getElementById('team-leader-email').textContent = STATE.user.email;
   document.getElementById('team-members-list').innerHTML = '';
-  document.getElementById('team-member-email-input').value = '';
+  if (document.getElementById('team-member-name-input')) document.getElementById('team-member-name-input').value = '';
+  if (document.getElementById('team-member-email-input')) document.getElementById('team-member-email-input').value = '';
   document.getElementById('team-member-error').style.display = 'none';
 
   const min = ev.minTeamSize || 2;
@@ -2196,21 +2197,27 @@ function renderTeamMembersList() {
   const team = (ev?.teams || []).find(t => t.id === _teamRegTeamId);
   const allUsers = getDB('vvce_users', []);
 
-  list.innerHTML = _teamMembers.map((email, idx) => {
+  list.innerHTML = _teamMembers.map((member, idx) => {
+    const memEmail = typeof member === 'object' ? member.email : member;
+    const memName = typeof member === 'object' ? member.name : '';
+
     // Check if teammate has already verified/accepted
     const isVerified = team && (team.memberIds || []).some(uid => {
       const u = allUsers.find(user => user.id === uid);
-      return u && u.email.toLowerCase() === email.toLowerCase();
+      return u && u.email.toLowerCase() === memEmail.toLowerCase();
     });
 
     return `
       <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; font-size:13px;">
         <span style="font-size:15px;">👤</span>
-        <span style="flex:1; color:#374151; font-weight:500;">${email}</span>
+        <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;">
+          ${memName ? `<strong style="color:#1e293b;">${memName}</strong> • ` : ''}
+          <span style="color:#4b5563; font-weight:500;">${memEmail}</span>
+        </div>
         ${isVerified ? `
-          <span style="font-size:11px; color:#15803d; font-weight:700; background:#dcfce7; border:1px solid #86efac; padding:2px 8px; border-radius:12px;">✓ Added</span>
+          <span style="font-size:11px; color:#15803d; font-weight:700; background:#dcfce7; border:1px solid #86efac; padding:2px 8px; border-radius:12px; white-space:nowrap;">✓ Added</span>
         ` : `
-          <span style="font-size:11px; color:#b45309; font-weight:700; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:12px;">⏳ Invite Pending</span>
+          <span style="font-size:11px; color:#b45309; font-weight:700; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:12px; white-space:nowrap;">⏳ Invite Pending</span>
         `}
         <button onclick="removeTeamMember(${idx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; padding:0 4px;" title="Remove">×</button>
       </div>
@@ -2219,23 +2226,39 @@ function renderTeamMembersList() {
 }
 
 async function addTeamMember() {
-  const input = document.getElementById('team-member-email-input');
+  const nameInput = document.getElementById('team-member-name-input');
+  const emailInput = document.getElementById('team-member-email-input');
   const errEl = document.getElementById('team-member-error');
-  const email = input.value.trim().toLowerCase();
+
+  const name = (nameInput?.value || '').trim();
+  const email = (emailInput?.value || '').trim().toLowerCase();
 
   errEl.style.display = 'none';
 
-  if (!email) return;
+  if (!name) {
+    errEl.textContent = '❌ Please enter teammate\'s name.';
+    errEl.style.display = 'block';
+    nameInput?.focus();
+    return;
+  }
+  if (!email) {
+    errEl.textContent = '❌ Please enter teammate\'s @vvce.ac.in email.';
+    errEl.style.display = 'block';
+    emailInput?.focus();
+    return;
+  }
   if (!email.endsWith('@vvce.ac.in')) {
     errEl.textContent = '❌ Only @vvce.ac.in email addresses are allowed.';
-    errEl.style.display = 'block'; return;
+    errEl.style.display = 'block';
+    emailInput?.focus();
+    return;
   }
   if (email === STATE.user.email.toLowerCase()) {
     errEl.textContent = '❌ You are already the team leader — no need to add yourself.';
     errEl.style.display = 'block'; return;
   }
-  if (_teamMembers.includes(email)) {
-    errEl.textContent = '❌ This email has already been added.';
+  if (_teamMembers.some(m => (typeof m === 'object' ? m.email : m).toLowerCase() === email)) {
+    errEl.textContent = '❌ This teammate email has already been added.';
     errEl.style.display = 'block'; return;
   }
 
@@ -2249,8 +2272,12 @@ async function addTeamMember() {
     errEl.style.display = 'block'; return;
   }
 
-  _teamMembers.push(email);
-  input.value = '';
+  _teamMembers.push({ name, email });
+  if (nameInput) nameInput.value = '';
+  if (emailInput) emailInput.value = '';
+
+  const memberEmails = _teamMembers.map(m => typeof m === 'object' ? m.email : m);
+  const pendingMembers = _teamMembers.map(m => typeof m === 'object' ? { name: m.name, email: m.email } : { name: '', email: m });
 
   // Ensure team draft exists in database immediately so invite links can be accepted right away
   if (!ev.teams) ev.teams = [];
@@ -2263,18 +2290,25 @@ async function addTeamMember() {
       leaderId: STATE.user.id,
       leaderName: STATE.user.name,
       leaderEmail: STATE.user.email,
-      memberEmails: [..._teamMembers],
+      memberEmails: [...memberEmails],
+      memberDetails: [...pendingMembers],
       memberIds: [STATE.user.id],
-      pendingEmails: [..._teamMembers],
+      pendingEmails: [...memberEmails],
+      pendingMembers: [...pendingMembers],
       paymentStatus: ev.fee > 0 ? 'pending' : 'free',
       createdAt: new Date().toISOString()
     };
     ev.teams.push(team);
   } else {
-    team.memberEmails = [..._teamMembers];
-    team.pendingEmails = _teamMembers.filter(em => !(team.memberIds || []).some(uid => {
+    team.memberEmails = [...memberEmails];
+    team.memberDetails = [...pendingMembers];
+    team.pendingEmails = memberEmails.filter(em => !(team.memberIds || []).some(uid => {
       const u = getDB('vvce_users', []).find(usr => usr.id === uid);
       return u && u.email.toLowerCase() === em.toLowerCase();
+    }));
+    team.pendingMembers = pendingMembers.filter(pm => !(team.memberIds || []).some(uid => {
+      const u = getDB('vvce_users', []).find(usr => usr.id === uid);
+      return u && u.email.toLowerCase() === pm.email.toLowerCase();
     }));
   }
 
@@ -2297,18 +2331,19 @@ async function addTeamMember() {
         email,
         options: {
           emailRedirectTo: inviteBase,
-          data: { teamInvite: true, teamId: _teamRegTeamId, teamName: teamNameInput, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+          data: { teamInvite: true, teamId: _teamRegTeamId, teamName: teamNameInput, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: name }
         }
       }).catch(e => console.warn('Invite email failed for', email, e));
     }
   } catch(e) { console.warn('Invite error:', e); }
 
-  toast(`✉️ Verification email sent immediately to ${email}!`, 'success', 4000);
+  toast(`✉️ Verification email sent immediately to ${name} (${email})!`, 'success', 4000);
   renderTeamMembersList();
 }
 
 async function removeTeamMember(idx) {
-  const removedEmail = _teamMembers[idx];
+  const removedMember = _teamMembers[idx];
+  const removedEmail = typeof removedMember === 'object' ? removedMember.email : removedMember;
   _teamMembers.splice(idx, 1);
 
   // Update DB team draft
@@ -2319,6 +2354,12 @@ async function removeTeamMember(idx) {
     if (team) {
       team.memberEmails = (team.memberEmails || []).filter(e => e.toLowerCase() !== removedEmail.toLowerCase());
       team.pendingEmails = (team.pendingEmails || []).filter(e => e.toLowerCase() !== removedEmail.toLowerCase());
+      if (team.pendingMembers) {
+        team.pendingMembers = team.pendingMembers.filter(m => (typeof m === 'object' ? m.email : m).toLowerCase() !== removedEmail.toLowerCase());
+      }
+      if (team.memberDetails) {
+        team.memberDetails = team.memberDetails.filter(m => (typeof m === 'object' ? m.email : m).toLowerCase() !== removedEmail.toLowerCase());
+      }
       await setDB('vvce_events', events);
     }
   }
@@ -2360,6 +2401,9 @@ async function submitTeamRegistration() {
     errEl.style.display = 'block'; return;
   }
 
+  const memberEmails = _teamMembers.map(m => typeof m === 'object' ? m.email : m);
+  const memberDetails = _teamMembers.map(m => typeof m === 'object' ? { name: m.name, email: m.email } : { name: '', email: m });
+
   // Update or create team record
   if (!ev.teams) ev.teams = [];
   let team = ev.teams.find(t => t.id === _teamRegTeamId);
@@ -2370,16 +2414,19 @@ async function submitTeamRegistration() {
       leaderId: STATE.user.id,
       leaderName: STATE.user.name,
       leaderEmail: STATE.user.email,
-      memberEmails: [..._teamMembers],
+      memberEmails: [...memberEmails],
+      memberDetails: [...memberDetails],
       memberIds: [STATE.user.id],
-      pendingEmails: [..._teamMembers],
+      pendingEmails: [...memberEmails],
+      pendingMembers: [...memberDetails],
       paymentStatus: ev.fee > 0 ? 'pending' : 'free',
       createdAt: new Date().toISOString()
     };
     ev.teams.push(team);
   } else {
     team.name = teamName;
-    team.memberEmails = [..._teamMembers];
+    team.memberEmails = [...memberEmails];
+    team.memberDetails = [...memberDetails];
   }
 
   // Register leader
@@ -2654,12 +2701,17 @@ function openManageTeamModal(eventId, teamId) {
     if ((team.pendingEmails || []).length === 0) {
       pendingListEl.innerHTML = `<div style="font-size:12px; color:#15803d; font-weight:600; padding:6px 0;">🎉 All invited teammates have verified their emails and are Added!</div>`;
     } else {
-      pendingListEl.innerHTML = (team.pendingEmails || []).map((email, idx) => `
+      pendingListEl.innerHTML = (team.pendingEmails || []).map((email, idx) => {
+        const memDetail = (team.pendingMembers || team.memberDetails || []).find(m => (typeof m === 'object' ? m.email : m).toLowerCase() === email.toLowerCase());
+        const memName = memDetail?.name || '';
+        return `
         <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#fffdf5; border:1px solid #fef08a; border-radius:8px; margin-bottom:6px; font-size:13px; flex-wrap:wrap; gap:6px;">
           <div style="display:flex; align-items:center; gap:8px;">
             <span>✉️</span>
             <div>
-              <div style="font-weight:600; color:#374151;">${email}</div>
+              <div style="font-weight:600; color:#374151;">
+                ${memName ? `<span style="color:#1e293b; font-weight:700;">${memName}</span> • ` : ''}<span>${email}</span>
+              </div>
               <div style="font-size:11px; color:#b45309;">⏳ Awaiting Email Link Click</div>
             </div>
           </div>
@@ -2667,20 +2719,25 @@ function openManageTeamModal(eventId, teamId) {
             <div style="display:flex; align-items:center; gap:6px;">
               <span style="font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px;">⏳ Pending</span>
               <button onclick="resendTeamInviteEmail('${email}')" title="Resend Magic Link Email" style="padding:4px 8px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔁 Resend</button>
-              <button onclick="replaceTeamInvitePrompt('${email}')" title="Change to another email address" style="padding:4px 8px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Replace</button>
+              <button onclick="replaceTeamInvitePrompt('${email}')" title="Change to another teammate" style="padding:4px 8px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Replace</button>
               <button onclick="removePendingTeamInvite('${email}')" title="Remove this invite" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🗑️</button>
             </div>
           ` : `
             <span style="font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px;">⏳ Pending</span>
           `}
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
   }
 
-  // Add Member Section visibility
+  // Add Member Section visibility & input reset
   const addSection = document.getElementById('manage-team-add-section');
   const errEl = document.getElementById('manage-team-err');
+  const nameInput = document.getElementById('manage-team-new-name');
+  const emailInput = document.getElementById('manage-team-new-email');
+  if (nameInput) nameInput.value = '';
+  if (emailInput) emailInput.value = '';
   if (errEl) errEl.style.display = 'none';
   if (addSection) {
     if (isLeader && totalEnrolled < maxTeam) {
@@ -2701,6 +2758,9 @@ async function resendTeamInviteEmail(email) {
   const team = (ev.teams || []).find(t => String(t.id) === String(_currentManageTeamId));
   if (!team) return;
 
+  const memDetail = (team.pendingMembers || team.memberDetails || []).find(m => (typeof m === 'object' ? m.email : m).toLowerCase() === email.toLowerCase());
+  const memName = memDetail?.name || '';
+
   const siteUrl = window.location.origin + window.location.pathname;
   const inviteBase = `${siteUrl}?teamInvite=${team.id}&event=${ev.id}`;
 
@@ -2711,18 +2771,31 @@ async function resendTeamInviteEmail(email) {
         email,
         options: {
           emailRedirectTo: inviteBase,
-          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: memName }
         }
       });
     }
-    toast(`Invite email resent to ${email}! 🚀`, 'success');
+    toast(`Invite email resent to ${memName ? memName + ' (' + email + ')' : email}! 🚀`, 'success');
   } catch (err) {
     toast(`Could not resend email: ${err.message}`, 'error');
   }
 }
 
 async function replaceTeamInvitePrompt(oldEmail) {
-  const newEmailRaw = prompt(`Enter new @vvce.ac.in email to replace ${oldEmail}:`);
+  const events = getDB('vvce_events');
+  const ev = events.find(e => String(e.id) === String(_currentManageEventId));
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => String(t.id) === String(_currentManageTeamId));
+  if (!team) return;
+
+  const oldDetail = (team.pendingMembers || team.memberDetails || []).find(m => (typeof m === 'object' ? m.email : m).toLowerCase() === oldEmail.toLowerCase());
+  const defaultOldName = oldDetail?.name || '';
+
+  const newNameRaw = prompt(`Enter new teammate's name to replace ${defaultOldName ? defaultOldName + ' (' + oldEmail + ')' : oldEmail}:`, defaultOldName);
+  if (!newNameRaw || !newNameRaw.trim()) return;
+  const newName = newNameRaw.trim();
+
+  const newEmailRaw = prompt(`Enter new @vvce.ac.in email for ${newName}:`);
   if (!newEmailRaw) return;
   const newEmail = newEmailRaw.trim().toLowerCase();
 
@@ -2735,12 +2808,6 @@ async function replaceTeamInvitePrompt(oldEmail) {
     return;
   }
 
-  const events = getDB('vvce_events');
-  const ev = events.find(e => String(e.id) === String(_currentManageEventId));
-  if (!ev) return;
-  const team = (ev.teams || []).find(t => String(t.id) === String(_currentManageTeamId));
-  if (!team) return;
-
   if ((team.memberEmails || []).some(e => e.toLowerCase() === newEmail) || (team.pendingEmails || []).some(e => e.toLowerCase() === newEmail)) {
     toast('This email is already in the team.', 'error');
     return;
@@ -2749,6 +2816,22 @@ async function replaceTeamInvitePrompt(oldEmail) {
   // Replace email in pendingEmails & memberEmails
   team.pendingEmails = (team.pendingEmails || []).map(e => e.toLowerCase() === oldEmail.toLowerCase() ? newEmail : e);
   team.memberEmails = (team.memberEmails || []).map(e => e.toLowerCase() === oldEmail.toLowerCase() ? newEmail : e);
+
+  if (!team.pendingMembers) team.pendingMembers = [];
+  const pIdx = team.pendingMembers.findIndex(m => (typeof m === 'object' ? m.email : m).toLowerCase() === oldEmail.toLowerCase());
+  if (pIdx >= 0) {
+    team.pendingMembers[pIdx] = { name: newName, email: newEmail };
+  } else {
+    team.pendingMembers.push({ name: newName, email: newEmail });
+  }
+
+  if (!team.memberDetails) team.memberDetails = [];
+  const dIdx = team.memberDetails.findIndex(m => (typeof m === 'object' ? m.email : m).toLowerCase() === oldEmail.toLowerCase());
+  if (dIdx >= 0) {
+    team.memberDetails[dIdx] = { name: newName, email: newEmail };
+  } else {
+    team.memberDetails.push({ name: newName, email: newEmail });
+  }
 
   await setDB('vvce_events', events);
 
@@ -2762,13 +2845,13 @@ async function replaceTeamInvitePrompt(oldEmail) {
         email: newEmail,
         options: {
           emailRedirectTo: inviteBase,
-          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: newName }
         }
       }).catch(e => console.warn('Invite email failed for', newEmail, e));
     }
   } catch(e) {}
 
-  toast(`Replaced ${oldEmail} with ${newEmail} and sent invite! 🎉`, 'success');
+  toast(`Replaced with ${newName} (${newEmail}) and sent verification invite! 🎉`, 'success');
   openManageTeamModal(_currentManageEventId, _currentManageTeamId);
   if (STATE.page === 'registrations') renderRegistrationsPage();
   if (STATE.page === 'dashboard') renderStudentDashboard();
@@ -2784,6 +2867,12 @@ async function removePendingTeamInvite(email) {
 
   team.pendingEmails = (team.pendingEmails || []).filter(e => e.toLowerCase() !== email.toLowerCase());
   team.memberEmails = (team.memberEmails || []).filter(e => e.toLowerCase() !== email.toLowerCase());
+  if (team.pendingMembers) {
+    team.pendingMembers = team.pendingMembers.filter(m => (typeof m === 'object' ? m.email : m).toLowerCase() !== email.toLowerCase());
+  }
+  if (team.memberDetails) {
+    team.memberDetails = team.memberDetails.filter(m => (typeof m === 'object' ? m.email : m).toLowerCase() !== email.toLowerCase());
+  }
 
   await setDB('vvce_events', events);
   toast(`Invite for ${email} removed.`, 'info');
@@ -2806,6 +2895,9 @@ async function removeConfirmedTeamMember(memberId) {
   team.memberIds = (team.memberIds || []).filter(id => id !== memberId);
   if (removedUser) {
     team.memberEmails = (team.memberEmails || []).filter(e => e.toLowerCase() !== removedUser.email.toLowerCase());
+    if (team.memberDetails) {
+      team.memberDetails = team.memberDetails.filter(m => (typeof m === 'object' ? m.email : m).toLowerCase() !== removedUser.email.toLowerCase());
+    }
   }
   ev.registrations = (ev.registrations || []).filter(id => id !== memberId);
   ev.regCount = Math.max(0, (ev.regCount || 1) - 1);
@@ -2821,12 +2913,23 @@ async function removeConfirmedTeamMember(memberId) {
 }
 
 async function manageTeamAddMember() {
-  const input = document.getElementById('manage-team-new-email');
+  const nameInput = document.getElementById('manage-team-new-name');
+  const emailInput = document.getElementById('manage-team-new-email');
   const errEl = document.getElementById('manage-team-err');
-  const email = (input?.value || '').trim().toLowerCase();
+  const name = (nameInput?.value || '').trim();
+  const email = (emailInput?.value || '').trim().toLowerCase();
   if (errEl) errEl.style.display = 'none';
 
-  if (!email) return;
+  if (!name) {
+    if (errEl) { errEl.textContent = '❌ Please enter teammate\'s name.'; errEl.style.display = 'block'; }
+    nameInput?.focus();
+    return;
+  }
+  if (!email) {
+    if (errEl) { errEl.textContent = '❌ Please enter teammate\'s @vvce.ac.in email.'; errEl.style.display = 'block'; }
+    emailInput?.focus();
+    return;
+  }
   if (!email.endsWith('@vvce.ac.in')) {
     if (errEl) { errEl.textContent = '❌ Only @vvce.ac.in email addresses are allowed.'; errEl.style.display = 'block'; }
     return;
@@ -2856,8 +2959,13 @@ async function manageTeamAddMember() {
 
   if (!team.pendingEmails) team.pendingEmails = [];
   if (!team.memberEmails) team.memberEmails = [];
+  if (!team.pendingMembers) team.pendingMembers = [];
+  if (!team.memberDetails) team.memberDetails = [];
+
   team.pendingEmails.push(email);
   team.memberEmails.push(email);
+  team.pendingMembers.push({ name, email });
+  team.memberDetails.push({ name, email });
 
   await setDB('vvce_events', events);
 
@@ -2871,14 +2979,15 @@ async function manageTeamAddMember() {
         email,
         options: {
           emailRedirectTo: inviteBase,
-          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: name }
         }
       }).catch(e => console.warn('Invite email failed for', email, e));
     }
   } catch(e) {}
 
-  if (input) input.value = '';
-  toast(`Invite email sent to ${email}! 🎉`, 'success');
+  if (nameInput) nameInput.value = '';
+  if (emailInput) emailInput.value = '';
+  toast(`Invite email sent to ${name} (${email})! 🎉`, 'success');
   openManageTeamModal(_currentManageEventId, _currentManageTeamId);
   if (STATE.page === 'registrations') renderRegistrationsPage();
   if (STATE.page === 'dashboard') renderStudentDashboard();
@@ -3143,12 +3252,16 @@ function openEventModal(id) {
             `).join('')}
 
             <!-- Pending Members -->
-            ${(myTeam.pendingEmails || []).map(email => `
-              <div style="display:flex;align-items:center;justify-content:space-between;background:#fffdf5;border:1px solid #fef08a;padding:6px 10px;border-radius:8px;font-size:12px;">
-                <span style="font-weight:500;color:#78350f;">✉️ ${email}</span>
-                <span style="font-size:10.5px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fde68a;padding:2px 8px;border-radius:10px;">⏳ Invite Pending</span>
-              </div>
-            `).join('')}
+            ${(myTeam.pendingEmails || []).map(email => {
+              const det = (myTeam.pendingMembers || myTeam.memberDetails || []).find(d => (typeof d === 'object' ? d.email : d).toLowerCase() === email.toLowerCase());
+              const name = det?.name || '';
+              return `
+                <div style="display:flex;align-items:center;justify-content:space-between;background:#fffdf5;border:1px solid #fef08a;padding:6px 10px;border-radius:8px;font-size:12px;">
+                  <span style="font-weight:500;color:#78350f;">✉️ ${name ? `<strong style="color:#1e293b;">${name}</strong> • ` : ''}${email}</span>
+                  <span style="font-size:10.5px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fde68a;padding:2px 8px;border-radius:10px;">⏳ Invite Pending</span>
+                </div>
+              `;
+            }).join('')}
           </div>
 
           ${pendingCount === 0 ? `
@@ -3440,7 +3553,10 @@ function regList(evs, past) {
           <div class="sched-meta">${e.club} &bull; ${formatDate(e.date)} • ${formatTime(e.time)} • ${e.venue}</div>
           ${e.isTeamEvent && userTeam && pendingCount > 0 ? `
             <div style="font-size:11.5px;color:#d97706;font-weight:600;margin-top:3px;">
-              ⚠️ Waiting for email verification from: ${(userTeam.pendingEmails || []).join(', ')}
+              ⚠️ Waiting for email verification from: ${(userTeam.pendingEmails || []).map(email => {
+                const det = (userTeam.pendingMembers || userTeam.memberDetails || []).find(d => (typeof d === 'object' ? d.email : d).toLowerCase() === email.toLowerCase());
+                return det?.name ? `${det.name} (${email})` : email;
+              }).join(', ')}
             </div>
           ` : ''}
         </div>
@@ -4493,11 +4609,15 @@ function renderParticipantTable() {
                   <span style="color:#6b7280; font-size:11px;">${m.usn||m.email}</span>
                   <span style="font-size:10px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); padding:1px 6px; border-radius:10px;">✓ Added</span>
                 </div>`).join('')}
-              ${team.pendingEmails.map(email => `
+              ${team.pendingEmails.map(email => {
+                const det = (team.pendingMembers || team.memberDetails || []).find(d => (typeof d === 'object' ? d.email : d).toLowerCase() === email.toLowerCase());
+                const name = det?.name || '';
+                return `
                 <div style="display:flex; align-items:center; gap:6px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); border-radius:8px; padding:5px 10px; font-size:12px; color:#fbbf24;">
-                  ✉️ <span>${email}</span>
+                  ✉️ <span>${name ? `<strong>${name}</strong> • ` : ''}${email}</span>
                   <span style="font-size:10px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); padding:1px 6px; border-radius:10px;">⏳ Pending</span>
-                </div>`).join('')}
+                </div>`;
+              }).join('')}
             </div>
           </div>`;
         }).join('')}

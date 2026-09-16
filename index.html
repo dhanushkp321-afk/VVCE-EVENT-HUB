@@ -863,13 +863,17 @@
       <!-- Added members list -->
       <div id="team-members-list"></div>
 
-      <!-- Add member input -->
-      <div style="display:flex; gap:8px; margin-top:8px;">
-        <input type="email" id="team-member-email-input" placeholder="member@vvce.ac.in"
-          style="flex:1; padding:9px 12px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; outline:none;">
-        <button onclick="addTeamMember()" style="padding:9px 16px; background:#4f46e5; color:#fff; border:none; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">+ Add</button>
+      <!-- Add member inputs: Name and Email -->
+      <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="text" id="team-member-name-input" placeholder="Teammate Name (e.g. Rahul)"
+            style="flex:1; min-width:120px; padding:9px 12px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; outline:none;">
+          <input type="email" id="team-member-email-input" placeholder="member@vvce.ac.in"
+            style="flex:1; min-width:150px; padding:9px 12px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; outline:none;">
+          <button onclick="addTeamMember()" style="padding:9px 16px; background:#4f46e5; color:#fff; border:none; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap;">+ Add</button>
+        </div>
+        <div id="team-member-error" style="color:#ef4444; font-size:12px; display:none;"></div>
       </div>
-      <div id="team-member-error" style="color:#ef4444; font-size:12px; margin-top:6px; display:none;"></div>
     </div>
 
     <!-- Actions -->
@@ -924,10 +928,12 @@
     <!-- Add New Member Section (if allowed) -->
     <div id="manage-team-add-section" style="margin-bottom:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px;">
       <div style="font-size:12px; font-weight:700; color:#374151; margin-bottom:6px;">➕ Add or Invite New Member</div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="manage-team-new-name" placeholder="Teammate Name (e.g. Priya)"
+          style="flex:1; min-width:130px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; outline:none;">
         <input type="email" id="manage-team-new-email" placeholder="member@vvce.ac.in"
-          style="flex:1; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; outline:none;">
-        <button onclick="manageTeamAddMember()" style="padding:9px 16px; background:#7c3aed; color:#fff; border:none; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">Send Invite</button>
+          style="flex:1; min-width:160px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; outline:none;">
+        <button onclick="manageTeamAddMember()" style="padding:9px 16px; background:#7c3aed; color:#fff; border:none; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap;">Send Invite</button>
       </div>
       <div id="manage-team-err" style="color:#ef4444; font-size:11.5px; margin-top:6px; display:none;"></div>
     </div>
