@@ -3647,12 +3647,6 @@ async function submitEvent(status='pending') {
     return;
   }
 
-  const submitBtn = document.querySelector('.btn-create-submit');
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Saving to Database...';
-  }
-
   const isTeamEvent = document.getElementById('ev-is-team')?.checked || false;
   const minTeamSize = isTeamEvent ? parseInt(document.getElementById('ev-team-min')?.value || '2') : 1;
   const maxTeamSize = isTeamEvent ? parseInt(document.getElementById('ev-team-max')?.value || '4') : 1;
@@ -3679,7 +3673,7 @@ async function submitEvent(status='pending') {
   await setDB('vvce_events', events);
 
   if (status==='pending') {
-    toast(`Event "${name}" submitted and saved to database! Awaiting Dean approval. ✅`,'success');
+    toast(`Event "${name}" submitted for Dean approval! ✅`,'success');
     // Notify authority
     const users=getDB('vvce_users');
     users.filter(u=>u.type==='authority').forEach(u=>{
@@ -3688,7 +3682,7 @@ async function submitEvent(status='pending') {
     });
     await setDB('vvce_users',users);
   } else {
-    toast(`Event saved as draft in database.`,'info');
+    toast(`Event saved as draft.`,'info');
   }
   showPage('manage-events');
 }
