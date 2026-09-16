@@ -1821,15 +1821,22 @@ function renderStudentDashboard() {
         <!-- Upcoming events -->
         <div class="sec-title" style="margin-bottom:10px;">📅 Upcoming Events</div>
         ${upcoming.length
-          ? upcoming.map(e=>`
-            <div class="sched-row" onclick="openEventModal('${e.id}')">
-              <span class="sched-emoji">${e.emoji||'🎓'}</span>
-              <div class="sched-info">
-                <div class="sched-name">${e.name}</div>
-                <div class="sched-meta">${formatDate(e.date)} • ${e.venue}</div>
-              </div>
-              <span class="att-tag att-reg">Reg.</span>
-            </div>`).join('')
+          ? upcoming.map(e => {
+              const userTeam = (e.teams || []).find(t => t.leaderId === user.id || (t.memberIds || []).includes(user.id));
+              const hasPending = userTeam && (userTeam.pendingEmails || []).length > 0;
+              return `
+                <div class="sched-row" onclick="openEventModal('${e.id}')">
+                  <span class="sched-emoji">${e.emoji||'🎓'}</span>
+                  <div class="sched-info">
+                    <div class="sched-name">${e.name}</div>
+                    <div class="sched-meta">${formatDate(e.date)} • ${e.venue}${userTeam ? ` &bull; 👥 ${userTeam.name}` : ''}</div>
+                  </div>
+                  ${hasPending 
+                    ? `<span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;">⏳ Team Pending</span>`
+                    : `<span class="att-tag att-reg">✓ Reg.</span>`
+                  }
+                </div>`;
+            }).join('')
           : `<div class="empty-state" style="padding:1.5rem;"><div class="ei">📅</div><div class="et">No upcoming events</div></div>`
         }
 
@@ -2479,6 +2486,320 @@ async function acceptTeamInvite() {
   if (STATE.page === 'registrations') renderRegistrationsPage();
 }
 
+/* ─────────────────────────────────────────────────────────────
+   TEAM MANAGEMENT & MEMBER ALTERATION
+───────────────────────────────────────────────────────────────*/
+let _currentManageEventId = null;
+let _currentManageTeamId = null;
+
+function openManageTeamModal(eventId, teamId) {
+  _currentManageEventId = eventId;
+  _currentManageTeamId = teamId;
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => String(e.id) === String(eventId));
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => String(t.id) === String(teamId));
+  if (!team) return;
+
+  const allUsers = getDB('vvce_users', []);
+  const isLeader = team.leaderId === STATE.user?.id;
+  const minTeam = ev.minTeamSize || 2;
+  const maxTeam = ev.maxTeamSize || 4;
+
+  const titleEl = document.getElementById('manage-team-title');
+  const subEl = document.getElementById('manage-team-sub');
+  if (titleEl) titleEl.textContent = `👥 Manage Team: ${team.name}`;
+  if (subEl) subEl.textContent = `Event: ${ev.name} • Required: ${minTeam}–${maxTeam} members`;
+
+  // Leader box
+  const lName = document.getElementById('manage-team-leader-name');
+  const lEmail = document.getElementById('manage-team-leader-email');
+  if (lName) lName.textContent = team.leaderName || 'Team Leader';
+  if (lEmail) lEmail.textContent = team.leaderEmail || '';
+
+  // Status banner
+  const statusBanner = document.getElementById('manage-team-status-banner');
+  const pendingCount = (team.pendingEmails || []).length;
+  const confirmedMembers = allUsers.filter(u => (team.memberIds || []).includes(u.id) && u.id !== team.leaderId);
+  const totalEnrolled = (team.memberIds || []).length + pendingCount;
+
+  if (statusBanner) {
+    if (pendingCount > 0) {
+      statusBanner.style.background = '#fffbeb';
+      statusBanner.style.border = '1px solid #fde68a';
+      statusBanner.style.color = '#b45309';
+      statusBanner.innerHTML = `<strong>⏳ Registration Pending Teammate Verification:</strong> ${pendingCount} member(s) have not verified/joined yet. Registration remains pending until all invited members click their email invite links.`;
+    } else {
+      statusBanner.style.background = '#f0fdf4';
+      statusBanner.style.border = '1px solid #bbf7d0';
+      statusBanner.style.color = '#15803d';
+      statusBanner.innerHTML = `<strong>✅ Team Ready & Confirmed:</strong> All ${totalEnrolled} team members have verified and joined!`;
+    }
+  }
+
+  // Counts
+  const cCount = document.getElementById('manage-team-confirmed-count');
+  const pCount = document.getElementById('manage-team-pending-count');
+  if (cCount) cCount.textContent = (team.memberIds || []).length;
+  if (pCount) pCount.textContent = pendingCount;
+
+  // Confirmed List
+  const confirmedListEl = document.getElementById('manage-team-confirmed-list');
+  if (confirmedListEl) {
+    if (confirmedMembers.length === 0) {
+      confirmedListEl.innerHTML = `<div style="font-size:12px; color:#9ca3af; font-style:italic; padding:6px 0;">No other members have joined yet.</div>`;
+    } else {
+      confirmedListEl.innerHTML = confirmedMembers.map(m => `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; font-size:13px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>👤</span>
+            <div>
+              <div style="font-weight:700; color:#1e293b;">${m.name}</div>
+              <div style="font-size:11px; color:#64748b;">${m.email} ${m.usn ? `• ${m.usn}` : ''}</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:11px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:12px;">✓ Joined</span>
+            ${isLeader ? `<button onclick="removeConfirmedTeamMember('${m.id}')" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">Remove</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Pending List
+  const pendingListEl = document.getElementById('manage-team-pending-list');
+  if (pendingListEl) {
+    if ((team.pendingEmails || []).length === 0) {
+      pendingListEl.innerHTML = `<div style="font-size:12px; color:#15803d; font-weight:600; padding:6px 0;">🎉 All invited teammates have accepted their invitations!</div>`;
+    } else {
+      pendingListEl.innerHTML = (team.pendingEmails || []).map((email, idx) => `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#fffdf5; border:1px solid #fef08a; border-radius:8px; margin-bottom:6px; font-size:13px; flex-wrap:wrap; gap:6px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>✉️</span>
+            <div>
+              <div style="font-weight:600; color:#374151;">${email}</div>
+              <div style="font-size:11px; color:#b45309;">⏳ Awaiting Email Verification</div>
+            </div>
+          </div>
+          ${isLeader ? `
+            <div style="display:flex; align-items:center; gap:6px;">
+              <button onclick="resendTeamInviteEmail('${email}')" title="Resend Magic Link Email" style="padding:4px 8px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔁 Resend</button>
+              <button onclick="replaceTeamInvitePrompt('${email}')" title="Change to another email address" style="padding:4px 8px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Replace</button>
+              <button onclick="removePendingTeamInvite('${email}')" title="Remove this invite" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🗑️</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+  }
+
+  // Add Member Section visibility
+  const addSection = document.getElementById('manage-team-add-section');
+  const errEl = document.getElementById('manage-team-err');
+  if (errEl) errEl.style.display = 'none';
+  if (addSection) {
+    if (isLeader && totalEnrolled < maxTeam) {
+      addSection.style.display = 'block';
+    } else {
+      addSection.style.display = 'none';
+    }
+  }
+
+  openModal('modal-manage-team');
+}
+
+async function resendTeamInviteEmail(email) {
+  if (!_currentManageEventId || !_currentManageTeamId) return;
+  const events = getDB('vvce_events');
+  const ev = events.find(e => String(e.id) === String(_currentManageEventId));
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => String(t.id) === String(_currentManageTeamId));
+  if (!team) return;
+
+  const siteUrl = window.location.origin + window.location.pathname;
+  const inviteBase = `${siteUrl}?teamInvite=${team.id}&event=${ev.id}`;
+
+  const sb = getSupabaseClient();
+  try {
+    if (sb && sb.auth) {
+      await sb.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: inviteBase,
+          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+        }
+      });
+    }
+    toast(`Invite email resent to ${email}! 🚀`, 'success');
+  } catch (err) {
+    toast(`Could not resend email: ${err.message}`, 'error');
+  }
+}
+
+async function replaceTeamInvitePrompt(oldEmail) {
+  const newEmailRaw = prompt(`Enter new @vvce.ac.in email to replace ${oldEmail}:`);
+  if (!newEmailRaw) return;
+  const newEmail = newEmailRaw.trim().toLowerCase();
+
+  if (!newEmail.endsWith('@vvce.ac.in')) {
+    toast('Only @vvce.ac.in email addresses are allowed.', 'error');
+    return;
+  }
+  if (newEmail === STATE.user?.email.toLowerCase()) {
+    toast('You are the team leader — cannot add yourself as a member.', 'error');
+    return;
+  }
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => String(e.id) === String(_currentManageEventId));
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => String(t.id) === String(_currentManageTeamId));
+  if (!team) return;
+
+  if ((team.memberEmails || []).some(e => e.toLowerCase() === newEmail) || (team.pendingEmails || []).some(e => e.toLowerCase() === newEmail)) {
+    toast('This email is already in the team.', 'error');
+    return;
+  }
+
+  // Replace email in pendingEmails & memberEmails
+  team.pendingEmails = (team.pendingEmails || []).map(e => e.toLowerCase() === oldEmail.toLowerCase() ? newEmail : e);
+  team.memberEmails = (team.memberEmails || []).map(e => e.toLowerCase() === oldEmail.toLowerCase() ? newEmail : e);
+
+  await setDB('vvce_events', events);
+
+  // Dispatch invite email to new member
+  const siteUrl = window.location.origin + window.location.pathname;
+  const inviteBase = `${siteUrl}?teamInvite=${team.id}&event=${ev.id}`;
+  const sb = getSupabaseClient();
+  try {
+    if (sb && sb.auth) {
+      sb.auth.signInWithOtp({
+        email: newEmail,
+        options: {
+          emailRedirectTo: inviteBase,
+          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+        }
+      }).catch(e => console.warn('Invite email failed for', newEmail, e));
+    }
+  } catch(e) {}
+
+  toast(`Replaced ${oldEmail} with ${newEmail} and sent invite! 🎉`, 'success');
+  openManageTeamModal(_currentManageEventId, _currentManageTeamId);
+  if (STATE.page === 'registrations') renderRegistrationsPage();
+  if (STATE.page === 'dashboard') renderStudentDashboard();
+}
+
+async function removePendingTeamInvite(email) {
+  if (!confirm(`Remove invite for ${email}?`)) return;
+  const events = getDB('vvce_events');
+  const ev = events.find(e => String(e.id) === String(_currentManageEventId));
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => String(t.id) === String(_currentManageTeamId));
+  if (!team) return;
+
+  team.pendingEmails = (team.pendingEmails || []).filter(e => e.toLowerCase() !== email.toLowerCase());
+  team.memberEmails = (team.memberEmails || []).filter(e => e.toLowerCase() !== email.toLowerCase());
+
+  await setDB('vvce_events', events);
+  toast(`Invite for ${email} removed.`, 'info');
+  openManageTeamModal(_currentManageEventId, _currentManageTeamId);
+  if (STATE.page === 'registrations') renderRegistrationsPage();
+  if (STATE.page === 'dashboard') renderStudentDashboard();
+}
+
+async function removeConfirmedTeamMember(memberId) {
+  if (!confirm('Are you sure you want to remove this member from your team?')) return;
+  const events = getDB('vvce_events');
+  const ev = events.find(e => String(e.id) === String(_currentManageEventId));
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => String(t.id) === String(_currentManageTeamId));
+  if (!team) return;
+
+  const allUsers = getDB('vvce_users', []);
+  const removedUser = allUsers.find(u => u.id === memberId);
+
+  team.memberIds = (team.memberIds || []).filter(id => id !== memberId);
+  if (removedUser) {
+    team.memberEmails = (team.memberEmails || []).filter(e => e.toLowerCase() !== removedUser.email.toLowerCase());
+  }
+  ev.registrations = (ev.registrations || []).filter(id => id !== memberId);
+  ev.regCount = Math.max(0, (ev.regCount || 1) - 1);
+
+  await setDB('vvce_events', events);
+  if (removedUser) {
+    addNotifToUser(memberId, `You were removed from team "${team.name}" for "${ev.name}" by the team leader.`, '👥');
+  }
+  toast('Member removed from team.', 'info');
+  openManageTeamModal(_currentManageEventId, _currentManageTeamId);
+  if (STATE.page === 'registrations') renderRegistrationsPage();
+  if (STATE.page === 'dashboard') renderStudentDashboard();
+}
+
+async function manageTeamAddMember() {
+  const input = document.getElementById('manage-team-new-email');
+  const errEl = document.getElementById('manage-team-err');
+  const email = (input?.value || '').trim().toLowerCase();
+  if (errEl) errEl.style.display = 'none';
+
+  if (!email) return;
+  if (!email.endsWith('@vvce.ac.in')) {
+    if (errEl) { errEl.textContent = '❌ Only @vvce.ac.in email addresses are allowed.'; errEl.style.display = 'block'; }
+    return;
+  }
+  if (email === STATE.user?.email.toLowerCase()) {
+    if (errEl) { errEl.textContent = '❌ You are already the team leader.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => String(e.id) === String(_currentManageEventId));
+  if (!ev) return;
+  const team = (ev.teams || []).find(t => String(t.id) === String(_currentManageTeamId));
+  if (!team) return;
+
+  const totalMembers = (team.memberIds || []).length + (team.pendingEmails || []).length;
+  const maxTeam = ev.maxTeamSize || 4;
+  if (totalMembers >= maxTeam) {
+    if (errEl) { errEl.textContent = `❌ Maximum team size is ${maxTeam} members.`; errEl.style.display = 'block'; }
+    return;
+  }
+
+  if ((team.memberEmails || []).some(e => e.toLowerCase() === email) || (team.pendingEmails || []).some(e => e.toLowerCase() === email)) {
+    if (errEl) { errEl.textContent = '❌ This email is already in the team.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  if (!team.pendingEmails) team.pendingEmails = [];
+  if (!team.memberEmails) team.memberEmails = [];
+  team.pendingEmails.push(email);
+  team.memberEmails.push(email);
+
+  await setDB('vvce_events', events);
+
+  // Send invite
+  const siteUrl = window.location.origin + window.location.pathname;
+  const inviteBase = `${siteUrl}?teamInvite=${team.id}&event=${ev.id}`;
+  const sb = getSupabaseClient();
+  try {
+    if (sb && sb.auth) {
+      sb.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: inviteBase,
+          data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
+        }
+      }).catch(e => console.warn('Invite email failed for', email, e));
+    }
+  } catch(e) {}
+
+  if (input) input.value = '';
+  toast(`Invite email sent to ${email}! 🎉`, 'success');
+  openManageTeamModal(_currentManageEventId, _currentManageTeamId);
+  if (STATE.page === 'registrations') renderRegistrationsPage();
+  if (STATE.page === 'dashboard') renderStudentDashboard();
+}
 
 function joinWaitlist(id) {
   if (STATE.registrationLocked) {
@@ -2704,6 +3025,10 @@ function openEventModal(id) {
     if (myTeam) {
       const isLeader = myTeam.leaderId === user.id;
       const isConfirmed = isLeader || (myTeam.memberIds || []).includes(user.id);
+      const pendingCount = (myTeam.pendingEmails || []).length;
+      const confirmedCount = (myTeam.memberIds || []).length;
+      const totalTeam = confirmedCount + pendingCount;
+
       teamInfoHtml = `
         <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:12px 14px;margin-bottom:1rem;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -2711,11 +3036,18 @@ function openEventModal(id) {
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;background:${isLeader ? '#7c3aed;color:#fff;' : '#ede9fe;color:#6d28d9;'}">${isLeader ? '👑 Team Leader' : (isConfirmed ? '👤 Confirmed Member' : '⏳ Invited Member')}</span>
           </div>
           <div style="font-size:12px;color:#4b5563;">
-            Leader: <strong>${myTeam.leaderName}</strong> &bull; Status: <span style="font-weight:700;color:${myTeam.paymentStatus === 'approved' || myTeam.paymentStatus === 'free' ? '#10b981' : '#f59e0b'}">${myTeam.paymentStatus === 'approved' ? '✅ Confirmed' : (myTeam.paymentStatus === 'free' ? '✅ Active' : '⏳ Verification Pending')}</span>
+            Leader: <strong>${myTeam.leaderName}</strong> &bull; Registration: <span style="font-weight:700;color:${pendingCount === 0 ? '#10b981' : '#f59e0b'}">${pendingCount === 0 ? '✅ Confirmed (' + totalTeam + ' members verified)' : '⏳ Pending Member Verification (' + confirmedCount + '/' + totalTeam + ')'}</span>
           </div>
-          ${myTeam.pendingEmails && myTeam.pendingEmails.length ? `
-            <div style="font-size:11.5px;color:#9ca3af;margin-top:4px;">
-              ⏳ Pending Member Invites: ${myTeam.pendingEmails.join(', ')}
+          ${pendingCount > 0 ? `
+            <div style="font-size:11.5px;color:#b45309;margin-top:5px;background:#fffbeb;padding:6px 10px;border-radius:6px;border:1px solid #fde68a;">
+              ⚠️ <strong>Awaiting email verification:</strong> ${myTeam.pendingEmails.join(', ')}
+            </div>
+          ` : ''}
+          ${isLeader ? `
+            <div style="margin-top:10px;">
+              <button onclick="closeModal('modal-event-detail');openManageTeamModal('${ev.id}','${myTeam.id}')" style="padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11.5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                ✏️ Alter / Manage Team Members
+              </button>
             </div>
           ` : ''}
         </div>
@@ -2942,23 +3274,69 @@ function switchRegTab(which) {
 
 function regList(evs, past) {
   if (!evs.length) return `<div class="empty-state"><div class="ei">📋</div><div class="et">${past?'No past events.':'No upcoming registrations.'}</div>${!past?`<button class="btn btn-gold" style="margin-top:12px;" onclick="showPage('events')">Browse Events</button>`:''}</div>`;
-  return evs.map(e=>{
+  return evs.map(e => {
     const userTeam = (e.teams || []).find(t => t.leaderId === STATE.user?.id || (t.memberIds || []).includes(STATE.user?.id));
-    return `
-    <div class="sched-row" style="margin-bottom:8px;" onclick="openEventModal('${e.id}')">
-      <span class="sched-emoji" style="font-size:32px;">${e.emoji||'🎓'}</span>
-      <div class="sched-info">
-        <div class="sched-name" style="font-size:14px;">${e.name}</div>
-        <div class="sched-meta">${e.club}${userTeam ? ` &bull; <span style="color:#7c3aed;font-weight:700;">👥 Team: ${userTeam.name}</span>` : ''}</div>
-        <div class="sched-meta">${formatDate(e.date)} • ${formatTime(e.time)} • ${e.venue}</div>
-      </div>
-      <div style="text-align:right;">
-        <span class="att-tag ${past ? (e.attendedStudents?.includes(STATE.user.id) ? 'att-done' : 'att-reg') : 'att-reg'}" style="${past && !e.attendedStudents?.includes(STATE.user.id) ? 'background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.3);' : ''}">
-          ${past ? (e.attendedStudents?.includes(STATE.user.id) ? '✓ Attended' : '❌ Not Attended') : 'Registered'}
+    const isLeader = userTeam && userTeam.leaderId === STATE.user?.id;
+    const pendingCount = userTeam ? (userTeam.pendingEmails || []).length : 0;
+    const confirmedCount = userTeam ? (userTeam.memberIds || []).length : 1;
+    const totalTeam = confirmedCount + pendingCount;
+
+    let tagHtml = '';
+    if (past) {
+      const attended = e.attendedStudents?.includes(STATE.user?.id);
+      tagHtml = `
+        <span class="att-tag ${attended ? 'att-done' : 'att-reg'}" style="${!attended ? 'background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.3);' : ''}">
+          ${attended ? '✓ Attended' : '❌ Not Attended'}
         </span>
-        <div style="font-size:11px;color:#9ca3af;margin-top:4px;">⭐ ${e.points||0} pts</div>
+      `;
+    } else if (e.isTeamEvent && userTeam) {
+      if (pendingCount > 0) {
+        tagHtml = `
+          <span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
+            ⏳ Pending Teammates (${confirmedCount}/${totalTeam})
+          </span>
+        `;
+      } else {
+        tagHtml = `
+          <span class="att-tag" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-weight:700;">
+            ✓ Confirmed (${totalTeam} Members)
+          </span>
+        `;
+      }
+    } else {
+      tagHtml = `<span class="att-tag att-reg">Registered</span>`;
+    }
+
+    return `
+      <div class="sched-row" style="margin-bottom:8px;cursor:pointer;" onclick="openEventModal('${e.id}')">
+        <span class="sched-emoji" style="font-size:32px;">${e.emoji||'🎓'}</span>
+        <div class="sched-info">
+          <div class="sched-name" style="font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${e.name}
+            ${e.isTeamEvent && userTeam ? `
+              <span style="font-size:11px;font-weight:700;background:#f5f3ff;color:#7c3aed;padding:2px 8px;border-radius:12px;border:1px solid #ddd6fe;">
+                👥 ${userTeam.name} ${isLeader ? '👑 (Leader)' : '👤 (Member)'}
+              </span>
+            ` : ''}
+          </div>
+          <div class="sched-meta">${e.club} &bull; ${formatDate(e.date)} • ${formatTime(e.time)} • ${e.venue}</div>
+          ${e.isTeamEvent && userTeam && pendingCount > 0 ? `
+            <div style="font-size:11.5px;color:#d97706;font-weight:600;margin-top:3px;">
+              ⚠️ Waiting for email verification from: ${(userTeam.pendingEmails || []).join(', ')}
+            </div>
+          ` : ''}
+        </div>
+        <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          ${tagHtml}
+          ${isLeader ? `
+            <button onclick="event.stopPropagation();openManageTeamModal('${e.id}','${userTeam.id}')" style="padding:4px 10px;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-top:2px;">
+              ✏️ Alter Team
+            </button>
+          ` : ''}
+          <div style="font-size:11px;color:#9ca3af;">⭐ ${e.points||0} pts</div>
+        </div>
       </div>
-    </div>`;
+    `;
   }).join('');
 }
 
