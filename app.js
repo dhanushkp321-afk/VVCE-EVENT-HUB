@@ -2330,8 +2330,15 @@ async function addTeamMember() {
       sb.auth.signInWithOtp({
         email,
         options: {
+          shouldCreateUser: true,
           emailRedirectTo: inviteBase,
           data: { teamInvite: true, teamId: _teamRegTeamId, teamName: teamNameInput, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: name }
+        }
+      }).then(({ data, error }) => {
+        if (error) {
+          console.warn('Supabase OTP invite email warning for', email, error);
+        } else {
+          console.log('✅ Supabase OTP invite email dispatched immediately to', email);
         }
       }).catch(e => console.warn('Invite email failed for', email, e));
     }
@@ -2770,6 +2777,7 @@ async function resendTeamInviteEmail(email) {
       await sb.auth.signInWithOtp({
         email,
         options: {
+          shouldCreateUser: true,
           emailRedirectTo: inviteBase,
           data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: memName }
         }
@@ -2844,6 +2852,7 @@ async function replaceTeamInvitePrompt(oldEmail) {
       sb.auth.signInWithOtp({
         email: newEmail,
         options: {
+          shouldCreateUser: true,
           emailRedirectTo: inviteBase,
           data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: newName }
         }
@@ -2978,8 +2987,15 @@ async function manageTeamAddMember() {
       sb.auth.signInWithOtp({
         email,
         options: {
+          shouldCreateUser: true,
           emailRedirectTo: inviteBase,
           data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: name }
+        }
+      }).then(({ data, error }) => {
+        if (error) {
+          console.warn('Supabase OTP invite email warning for', email, error);
+        } else {
+          console.log('✅ Supabase OTP invite email dispatched immediately to', email);
         }
       }).catch(e => console.warn('Invite email failed for', email, e));
     }
