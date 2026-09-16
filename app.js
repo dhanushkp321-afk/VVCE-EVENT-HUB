@@ -3593,7 +3593,7 @@ function handlePosterUpload(e) {
   r.readAsDataURL(file);
 }
 
-function submitEvent(status='pending') {
+async function submitEvent(status='pending') {
   const name  = document.getElementById('ev-name').value.trim();
   const club  = document.getElementById('ev-club').value.trim();
   const date  = document.getElementById('ev-date').value;
@@ -3613,6 +3613,12 @@ function submitEvent(status='pending') {
   if (fee > 0 && !upiId) {
     toast('⚠️ You set a registration fee but no UPI ID. Students won\'t be able to pay. Add a UPI ID or set fee to 0.', 'error');
     return;
+  }
+
+  const submitBtn = document.querySelector('.btn-create-submit');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving to Database...';
   }
 
   const isTeamEvent = document.getElementById('ev-is-team')?.checked || false;
@@ -3638,19 +3644,19 @@ function submitEvent(status='pending') {
     status, rejReason: null, registrations: [], pendingPayments: []
   };
   events.push(ev);
-  setDB('vvce_events', events);
+  await setDB('vvce_events', events);
 
   if (status==='pending') {
-    toast(`Event "${name}" submitted for Dean approval! ✅`,'success');
+    toast(`Event "${name}" submitted and saved to database! Awaiting Dean approval. ✅`,'success');
     // Notify authority
     const users=getDB('vvce_users');
     users.filter(u=>u.type==='authority').forEach(u=>{
       if(!u.notifs) u.notifs=[];
       u.notifs.push({id:genId('n'),msg:`New event "${name}" by ${club} needs your approval.`,icon:'📋',time:'Just now',timestamp:Date.now(),read:false});
     });
-    setDB('vvce_users',users);
+    await setDB('vvce_users',users);
   } else {
-    toast(`Event saved as draft.`,'info');
+    toast(`Event saved as draft in database.`,'info');
   }
   showPage('manage-events');
 }
@@ -5074,6 +5080,17 @@ document.addEventListener('DOMContentLoaded', function() {
   // Init live CPM config sync (banners, themes, maintenance)
   // Small delay to ensure Supabase client is ready after bootApp
   setTimeout(initDynamicSiteConfig, 500);
+});
+
+// Auto-sync when navigating back via browser Back button (bfcache) or switching tabs
+window.addEventListener('pageshow', function(e) {
+  bootApp();
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    bootApp();
+  }
 });
 
 // Expose all functions to window for inline onclick handlers in HTML
