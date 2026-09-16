@@ -2142,8 +2142,18 @@ let _teamRegEventId = null;
 let _teamMembers = []; // array of email strings added by leader
 
 function toggleTeamFields() {
+  const isChecked = document.getElementById('ev-is-team')?.checked || false;
   const wrap = document.getElementById('ev-team-wrap');
-  if (wrap) wrap.style.display = document.getElementById('ev-is-team').checked ? '' : 'none';
+  const card = document.getElementById('team-event-card-wrap');
+  const title = document.getElementById('team-card-title');
+
+  if (wrap) wrap.style.display = isChecked ? 'block' : 'none';
+  if (card) {
+    card.style.background = isChecked ? '#f5f3ff' : '#f8fafc';
+    card.style.borderColor = isChecked ? '#8b5cf6' : '#e2e8f0';
+    card.style.boxShadow = isChecked ? '0 2px 8px rgba(139,92,246,0.15)' : 'none';
+  }
+  if (title) title.style.color = isChecked ? '#6d28d9' : '#0f172a';
 }
 
 function openTeamRegisterModal(ev) {
@@ -3501,22 +3511,35 @@ function renderCreateEventPage() {
           <input type="number" id="ev-points" value="10" min="0">
         </div>
 
-        <div class="toggle-row">
-          <label class="toggle-sw"><input type="checkbox" id="ev-is-team" onchange="toggleTeamFields()"><span class="toggle-track"></span></label>
-          <div class="toggle-info">
-            <div class="toggle-lbl">👥 This is a Team / Group Event</div>
-            <div class="toggle-desc">Students will register as teams with a team name and invite their members via email</div>
-          </div>
-        </div>
-        <div id="ev-team-wrap" style="display:none; margin-left:56px; margin-bottom:10px;">
-          <div class="form-row" style="grid-template-columns:1fr 1fr;">
-            <div class="form-group">
-              <label>Min Team Size</label>
-              <input type="number" id="ev-team-min" value="2" min="1" max="20">
+        <!-- Team / Group Event Configuration Card -->
+        <div id="team-event-card-wrap" style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:14px; transition:all 0.2s;">
+          <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="const cb = document.getElementById('ev-is-team'); cb.checked = !cb.checked; toggleTeamFields();">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="font-size:24px;">👥</span>
+              <div>
+                <div style="font-weight:700; font-size:14px; color:#0f172a;" id="team-card-title">This is a Team / Group Event</div>
+                <div style="font-size:12px; color:#64748b;" id="team-card-sub">Enable to allow students to form teams, set a team name, and invite teammates via email</div>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Max Team Size</label>
-              <input type="number" id="ev-team-max" value="4" min="1" max="20">
+            <label class="toggle-sw" onclick="event.stopPropagation();">
+              <input type="checkbox" id="ev-is-team" onchange="toggleTeamFields()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          
+          <div id="ev-team-wrap" style="display:none; margin-top:14px; padding-top:12px; border-top:1px solid #e2e8f0;">
+            <div style="font-size:12px; font-weight:700; color:#7c3aed; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">
+              👥 Team Size Limits (Including Team Leader)
+            </div>
+            <div class="form-row" style="grid-template-columns:1fr 1fr; margin-bottom:0;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:12px; font-weight:600; color:#374151;">Minimum Members *</label>
+                <input type="number" id="ev-team-min" value="2" min="1" max="20" style="background:#ffffff; border:1.5px solid #c4b5fd;">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:12px; font-weight:600; color:#374151;">Maximum Members *</label>
+                <input type="number" id="ev-team-max" value="4" min="1" max="20" style="background:#ffffff; border:1.5px solid #c4b5fd;">
+              </div>
             </div>
           </div>
         </div>
