@@ -2215,6 +2215,13 @@ async function submitTeamRegistration() {
     createdAt: new Date().toISOString()
   };
 
+  if (ev.fee > 0) {
+    STATE.pendingTeamReg = { evId: ev.id, team, inviteBase };
+    closeModal('modal-team-register');
+    openPaymentModal(ev);
+    return;
+  }
+
   if (!ev.teams) ev.teams = [];
   ev.teams.push(team);
 
@@ -2223,6 +2230,7 @@ async function submitTeamRegistration() {
   ev.registrations.push(STATE.user.id);
   ev.regCount = (ev.regCount || 0) + 1;
   setDB('vvce_events', events);
+
 
   // Send invites via Supabase
   const sb = getSupabaseClient();
@@ -2408,11 +2416,18 @@ window.submitPaymentForVerification = function(ev, b64) {
   // Remove if already pending to prevent duplicates
   dbEv.pendingPayments = dbEv.pendingPayments.filter(p => p.uid !== STATE.user.id);
   
-  dbEv.pendingPayments.push({
+  const paymentObj = {
     uid: STATE.user.id,
     screenshot: b64,
     date: new Date().toISOString()
-  });
+  };
+
+  if (STATE.pendingTeamReg && STATE.pendingTeamReg.evId === ev.id) {
+    paymentObj.teamData = STATE.pendingTeamReg;
+    STATE.pendingTeamReg = null;
+  }
+
+  dbEv.pendingPayments.push(paymentObj);
   
   setDB('vvce_events', events);
   closeModal('modal-payment');
@@ -3532,7 +3547,7 @@ function renderManageEventsPage() {
           <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
           <div class="ev-row-info">
             <div class="ev-row-name">${e.name}</div>
-            <div class="ev-row-meta">${formatDate(e.date)} • ${e.venue} • ${e.regCount||0}/${e.maxParticipants} registered</div>
+            <div class="ev-row-meta">${formatDate(e.date)} • ${e.venue} • ${e.isTeamEvent ? `👥 ${(e.teams||[]).length} teams (${e.regCount||0}/${e.maxParticipants})` : `👤 ${e.regCount||0}/${e.maxParticipants} registered`}</div>
             ${e.rejReason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">Rejected: ${e.rejReason}</div>`:''}
           </div>
           <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red'}">${e.status}</span>
@@ -3630,9 +3645,28 @@ window.approvePayment = function(eventId, uid) {
   const events = getDB('vvce_events');
   const ev = events.find(e => e.id === eventId);
   if (!ev) return;
-  
+  const pmt = ev.pendingPayments.find(p => p.uid === uid);
   ev.pendingPayments = ev.pendingPayments.filter(p => p.uid !== uid);
   
+  if (pmt && pmt.teamData) {
+    if (!ev.teams) ev.teams = [];
+    ev.teams.push(pmt.teamData.team);
+    
+    // Send invites via Supabase (since this runs in admin's browser, magic links still send via API)
+    const sb = getSupabaseClient();
+    if (sb && sb.auth) {
+      for (const email of pmt.teamData.team.memberEmails) {
+        sb.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: pmt.teamData.inviteBase,
+            data: { teamInvite: true, teamId: pmt.teamData.team.id, teamName: pmt.teamData.team.name, eventId: ev.id, eventName: ev.name, inviterName: pmt.teamData.team.leaderName }
+          }
+        }).catch(e => console.warn('Invite email failed', e));
+      }
+    }
+  }
+
   if (!ev.registrations) ev.registrations = [];
   if (!ev.registrations.includes(uid)) {
     ev.registrations.push(uid);
