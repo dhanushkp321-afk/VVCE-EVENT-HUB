@@ -2271,7 +2271,7 @@ async function submitTeamRegistration() {
   const siteUrl = window.location.origin + window.location.pathname;
   const inviteBase = `${siteUrl}?teamInvite=${teamId}&event=${ev.id}`;
 
-  // Create the team record
+  // Create the team record immediately so members can be invited
   const team = {
     id: teamId,
     name: teamName,
@@ -2281,45 +2281,47 @@ async function submitTeamRegistration() {
     memberEmails: [..._teamMembers],
     memberIds: [STATE.user.id],
     pendingEmails: [..._teamMembers],
+    paymentStatus: ev.fee > 0 ? 'pending' : 'free',
     createdAt: new Date().toISOString()
   };
-
-  if (ev.fee > 0) {
-    STATE.pendingTeamReg = { evId: ev.id, team, inviteBase };
-    closeModal('modal-team-register');
-    openPaymentModal(ev);
-    return;
-  }
 
   if (!ev.teams) ev.teams = [];
   ev.teams.push(team);
 
   // Register the leader
   if (!ev.registrations) ev.registrations = [];
-  ev.registrations.push(STATE.user.id);
-  ev.regCount = (ev.regCount || 0) + 1;
-  setDB('vvce_events', events);
+  if (!ev.registrations.includes(STATE.user.id)) {
+    ev.registrations.push(STATE.user.id);
+    ev.regCount = (ev.regCount || 0) + 1;
+  }
+  await setDB('vvce_events', events);
 
-
-  // Send invites via Supabase
+  // Send invites via Supabase immediately
   const sb = getSupabaseClient();
   for (const email of _teamMembers) {
     try {
       if (sb && sb.auth) {
-        await sb.auth.signInWithOtp({
+        sb.auth.signInWithOtp({
           email,
           options: {
             emailRedirectTo: inviteBase,
             data: { teamInvite: true, teamId, teamName, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name }
           }
-        });
+        }).catch(e => console.warn('Invite email failed for', email, e));
       }
-    } catch(e) { console.warn('Invite email failed for', email, e); }
+    } catch(e) { console.warn('Invite dispatch error:', e); }
   }
 
   closeModal('modal-team-register');
-  addNotif(`You registered your team "${teamName}" for "${ev.name}"! 🎉 Invite emails sent to ${_teamMembers.length} member(s).`, '👥');
-  toast(`Team "${teamName}" registered! Invite emails sent to your members. 🎉`, 'success', 5000);
+
+  if (ev.fee > 0) {
+    STATE.pendingTeamReg = { evId: ev.id, teamId, teamName };
+    toast(`Team "${teamName}" registered & invites sent! 🎉 Please upload payment proof to complete.`, 'info', 5000);
+    openPaymentModal(ev);
+  } else {
+    addNotif(`You registered your team "${teamName}" for "${ev.name}"! 🎉 Invite emails sent to ${_teamMembers.length} member(s).`, '👥');
+    toast(`Team "${teamName}" registered! Invite emails sent to your members. 🎉`, 'success', 5000);
+  }
 
   if (STATE.page === 'events') filterEvents();
   if (STATE.page === 'dashboard') renderStudentDashboard();
@@ -3807,25 +3809,13 @@ window.approvePayment = function(eventId, uid) {
   const events = getDB('vvce_events');
   const ev = events.find(e => e.id === eventId);
   if (!ev) return;
-  const pmt = ev.pendingPayments.find(p => p.uid === uid);
-  ev.pendingPayments = ev.pendingPayments.filter(p => p.uid !== uid);
+  const pmt = (ev.pendingPayments || []).find(p => p.uid === uid);
+  ev.pendingPayments = (ev.pendingPayments || []).filter(p => p.uid !== uid);
   
-  if (pmt && pmt.teamData) {
-    if (!ev.teams) ev.teams = [];
-    ev.teams.push(pmt.teamData.team);
-    
-    // Send invites via Supabase (since this runs in admin's browser, magic links still send via API)
-    const sb = getSupabaseClient();
-    if (sb && sb.auth) {
-      for (const email of pmt.teamData.team.memberEmails) {
-        sb.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: pmt.teamData.inviteBase,
-            data: { teamInvite: true, teamId: pmt.teamData.team.id, teamName: pmt.teamData.team.name, eventId: ev.id, eventName: ev.name, inviterName: pmt.teamData.team.leaderName }
-          }
-        }).catch(e => console.warn('Invite email failed', e));
-      }
+  if (pmt && pmt.teamData && pmt.teamData.teamId) {
+    const team = (ev.teams || []).find(t => t.id === pmt.teamData.teamId);
+    if (team) {
+      team.paymentStatus = 'approved';
     }
   }
 
@@ -3836,7 +3826,7 @@ window.approvePayment = function(eventId, uid) {
   }
   
   setDB('vvce_events', events);
-  addNotifToUser(uid, `Your payment for "${ev.name}" was approved! 🎉 You are now officially registered.`, '✅');
+  addNotifToUser(uid, `Your payment for "${ev.name}" was approved! 🎉 Your registration is officially confirmed.`, '✅');
   toast('Payment approved and registration confirmed.', 'success');
   renderParticipantsPage();
 };
