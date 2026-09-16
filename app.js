@@ -116,7 +116,7 @@ async function setDB(key, val) {
 
   try {
     if (key === 'vvce_events') {
-      const mapped = val.map(e => ({
+      const fullMapped = val.map(e => ({
         id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments, attended_students: e.attendedStudents || [],
         isTeamEvent: e.isTeamEvent || false,
         minTeamSize: e.minTeamSize || 1,
@@ -126,7 +126,14 @@ async function setDB(key, val) {
         waitlist_enabled: e.waitlist_enabled || false,
         publish_at: e.publish_at || null
       }));
-      await sb.from('events').upsert(mapped);
+      const { error } = await sb.from('events').upsert(fullMapped);
+      if (error) {
+        console.warn('Events full upsert warning, retrying with core schema:', error.message);
+        const coreMapped = val.map(e => ({
+          id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments, attended_students: e.attendedStudents || []
+        }));
+        await sb.from('events').upsert(coreMapped);
+      }
     } else if (key === 'vvce_users') {
       const mapped = val.map(u => ({
         id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admission_year: u.admissionYear, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profile_photo: u.profilePhoto, resume: u.resume, points: u.points, points_by_sem: u.pointsBySem, notifs: u.notifs, club_name: u.clubName, club_email: u.clubEmail, domain: u.domain, faculty: u.faculty, approved: u.approved, "desc": u.desc, designation: u.designation
