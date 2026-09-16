@@ -117,7 +117,14 @@ async function setDB(key, val) {
   try {
     if (key === 'vvce_events') {
       const mapped = val.map(e => ({
-        id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments, attended_students: e.attendedStudents || []
+        id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments, attended_students: e.attendedStudents || [],
+        isTeamEvent: e.isTeamEvent || false,
+        minTeamSize: e.minTeamSize || 1,
+        maxTeamSize: e.maxTeamSize || 1,
+        teams: e.teams || [],
+        waitlist: e.waitlist || [],
+        waitlist_enabled: e.waitlist_enabled || false,
+        publish_at: e.publish_at || null
       }));
       await sb.from('events').upsert(mapped);
     } else if (key === 'vvce_users') {
@@ -158,6 +165,33 @@ async function setDB(key, val) {
   }
 }
 
+/* Branch Matching Helper */
+function isBranchMatch(eventBranches, userBranch) {
+  if (!eventBranches || !eventBranches.length) return true;
+  if (eventBranches.includes('All') || eventBranches.includes('ALL') || eventBranches.includes('all')) return true;
+  if (!userBranch) return true;
+  
+  const ub = String(userBranch).toUpperCase().trim();
+  return eventBranches.some(eb => {
+    const b = String(eb).toUpperCase().trim();
+    if (b === 'ALL') return true;
+    if (b === ub) return true;
+    // Map CS / CSE / AIML equivalents
+    if ((ub === 'CS' || ub === 'CSE' || ub.includes('COMP')) && (b === 'CS' || b === 'CSE' || b.includes('CSE') || b.includes('COMP'))) return true;
+    // Map IS / ISE equivalents
+    if ((ub === 'IS' || ub === 'ISE' || ub.includes('INFO')) && (b === 'IS' || b === 'ISE' || b.includes('ISE') || b.includes('INFO'))) return true;
+    // Map EC / ECE equivalents
+    if ((ub === 'EC' || ub === 'ECE') && (b === 'EC' || b === 'ECE')) return true;
+    // Map EE / EEE equivalents
+    if ((ub === 'EE' || ub === 'EEE') && (b === 'EE' || b === 'EEE')) return true;
+    // Map ME / MECH equivalents
+    if ((ub === 'ME' || ub.includes('MECH')) && (b === 'ME' || b.includes('MECH'))) return true;
+    // Map CV / CIVIL equivalents
+    if ((ub === 'CV' || ub.includes('CIVIL')) && (b === 'CV' || b.includes('CIVIL'))) return true;
+    return b.includes(ub) || ub.includes(b);
+  });
+}
+
 /* Realtime Sync Helpers */
 function mapUser(u) {
   return {
@@ -167,7 +201,14 @@ function mapUser(u) {
 
 function mapEvent(e) {
   return {
-    id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time, venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, adminUpiId: e.admin_upi_id || '', points: e.points, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || []
+    id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time, venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, adminUpiId: e.admin_upi_id || '', points: e.points, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || [],
+    isTeamEvent: e.isTeamEvent ?? e.is_team_event ?? false,
+    minTeamSize: e.minTeamSize ?? e.min_team_size ?? 1,
+    maxTeamSize: e.maxTeamSize ?? e.max_team_size ?? 1,
+    teams: e.teams || [],
+    waitlist: e.waitlist || [],
+    waitlist_enabled: e.waitlist_enabled ?? e.waitlistEnabled ?? false,
+    publish_at: e.publish_at || e.publishAt || null
   };
 }
 
@@ -1664,12 +1705,11 @@ function renderStudentDashboard() {
   const regs   = events.filter(e => (e.registrations||[]).includes(user.id));
   const upcoming = regs.filter(e => new Date(e.date) >= new Date()).slice(0,4);
   const totalPts = user.points || 0;
-  const pct = Math.min(100, Math.round(totalPts / 100 * 100));
-
   const approved = events.filter(e => {
-    const isVisibleStatus = e.status === 'approved' || e.status === 'rescheduled' || 
-                            (e.status === 'scheduled' && (!e.publish_at || new Date(e.publish_at) <= new Date()));
-    const isTargetBranch = !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(user.branch);
+    const s = (e.status || '').toLowerCase().trim();
+    const isVisibleStatus = s === 'approved' || s === 'published' || s === 'rescheduled' || 
+                            (s === 'scheduled' && (!e.publish_at || new Date(e.publish_at) <= new Date()));
+    const isTargetBranch = isBranchMatch(e.branches, user.branch);
     return isVisibleStatus && isTargetBranch;
   });
   let recommended = approved.filter(e => {
@@ -1690,7 +1730,7 @@ function renderStudentDashboard() {
       !(e.pendingPayments||[]).some(p => p.uid === user.id)
     );
   }
-  recommended = recommended.slice(0,3);
+  recommended = recommended.slice(0,6);
 
   const themeGreetingHTML = (window.currentTheme && window.currentTheme.showGreeting && window.currentTheme.greeting) 
     ? `<div class="dashboard-festive-ribbon" style="background: linear-gradient(90deg, ${window.currentTheme.primary || '#f59e0b'}, ${window.currentTheme.secondary || '#fbbf24'}); color: #ffffff; padding: 12px 20px; text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.02em; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -1832,13 +1872,14 @@ function filterEvents() {
   const cat = document.querySelector('#page-events #ev-cat')?.value||'';
   const fee = document.querySelector('#page-events #ev-fee')?.value||'';
   let evs   = getDB('vvce_events').filter(e => {
-    if (e.status === 'archived' || e.status === 'draft') return false;
-    if (e.status === 'scheduled' && e.publish_at && new Date(e.publish_at) > new Date()) return false;
-    return e.status === 'approved' || e.status === 'rescheduled' || e.status === 'cancelled' || e.status === 'scheduled';
+    const s = (e.status || '').toLowerCase().trim();
+    if (s === 'archived' || s === 'draft' || s === 'pending' || s === 'rejected') return false;
+    if (s === 'scheduled' && e.publish_at && new Date(e.publish_at) > new Date()) return false;
+    return s === 'approved' || s === 'published' || s === 'rescheduled' || s === 'cancelled' || s === 'scheduled';
   });
 
   if (STATE.user && STATE.user.type === 'student') {
-    evs = evs.filter(e => !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(STATE.user.branch));
+    evs = evs.filter(e => isBranchMatch(e.branches, STATE.user.branch));
   }
 
   if (q)   evs = evs.filter(e => (e.name||'').toLowerCase().includes(q)||(e.club||'').toLowerCase().includes(q)||(e.desc||'').toLowerCase().includes(q));
