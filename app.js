@@ -2554,9 +2554,9 @@ function openEventModal(id) {
       ${detailChip('🎓','Target Branches',(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches')}
       <div style="grid-column:1/-1;">${detailChip('💰','Fee',ev.fee>0?`₹${ev.fee}`:'FREE')}</div>
     </div>
-    ${ev.desc?`<div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:1rem;"><div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:6px;">About</div><p style="font-size:13px;color:#374151;line-height:1.7;">${ev.desc}</p></div>`:''}
-    ${ev.speakers?`<div style="font-size:12px;color:#6b7280;margin-bottom:8px;">Speakers: <strong style="color:#111827;">${ev.speakers}</strong></div>`:''}
-    ${ev.rules?`<div style="font-size:12px;color:#6b7280;margin-bottom:12px;">Rules: ${ev.rules}</div>`:''}
+    ${ev.desc?`<div style="background:#fffdf5;border:1px solid #fef08a;border-left:4px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:1rem;"><div style="font-size:11px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;gap:5px;">📝 Event Description</div><p style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-line;margin:0;">${ev.desc}</p></div>`:''}
+    ${ev.speakers?`<div style="font-size:12px;color:#6b7280;margin-bottom:10px;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;">🎙️ Speakers: <strong style="color:#111827;">${ev.speakers}</strong></div>`:''}
+    ${ev.rules?`<div style="background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;border-radius:8px;padding:12px 14px;margin-bottom:1rem;"><div style="font-size:11px;font-weight:800;color:#b91c1c;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;gap:5px;">⚖️ Important Rules & Terms</div><p style="font-size:13px;color:#374151;line-height:1.7;white-space:pre-line;margin:0;">${ev.rules}</p></div>`:''}
     <div style="font-size:12px;color:#6b7280;margin-bottom:1rem;">Organized by: <strong style="color:#111827;">${ev.club}</strong></div>
     ${user?.type==='student' ? `
       <div style="display:flex;gap:10px;margin-top:6px;">
@@ -3332,7 +3332,16 @@ function renderCreateEventPage() {
           <div class="form-group"><label>Club / Organizer Name *</label><input type="text" id="ev-club" value="${STATE.user.clubName||''}" placeholder="e.g. CSE Club"></div>
         </div>
 
-        <div class="form-group"><label>Description</label><textarea id="ev-desc" rows="3" placeholder="Describe the event, schedule, prizes, etc."></textarea></div>
+        <div class="form-group" style="background:#fffbeb; border:1.5px solid #fde68a; border-radius:12px; padding:14px; margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <label style="font-weight:700; color:#b45309; margin:0; display:flex; align-items:center; gap:6px;">
+              📝 Event Description *
+            </label>
+            <span style="font-size:11px; background:#fef3c7; color:#b45309; border:1px solid #fcd34d; padding:2px 8px; border-radius:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">⚠️ Important</span>
+          </div>
+          <textarea id="ev-desc" rows="4" placeholder="Provide a detailed description of the event, itinerary, prizes, key takeaways, etc." style="width:100%; border:1.5px solid #fcd34d; border-radius:8px; padding:10px 12px; font-size:13.5px; background:#ffffff; outline:none; box-sizing:border-box; font-family:'Inter',sans-serif;"></textarea>
+          <div style="font-size:11px; color:#92400e; margin-top:5px; font-weight:500;">💡 Detailed descriptions attract more students and help with authority approval.</div>
+        </div>
 
         <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
           <div class="form-group"><label>Event Date *</label><input type="date" id="ev-date"></div>
@@ -3435,7 +3444,16 @@ function renderCreateEventPage() {
 
         <div class="form-group"><label>Speakers / Resource Persons</label><input type="text" id="ev-speakers" placeholder="Dr. Ramesh Kumar, Prof. Meena S"></div>
 
-        <div class="form-group"><label>Rules / Terms</label><textarea id="ev-rules" rows="2" placeholder="Any specific requirements..."></textarea></div>
+        <div class="form-group" style="background:#fef2f2; border:1.5px solid #fecaca; border-radius:12px; padding:14px; margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <label style="font-weight:700; color:#b91c1c; margin:0; display:flex; align-items:center; gap:6px;">
+              ⚖️ Rules / Terms & Guidelines *
+            </label>
+            <span style="font-size:11px; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; padding:2px 8px; border-radius:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">⚠️ Crucial</span>
+          </div>
+          <textarea id="ev-rules" rows="3" placeholder="Specify team guidelines, eligibility criteria, submission rules, dress code, dos and don'ts..." style="width:100%; border:1.5px solid #fca5a5; border-radius:8px; padding:10px 12px; font-size:13.5px; background:#ffffff; outline:none; box-sizing:border-box; font-family:'Inter',sans-serif;"></textarea>
+          <div style="font-size:11px; color:#991b1b; margin-top:5px; font-weight:500;">💡 Clearly stated rules prevent disputes and guide participants during the event.</div>
+        </div>
 
         <div class="form-divider">Event Poster (optional)</div>
         <div class="upload-zone" onclick="document.getElementById('ev-poster-input').click()">
