@@ -419,6 +419,7 @@ async function bootApp() {
       SUPABASE_CACHE.vvce_princ_attend = [];
     }
     setupRealtimeSync();
+    checkTeamInviteUrl();
     
     // Refresh UI to display the freshly loaded data from Supabase
     if (STATE.page && !document.activeElement.tagName.match(/INPUT|TEXTAREA|SELECT/)) {
@@ -1388,6 +1389,7 @@ function launchApp(user) {
 
   renderSidebar();
   renderTopbarUser();
+  checkTeamInviteUrl();
 
   if (user.type === 'student') showPage('dashboard');
   else if (user.type === 'admin') showPage('admin-dashboard');
@@ -2327,79 +2329,154 @@ async function submitTeamRegistration() {
   if (STATE.page === 'dashboard') renderStudentDashboard();
 }
 
-// Called on page load — checks if URL has a teamInvite param
+// Called on page load & after auth/event sync — checks if URL or session has a teamInvite param
 function checkTeamInviteUrl() {
   const params = new URLSearchParams(window.location.search);
-  const teamId = params.get('teamInvite');
-  const eventId = params.get('event');
+  let teamId = params.get('teamInvite');
+  let eventId = params.get('event');
+
+  if (teamId && eventId) {
+    try {
+      sessionStorage.setItem('vvce_pending_invite', JSON.stringify({ teamId, eventId }));
+    } catch(e) {}
+    try { window.history.replaceState({}, '', window.location.pathname); } catch(e){}
+  } else {
+    try {
+      const saved = sessionStorage.getItem('vvce_pending_invite');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        teamId = parsed.teamId;
+        eventId = parsed.eventId;
+      }
+    } catch(e) {}
+  }
+
   if (!teamId || !eventId) return;
 
   const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === eventId);
-  if (!ev) return;
-  const team = (ev.teams || []).find(t => t.id === teamId);
+  const ev = events.find(e => String(e.id) === String(eventId));
+  if (!ev) return; // Keep in sessionStorage until events are loaded from Supabase
+
+  const team = (ev.teams || []).find(t => String(t.id) === String(teamId));
   if (!team) return;
+
+  window._pendingTeamInvite = { teamId, eventId };
+
+  // If user is already registered for this event, auto-dismiss
+  if (STATE.user && (ev.registrations || []).includes(STATE.user.id)) {
+    const banner = document.getElementById('team-invite-banner');
+    if (banner) banner.style.display = 'none';
+    try { sessionStorage.removeItem('vvce_pending_invite'); } catch(e){}
+    return;
+  }
 
   // Show invite banner
   const banner = document.getElementById('team-invite-banner');
   const msgEl = document.getElementById('invite-banner-msg');
   const subEl = document.getElementById('invite-banner-sub');
+  const btnEl = document.getElementById('invite-banner-btn');
   if (banner && msgEl) {
     msgEl.textContent = `You've been invited to join "${team.name}" for ${ev.name}!`;
-    subEl.textContent = `Invited by ${team.leaderName}. Click Accept to register for this event.`;
-    banner.style.display = '';
-    // Store invite info for accept action
-    window._pendingTeamInvite = { teamId, eventId };
-    // Clear URL params without reload
-    window.history.replaceState({}, '', window.location.pathname);
+    if (STATE.user) {
+      const userEmail = (STATE.user.email || '').toLowerCase();
+      const isTarget = (team.pendingEmails || []).some(e => e.toLowerCase() === userEmail) || (team.memberEmails || []).some(e => e.toLowerCase() === userEmail);
+      if (isTarget) {
+        subEl.textContent = `Invited by ${team.leaderName}. Click Accept to join this team!`;
+      } else {
+        subEl.textContent = `Invited by ${team.leaderName} for (${team.memberEmails.join(', ')}). Currently signed in as ${STATE.user.email}.`;
+      }
+      if (btnEl) btnEl.textContent = '✅ Accept & Join Team';
+    } else {
+      subEl.textContent = `Invited by ${team.leaderName}. Please sign in to accept your invitation.`;
+      if (btnEl) btnEl.textContent = '🔑 Sign In to Accept';
+    }
+    banner.style.display = 'block';
   }
 }
 
-function acceptTeamInvite() {
-  if (!window._pendingTeamInvite) return;
-  const { teamId, eventId } = window._pendingTeamInvite;
+window.dismissTeamInviteBanner = function() {
+  const banner = document.getElementById('team-invite-banner');
+  if (banner) banner.style.display = 'none';
+  try { sessionStorage.removeItem('vvce_pending_invite'); } catch(e){}
+  window._pendingTeamInvite = null;
+};
+
+async function acceptTeamInvite() {
+  let invite = window._pendingTeamInvite;
+  if (!invite) {
+    try {
+      const saved = sessionStorage.getItem('vvce_pending_invite');
+      if (saved) invite = JSON.parse(saved);
+    } catch(e) {}
+  }
+  if (!invite) return;
+  const { teamId, eventId } = invite;
 
   if (!STATE.user) {
-    toast('Please sign in first to accept the team invite.', 'warning');
-    document.getElementById('team-invite-banner').style.display = 'none';
+    toast('Please sign in with your @vvce.ac.in account to accept the team invite.', 'info');
+    if (document.getElementById('auth-screen')?.style.display !== 'none') {
+      const emailInput = document.getElementById('login-email');
+      if (emailInput) {
+        emailInput.focus();
+        showAuthMsg('Please sign in to join your team.', 'info');
+      }
+    }
     return;
   }
 
   const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === eventId);
-  if (!ev) return;
-  const team = (ev.teams || []).find(t => t.id === teamId);
-  if (!team) return;
+  const ev = events.find(e => String(e.id) === String(eventId));
+  if (!ev) {
+    toast('Event not found or no longer active.', 'error');
+    return;
+  }
+  const team = (ev.teams || []).find(t => String(t.id) === String(teamId));
+  if (!team) {
+    toast('Team not found or registration was removed.', 'error');
+    return;
+  }
 
   if ((ev.registrations || []).includes(STATE.user.id)) {
     toast('You are already registered for this event!', 'info');
-    document.getElementById('team-invite-banner').style.display = 'none';
+    dismissTeamInviteBanner();
     return;
   }
 
   // Check email matches an invite
-  const userEmail = STATE.user.email.toLowerCase();
-  if (!team.pendingEmails.map(e => e.toLowerCase()).includes(userEmail)) {
-    toast('This invite was not sent to your email address.', 'error');
+  const userEmail = (STATE.user.email || '').toLowerCase();
+  const allowed = (team.pendingEmails || []).some(e => e.toLowerCase() === userEmail) || (team.memberEmails || []).some(e => e.toLowerCase() === userEmail);
+  if (!allowed) {
+    toast(`This invite was sent to team members (${team.memberEmails.join(', ')}). Your signed-in email is ${STATE.user.email}.`, 'error');
     return;
   }
 
   // Accept: register user, move from pending to memberIds
   if (!ev.registrations) ev.registrations = [];
-  ev.registrations.push(STATE.user.id);
-  ev.regCount = (ev.regCount || 0) + 1;
-  team.memberIds.push(STATE.user.id);
-  team.pendingEmails = team.pendingEmails.filter(e => e.toLowerCase() !== userEmail);
-  setDB('vvce_events', events);
+  if (!ev.registrations.includes(STATE.user.id)) {
+    ev.registrations.push(STATE.user.id);
+    ev.regCount = (ev.regCount || 0) + 1;
+  }
+  if (!team.memberIds) team.memberIds = [];
+  if (!team.memberIds.includes(STATE.user.id)) {
+    team.memberIds.push(STATE.user.id);
+  }
+  if (team.pendingEmails) {
+    team.pendingEmails = team.pendingEmails.filter(e => e.toLowerCase() !== userEmail);
+  }
 
-  document.getElementById('team-invite-banner').style.display = 'none';
-  window._pendingTeamInvite = null;
+  await setDB('vvce_events', events);
+
+  dismissTeamInviteBanner();
 
   addNotif(`You joined team "${team.name}" for "${ev.name}"! 🎉`, '👥');
-  toast(`Welcome to team "${team.name}"! You are now registered for ${ev.name}. 🎉`, 'success', 5000);
+  if (team.leaderId) {
+    addNotifToUser(team.leaderId, `${STATE.user.name} accepted the invite and joined your team "${team.name}"! 🎉`, '👥');
+  }
+  toast(`Welcome to team "${team.name}"! You are now officially registered for ${ev.name}. 🎉`, 'success', 5000);
 
   if (STATE.page === 'events') filterEvents();
   if (STATE.page === 'dashboard') renderStudentDashboard();
+  if (STATE.page === 'registrations') renderRegistrationsPage();
 }
 
 
@@ -2595,10 +2672,23 @@ function unregisterEv(id) {
   if (!ev) return;
   ev.registrations = (ev.registrations||[]).filter(uid => uid !== STATE.user.id);
   ev.regCount = Math.max(0, (ev.regCount||1) - 1);
+  
+  if (ev.isTeamEvent && ev.teams) {
+    ev.teams.forEach(t => {
+      if (t.memberIds && t.memberIds.includes(STATE.user.id)) {
+        t.memberIds = t.memberIds.filter(uid => uid !== STATE.user.id);
+        if (STATE.user.email && t.pendingEmails && !t.pendingEmails.includes(STATE.user.email.toLowerCase())) {
+          t.pendingEmails.push(STATE.user.email.toLowerCase());
+        }
+      }
+    });
+  }
+
   setDB('vvce_events', events);
   toast('Unregistered from event.','info');
   if (STATE.page==='events') filterEvents();
   if (STATE.page==='dashboard') renderStudentDashboard();
+  if (STATE.page==='registrations') renderRegistrationsPage();
 }
 
 function openEventModal(id) {
@@ -2608,11 +2698,37 @@ function openEventModal(id) {
   const isReg = (ev.registrations||[]).includes(user?.id);
   const isFull= ev.regCount >= ev.maxParticipants;
 
+  let teamInfoHtml = '';
+  if (ev.isTeamEvent && (ev.teams || []).length > 0 && user) {
+    const myTeam = (ev.teams || []).find(t => t.leaderId === user.id || (t.memberIds || []).includes(user.id) || (t.pendingEmails || []).includes((user.email||'').toLowerCase()));
+    if (myTeam) {
+      const isLeader = myTeam.leaderId === user.id;
+      const isConfirmed = isLeader || (myTeam.memberIds || []).includes(user.id);
+      teamInfoHtml = `
+        <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:12px 14px;margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-weight:800;color:#6d28d9;font-size:13.5px;">👥 Team: ${myTeam.name}</span>
+            <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;background:${isLeader ? '#7c3aed;color:#fff;' : '#ede9fe;color:#6d28d9;'}">${isLeader ? '👑 Team Leader' : (isConfirmed ? '👤 Confirmed Member' : '⏳ Invited Member')}</span>
+          </div>
+          <div style="font-size:12px;color:#4b5563;">
+            Leader: <strong>${myTeam.leaderName}</strong> &bull; Status: <span style="font-weight:700;color:${myTeam.paymentStatus === 'approved' || myTeam.paymentStatus === 'free' ? '#10b981' : '#f59e0b'}">${myTeam.paymentStatus === 'approved' ? '✅ Confirmed' : (myTeam.paymentStatus === 'free' ? '✅ Active' : '⏳ Verification Pending')}</span>
+          </div>
+          ${myTeam.pendingEmails && myTeam.pendingEmails.length ? `
+            <div style="font-size:11.5px;color:#9ca3af;margin-top:4px;">
+              ⏳ Pending Member Invites: ${myTeam.pendingEmails.join(', ')}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+  }
+
   document.getElementById('modal-event-title').textContent = ev.name;
   document.getElementById('modal-event-body').innerHTML = `
     <div style="background:linear-gradient(135deg,#1e2a3d,#0f172a);border-radius:12px;height:160px;display:flex;align-items:center;justify-content:center;font-size:80px;margin-bottom:1.25rem;position:relative;overflow:hidden;">
       ${ev.poster?`<img src="${ev.poster}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">`:`<span>${ev.emoji||'🎓'}</span>`}
     </div>
+    ${teamInfoHtml}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem;">
       ${detailChip('📅','Date',formatDate(ev.date))}
       ${detailChip('🕐','Time',formatTime(ev.time))}
@@ -2826,12 +2942,14 @@ function switchRegTab(which) {
 
 function regList(evs, past) {
   if (!evs.length) return `<div class="empty-state"><div class="ei">📋</div><div class="et">${past?'No past events.':'No upcoming registrations.'}</div>${!past?`<button class="btn btn-gold" style="margin-top:12px;" onclick="showPage('events')">Browse Events</button>`:''}</div>`;
-  return evs.map(e=>`
+  return evs.map(e=>{
+    const userTeam = (e.teams || []).find(t => t.leaderId === STATE.user?.id || (t.memberIds || []).includes(STATE.user?.id));
+    return `
     <div class="sched-row" style="margin-bottom:8px;" onclick="openEventModal('${e.id}')">
       <span class="sched-emoji" style="font-size:32px;">${e.emoji||'🎓'}</span>
       <div class="sched-info">
         <div class="sched-name" style="font-size:14px;">${e.name}</div>
-        <div class="sched-meta">${e.club}</div>
+        <div class="sched-meta">${e.club}${userTeam ? ` &bull; <span style="color:#7c3aed;font-weight:700;">👥 Team: ${userTeam.name}</span>` : ''}</div>
         <div class="sched-meta">${formatDate(e.date)} • ${formatTime(e.time)} • ${e.venue}</div>
       </div>
       <div style="text-align:right;">
@@ -2840,7 +2958,8 @@ function regList(evs, past) {
         </span>
         <div style="font-size:11px;color:#9ca3af;margin-top:4px;">⭐ ${e.points||0} pts</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 

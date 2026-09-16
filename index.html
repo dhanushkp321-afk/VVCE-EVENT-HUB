@@ -890,8 +890,8 @@
       <div style="font-weight:800; font-size:15px;" id="invite-banner-msg"></div>
       <div style="font-size:12px; opacity:0.85;" id="invite-banner-sub"></div>
     </div>
-    <button onclick="acceptTeamInvite()" style="padding:9px 20px; background:#fff; color:#4f46e5; border:none; border-radius:8px; font-weight:800; font-size:13px; cursor:pointer;">✅ Accept &amp; Join Team</button>
-    <button onclick="document.getElementById('team-invite-banner').style.display='none'" style="padding:9px 12px; background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.4); border-radius:8px; font-size:12px; cursor:pointer;">Dismiss</button>
+    <button id="invite-banner-btn" onclick="acceptTeamInvite()" style="padding:9px 20px; background:#fff; color:#4f46e5; border:none; border-radius:8px; font-weight:800; font-size:13px; cursor:pointer;">✅ Accept &amp; Join Team</button>
+    <button onclick="dismissTeamInviteBanner()" style="padding:9px 12px; background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.4); border-radius:8px; font-size:12px; cursor:pointer;">Dismiss</button>
   </div>
 </div>
 
