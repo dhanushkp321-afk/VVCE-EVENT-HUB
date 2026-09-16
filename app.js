@@ -1923,6 +1923,14 @@ function eventCard(ev) {
           <div class="ev-meta">⭐ ${ev.points||0} pts &nbsp;|&nbsp; ${ev.fee>0?`<span style="color:#b45309;">₹${ev.fee}</span>`:`<span style="color:#15803d;">FREE</span>`}</div>
           <div class="ev-meta" style="color:#6366f1;font-weight:600;">🎓 Open to: ${(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches'}</div>
           ${ev.isTeamEvent ? `<div class="ev-meta" style="color:#7c3aed;font-weight:700;">👥 Team Event &nbsp;|&nbsp; ${ev.minTeamSize}–${ev.maxTeamSize} members</div>` : ''}
+          ${ev.desc ? `
+            <div style="background:#fffdf5;border-left:3px solid #f59e0b;padding:6px 9px;border-radius:6px;font-size:11.5px;color:#78350f;line-height:1.45;margin-top:7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+              <strong style="color:#b45309;">📝 Description:</strong> ${ev.desc}
+            </div>` : ''}
+          ${ev.rules ? `
+            <div style="background:#fef2f2;border-left:3px solid #ef4444;padding:6px 9px;border-radius:6px;font-size:11px;color:#7f1d1d;line-height:1.4;margin-top:5px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">
+              <strong style="color:#b91c1c;">⚖️ Rules:</strong> ${ev.rules}
+            </div>` : ''}
         </div>
         <div class="ev-foot">
           <span class="ev-seats ${isFull?'full':''}">${
@@ -2595,9 +2603,21 @@ function openEventModal(id) {
       ${detailChip('🎓','Target Branches',(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches')}
       <div style="grid-column:1/-1;">${detailChip('💰','Fee',ev.fee>0?`₹${ev.fee}`:'FREE')}</div>
     </div>
-    ${ev.desc?`<div style="background:#fffdf5;border:1px solid #fef08a;border-left:4px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:1rem;"><div style="font-size:11px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;gap:5px;">📝 Event Description</div><p style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-line;margin:0;">${ev.desc}</p></div>`:''}
+    ${ev.desc?`
+      <div style="background:#fffdf5;border:1.5px solid #fef08a;border-left:5px solid #f59e0b;border-radius:10px;padding:14px 16px;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+        <div style="font-size:11.5px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+          📝 Event Description
+        </div>
+        <p style="font-size:13.5px;color:#1e293b;line-height:1.75;white-space:pre-line;margin:0;font-weight:500;">${ev.desc}</p>
+      </div>`:''}
     ${ev.speakers?`<div style="font-size:12px;color:#6b7280;margin-bottom:10px;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;">🎙️ Speakers: <strong style="color:#111827;">${ev.speakers}</strong></div>`:''}
-    ${ev.rules?`<div style="background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;border-radius:8px;padding:12px 14px;margin-bottom:1rem;"><div style="font-size:11px;font-weight:800;color:#b91c1c;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;gap:5px;">⚖️ Important Rules & Terms</div><p style="font-size:13px;color:#374151;line-height:1.7;white-space:pre-line;margin:0;">${ev.rules}</p></div>`:''}
+    ${ev.rules?`
+      <div style="background:#fef2f2;border:1.5px solid #fecaca;border-left:5px solid #ef4444;border-radius:10px;padding:14px 16px;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+        <div style="font-size:11.5px;font-weight:800;color:#b91c1c;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+          ⚖️ Important Rules &amp; Guidelines
+        </div>
+        <p style="font-size:13.5px;color:#1e293b;line-height:1.75;white-space:pre-line;margin:0;font-weight:500;">${ev.rules}</p>
+      </div>`:''}
     <div style="font-size:12px;color:#6b7280;margin-bottom:1rem;">Organized by: <strong style="color:#111827;">${ev.club}</strong></div>
     ${user?.type==='student' ? `
       <div style="display:flex;gap:10px;margin-top:6px;">
