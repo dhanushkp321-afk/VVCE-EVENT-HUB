@@ -2377,6 +2377,16 @@ function checkTeamInviteUrl() {
     return;
   }
 
+  // If user is logged in and was invited to this team, auto-accept immediately upon email verification click!
+  if (STATE.user) {
+    const userEmail = (STATE.user.email || '').toLowerCase();
+    const isPendingInvite = (team.pendingEmails || []).some(e => e.toLowerCase() === userEmail);
+    if (isPendingInvite) {
+      acceptTeamInvite();
+      return;
+    }
+  }
+
   // Show invite banner
   const banner = document.getElementById('team-invite-banner');
   const msgEl = document.getElementById('invite-banner-msg');
@@ -2388,13 +2398,13 @@ function checkTeamInviteUrl() {
       const userEmail = (STATE.user.email || '').toLowerCase();
       const isTarget = (team.pendingEmails || []).some(e => e.toLowerCase() === userEmail) || (team.memberEmails || []).some(e => e.toLowerCase() === userEmail);
       if (isTarget) {
-        subEl.textContent = `Invited by ${team.leaderName}. Click Accept to join this team!`;
+        subEl.textContent = `Invited by ${team.leaderName}. Click Accept to verify and join this team!`;
       } else {
         subEl.textContent = `Invited by ${team.leaderName} for (${team.memberEmails.join(', ')}). Currently signed in as ${STATE.user.email}.`;
       }
       if (btnEl) btnEl.textContent = '✅ Accept & Join Team';
     } else {
-      subEl.textContent = `Invited by ${team.leaderName}. Please sign in to accept your invitation.`;
+      subEl.textContent = `Invited by ${team.leaderName}. Please sign in to verify and be added to the team.`;
       if (btnEl) btnEl.textContent = '🔑 Sign In to Accept';
     }
     banner.style.display = 'block';
@@ -2560,7 +2570,7 @@ function openManageTeamModal(eventId, teamId) {
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:11px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:12px;">✓ Joined</span>
+            <span style="font-size:11px; font-weight:700; color:#15803d; background:#dcfce7; border:1px solid #86efac; padding:3px 10px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;">✓ Added</span>
             ${isLeader ? `<button onclick="removeConfirmedTeamMember('${m.id}')" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">Remove</button>` : ''}
           </div>
         </div>
@@ -2572,7 +2582,7 @@ function openManageTeamModal(eventId, teamId) {
   const pendingListEl = document.getElementById('manage-team-pending-list');
   if (pendingListEl) {
     if ((team.pendingEmails || []).length === 0) {
-      pendingListEl.innerHTML = `<div style="font-size:12px; color:#15803d; font-weight:600; padding:6px 0;">🎉 All invited teammates have accepted their invitations!</div>`;
+      pendingListEl.innerHTML = `<div style="font-size:12px; color:#15803d; font-weight:600; padding:6px 0;">🎉 All invited teammates have verified their emails and are Added!</div>`;
     } else {
       pendingListEl.innerHTML = (team.pendingEmails || []).map((email, idx) => `
         <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#fffdf5; border:1px solid #fef08a; border-radius:8px; margin-bottom:6px; font-size:13px; flex-wrap:wrap; gap:6px;">
@@ -2580,16 +2590,19 @@ function openManageTeamModal(eventId, teamId) {
             <span>✉️</span>
             <div>
               <div style="font-weight:600; color:#374151;">${email}</div>
-              <div style="font-size:11px; color:#b45309;">⏳ Awaiting Email Verification</div>
+              <div style="font-size:11px; color:#b45309;">⏳ Awaiting Email Link Click</div>
             </div>
           </div>
           ${isLeader ? `
             <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px;">⏳ Pending</span>
               <button onclick="resendTeamInviteEmail('${email}')" title="Resend Magic Link Email" style="padding:4px 8px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔁 Resend</button>
               <button onclick="replaceTeamInvitePrompt('${email}')" title="Change to another email address" style="padding:4px 8px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Replace</button>
               <button onclick="removePendingTeamInvite('${email}')" title="Remove this invite" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🗑️</button>
             </div>
-          ` : ''}
+          ` : `
+            <span style="font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px;">⏳ Pending</span>
+          `}
         </div>
       `).join('');
     }
@@ -3029,20 +3042,55 @@ function openEventModal(id) {
       const confirmedCount = (myTeam.memberIds || []).length;
       const totalTeam = confirmedCount + pendingCount;
 
+      const allUsers = getDB('vvce_users', []);
+      const confirmedUsers = allUsers.filter(u => (myTeam.memberIds || []).includes(u.id));
+
       teamInfoHtml = `
-        <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:12px 14px;margin-bottom:1rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-weight:800;color:#6d28d9;font-size:13.5px;">👥 Team: ${myTeam.name}</span>
-            <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;background:${isLeader ? '#7c3aed;color:#fff;' : '#ede9fe;color:#6d28d9;'}">${isLeader ? '👑 Team Leader' : (isConfirmed ? '👤 Confirmed Member' : '⏳ Invited Member')}</span>
+        <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:12px;padding:14px 16px;margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-weight:800;color:#6d28d9;font-size:14px;">👥 Team: ${myTeam.name}</span>
+            <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;background:${isLeader ? '#7c3aed;color:#fff;' : '#ede9fe;color:#6d28d9;'}">${isLeader ? '👑 Team Leader' : (isConfirmed ? '👤 Verified Member' : '⏳ Invited Member')}</span>
           </div>
-          <div style="font-size:12px;color:#4b5563;">
-            Leader: <strong>${myTeam.leaderName}</strong> &bull; Registration: <span style="font-weight:700;color:${pendingCount === 0 ? '#10b981' : '#f59e0b'}">${pendingCount === 0 ? '✅ Confirmed (' + totalTeam + ' members verified)' : '⏳ Pending Member Verification (' + confirmedCount + '/' + totalTeam + ')'}</span>
+
+          <div style="font-size:12px;color:#4b5563;margin-bottom:10px;">
+            Leader: <strong>${myTeam.leaderName}</strong> &bull; Roster Status: <span style="font-weight:700;color:${pendingCount === 0 ? '#10b981' : '#f59e0b'}">${pendingCount === 0 ? '✅ All ' + totalTeam + ' Members Added & Confirmed' : '⏳ ' + confirmedCount + '/' + totalTeam + ' Members Added (' + pendingCount + ' Pending Verification)'}</span>
           </div>
-          ${pendingCount > 0 ? `
-            <div style="font-size:11.5px;color:#b45309;margin-top:5px;background:#fffbeb;padding:6px 10px;border-radius:6px;border:1px solid #fde68a;">
-              ⚠️ <strong>Awaiting email verification:</strong> ${myTeam.pendingEmails.join(', ')}
+
+          <!-- Team Roster Badges -->
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">
+            <!-- Leader -->
+            <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e2e8f0;padding:6px 10px;border-radius:8px;font-size:12px;">
+              <span style="font-weight:600;color:#1e293b;">👑 ${myTeam.leaderName} <span style="font-size:11px;color:#64748b;">(${myTeam.leaderEmail})</span></span>
+              <span style="font-size:10.5px;font-weight:700;color:#15803d;background:#dcfce7;border:1px solid #86efac;padding:2px 8px;border-radius:10px;">✓ Leader (Added)</span>
             </div>
-          ` : ''}
+
+            <!-- Confirmed Members -->
+            ${confirmedUsers.filter(u => u.id !== myTeam.leaderId).map(u => `
+              <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e2e8f0;padding:6px 10px;border-radius:8px;font-size:12px;">
+                <span style="font-weight:600;color:#1e293b;">👤 ${u.name} <span style="font-size:11px;color:#64748b;">(${u.email})</span></span>
+                <span style="font-size:10.5px;font-weight:700;color:#15803d;background:#dcfce7;border:1px solid #86efac;padding:2px 8px;border-radius:10px;">✓ Added</span>
+              </div>
+            `).join('')}
+
+            <!-- Pending Members -->
+            ${(myTeam.pendingEmails || []).map(email => `
+              <div style="display:flex;align-items:center;justify-content:space-between;background:#fffdf5;border:1px solid #fef08a;padding:6px 10px;border-radius:8px;font-size:12px;">
+                <span style="font-weight:500;color:#78350f;">✉️ ${email}</span>
+                <span style="font-size:10.5px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fde68a;padding:2px 8px;border-radius:10px;">⏳ Invite Pending</span>
+              </div>
+            `).join('')}
+          </div>
+
+          ${pendingCount === 0 ? `
+            <div style="font-size:11.5px;font-weight:700;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;padding:6px 10px;border-radius:6px;margin-top:6px;">
+              ✅ All team members have verified via email and are confirmed as added!
+            </div>
+          ` : `
+            <div style="font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;padding:6px 10px;border-radius:6px;margin-top:6px;">
+              ⏳ <strong>Pending Verification:</strong> When invited members click their email links, their status turns green as <strong>Added</strong>.
+            </div>
+          `}
+
           ${isLeader ? `
             <div style="margin-top:10px;">
               <button onclick="closeModal('modal-event-detail');openManageTeamModal('${ev.id}','${myTeam.id}')" style="padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11.5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
@@ -4373,11 +4421,12 @@ function renderParticipantTable() {
                 <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:5px 10px; font-size:12px; color:#cbd5e1;">
                   ${m.id === team.leaderId ? '⭐' : '👤'} <span>${titleCase(m.name)}</span>
                   <span style="color:#6b7280; font-size:11px;">${m.usn||m.email}</span>
+                  <span style="font-size:10px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); padding:1px 6px; border-radius:10px;">✓ Added</span>
                 </div>`).join('')}
               ${team.pendingEmails.map(email => `
                 <div style="display:flex; align-items:center; gap:6px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); border-radius:8px; padding:5px 10px; font-size:12px; color:#fbbf24;">
                   ✉️ <span>${email}</span>
-                  <span style="font-size:10px; color:#f59e0b; background:rgba(245,158,11,0.1); padding:1px 6px; border-radius:10px;">Invite Sent</span>
+                  <span style="font-size:10px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); padding:1px 6px; border-radius:10px;">⏳ Pending</span>
                 </div>`).join('')}
             </div>
           </div>`;
