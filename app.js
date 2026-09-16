@@ -3417,23 +3417,46 @@ function renderCreateEventPage() {
 
         <!-- Target Branches -->
         <div class="form-group" style="margin-bottom:18px;">
-          <label style="display:flex;align-items:center;gap:8px;">🎓 Target Branches
-            <span style="font-size:11px;color:#9ca3af;font-weight:400;">— Hold Ctrl / Cmd to select multiple</span>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:#1e293b;margin-bottom:4px;">
+            🎓 Target Branches (Select Multiple)
           </label>
-          <select id="ev-branches" multiple
-            style="width:100%;border-radius:10px;padding:8px 10px;background:#1e2a3d;
-            border:1.5px solid rgba(99,102,241,0.3);color:#e2e8f0;font-size:13px;
-            font-family:'Outfit',sans-serif;outline:none;height:130px;cursor:pointer;">
-            <option value="All" selected style="padding:6px;">🏫 All Branches (Open to Everyone)</option>
-            <option value="CSE"  style="padding:6px;">💻 CSE — Computer Science &amp; Engineering</option>
-            <option value="CSE/AIML" style="padding:6px;">🤖 CSE / AI&amp;ML — Artificial Intelligence &amp; Machine Learning</option>
-            <option value="ECE"  style="padding:6px;">📡 ECE — Electronics &amp; Communication Engineering</option>
-            <option value="ME"   style="padding:6px;">⚙️ ME — Mechanical Engineering</option>
-            <option value="EEE"  style="padding:6px;">⚡ EEE — Electrical &amp; Electronics Engineering</option>
-            <option value="CV"   style="padding:6px;">🏗️ CV — Civil Engineering</option>
-            <option value="ISE"  style="padding:6px;">🖥️ ISE — Information Science &amp; Engineering</option>
-          </select>
-          <div style="font-size:11px;color:#6b7280;margin-top:5px;">Select <strong style="color:#a5b4fc;">All Branches</strong> to open the event to every department.</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:10px;">
+            Click to select one, multiple, or all eligible branches for this event:
+          </div>
+          <div id="branch-pills-wrap" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));gap:10px;">
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;cursor:pointer;user-select:none;">
+              <input type="checkbox" name="target-branch" value="All" checked onchange="handleBranchCheckboxChange(this)" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+              <span style="font-size:13px;font-weight:700;color:#0f172a;">🏫 All Branches</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;cursor:pointer;user-select:none;">
+              <input type="checkbox" name="target-branch" value="CSE" onchange="handleBranchCheckboxChange(this)" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+              <span style="font-size:13px;font-weight:600;color:#334155;">💻 CSE</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;cursor:pointer;user-select:none;">
+              <input type="checkbox" name="target-branch" value="CSE/AIML" onchange="handleBranchCheckboxChange(this)" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+              <span style="font-size:13px;font-weight:600;color:#334155;">🤖 CSE / AI&amp;ML</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;cursor:pointer;user-select:none;">
+              <input type="checkbox" name="target-branch" value="ISE" onchange="handleBranchCheckboxChange(this)" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+              <span style="font-size:13px;font-weight:600;color:#334155;">🖥️ ISE</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;cursor:pointer;user-select:none;">
+              <input type="checkbox" name="target-branch" value="ECE" onchange="handleBranchCheckboxChange(this)" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+              <span style="font-size:13px;font-weight:600;color:#334155;">📡 ECE</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;cursor:pointer;user-select:none;">
+              <input type="checkbox" name="target-branch" value="ME" onchange="handleBranchCheckboxChange(this)" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+              <span style="font-size:13px;font-weight:600;color:#334155;">⚙️ ME (Mech)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;cursor:pointer;user-select:none;">
+              <input type="checkbox" name="target-branch" value="EEE" onchange="handleBranchCheckboxChange(this)" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+              <span style="font-size:13px;font-weight:600;color:#334155;">⚡ EEE</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;cursor:pointer;user-select:none;">
+              <input type="checkbox" name="target-branch" value="CV" onchange="handleBranchCheckboxChange(this)" style="width:16px;height:16px;accent-color:#4f46e5;cursor:pointer;">
+              <span style="font-size:13px;font-weight:600;color:#334155;">🏗️ CV (Civil)</span>
+            </label>
+          </div>
         </div>
 
         <div class="form-divider">Additional Details</div>
@@ -3520,6 +3543,24 @@ function renderCreateEventPage() {
   });
 }
 
+window.handleBranchCheckboxChange = function(cb) {
+  const allCb = document.querySelector('input[name="target-branch"][value="All"]');
+  const others = [...document.querySelectorAll('input[name="target-branch"]:not([value="All"])')];
+  
+  if (cb.value === 'All') {
+    if (cb.checked) {
+      others.forEach(o => o.checked = false);
+    }
+  } else {
+    if (cb.checked && allCb) {
+      allCb.checked = false;
+    }
+    if (!others.some(o => o.checked) && allCb) {
+      allCb.checked = true;
+    }
+  }
+};
+
 function handlePosterUpload(e) {
   const file=e.target.files[0]; if(!file) return;
   const r=new FileReader();
@@ -3539,8 +3580,11 @@ function submitEvent(status='pending') {
   const max   = parseInt(document.getElementById('ev-max').value||'100');
   const venue    = document.getElementById('ev-venue').value;
   const cat      = document.getElementById('ev-cat').value;
-  const branchEl = document.getElementById('ev-branches');
-  const branches = branchEl ? [...branchEl.selectedOptions].map(o => o.value) : ['All'];
+  const checkedBranchEls = [...document.querySelectorAll('input[name="target-branch"]:checked')];
+  let branches = checkedBranchEls.map(cb => cb.value);
+  if (!branches.length || branches.includes('All')) {
+    branches = ['All'];
+  }
 
   if (!name||!club||!date||!time||!venue) { toast('Please fill all required fields (marked with *).','error'); return; }
   const fee = parseInt(document.getElementById('create-ev-fee').value||'0');
