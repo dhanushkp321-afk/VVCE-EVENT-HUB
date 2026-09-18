@@ -2208,9 +2208,9 @@ function renderTeamMembersList() {
     });
 
     return `
-      <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; font-size:13px;">
+      <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; font-size:13px; flex-wrap:wrap;">
         <span style="font-size:15px;">👤</span>
-        <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;">
+        <div style="flex:1; min-width:140px; overflow:hidden; text-overflow:ellipsis;">
           ${memName ? `<strong style="color:#1e293b;">${memName}</strong> • ` : ''}
           <span style="color:#4b5563; font-weight:500;">${memEmail}</span>
         </div>
@@ -2218,6 +2218,7 @@ function renderTeamMembersList() {
           <span style="font-size:11px; color:#15803d; font-weight:700; background:#dcfce7; border:1px solid #86efac; padding:2px 8px; border-radius:12px; white-space:nowrap;">✓ Added</span>
         ` : `
           <span style="font-size:11px; color:#b45309; font-weight:700; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:12px; white-space:nowrap;">⏳ Invite Pending</span>
+          <button onclick="copyTeamInviteLink('${_teamRegTeamId}','${_teamRegEventId}','${memName||memEmail}')" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; color:#475569; padding:2px 8px; cursor:pointer;" title="Copy verification link">📋 Link</button>
         `}
         <button onclick="removeTeamMember(${idx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; padding:0 4px;" title="Remove">×</button>
       </div>
@@ -2325,26 +2326,37 @@ async function addTeamMember() {
   const siteUrl = window.location.origin + window.location.pathname;
   const inviteBase = `${siteUrl}?teamInvite=${_teamRegTeamId}&event=${ev.id}`;
   const sb = getSupabaseClient();
+  let emailDispatched = false;
   try {
     if (sb && sb.auth) {
-      sb.auth.signInWithOtp({
+      const res = await sb.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: true,
           emailRedirectTo: inviteBase,
           data: { teamInvite: true, teamId: _teamRegTeamId, teamName: teamNameInput, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: name }
         }
-      }).then(({ data, error }) => {
-        if (error) {
-          console.warn('Supabase OTP invite email warning for', email, error);
+      });
+      if (res && res.error) {
+        console.warn('Supabase OTP email warning for', email, res.error);
+        if (res.error.status === 429 || res.error.message?.includes('rate limit') || res.error.code === 'over_email_send_rate_limit') {
+          toast(`⚠️ Notice: Supabase default email rate limit reached (3/hr). Verification link is ready! Click "📋 Link" below to copy and share it directly with ${name}.`, 'warning', 8000);
         } else {
-          console.log('✅ Supabase OTP invite email dispatched immediately to', email);
+          toast(`⚠️ Email delivery notice: ${res.error.message}. You can copy the verification link below.`, 'info', 6000);
         }
-      }).catch(e => console.warn('Invite email failed for', email, e));
+      } else {
+        emailDispatched = true;
+        toast(`✉️ Verification email sent immediately to ${name} (${email})!`, 'success', 5000);
+      }
     }
-  } catch(e) { console.warn('Invite error:', e); }
+  } catch(e) {
+    console.warn('Invite error:', e);
+  }
 
-  toast(`✉️ Verification email sent immediately to ${name} (${email})!`, 'success', 4000);
+  if (!emailDispatched && (!sb || !sb.auth)) {
+    toast(`Added ${name}! Click "📋 Link" to copy their verification link.`, 'success', 5000);
+  }
+
   renderTeamMembersList();
 }
 
@@ -2542,6 +2554,20 @@ window.dismissTeamInviteBanner = function() {
   window._pendingTeamInvite = null;
 };
 
+window.copyTeamInviteLink = function(teamId, eventId, memberName) {
+  const siteUrl = window.location.origin + window.location.pathname;
+  const url = `${siteUrl}?teamInvite=${teamId}&event=${eventId}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      toast(`📋 Verification link for ${memberName || 'teammate'} copied to clipboard! Share it with them directly.`, 'success', 5000);
+    }).catch(() => {
+      prompt('Copy verification link:', url);
+    });
+  } else {
+    prompt('Copy verification link:', url);
+  }
+};
+
 async function acceptTeamInvite() {
   let invite = window._pendingTeamInvite;
   if (!invite) {
@@ -2723,8 +2749,9 @@ function openManageTeamModal(eventId, teamId) {
             </div>
           </div>
           ${isLeader ? `
-            <div style="display:flex; align-items:center; gap:6px;">
+            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
               <span style="font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px;">⏳ Pending</span>
+              <button onclick="copyTeamInviteLink('${team.id}','${ev.id}','${memName||email}')" title="Copy Direct Verification Link" style="padding:4px 8px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">📋 Copy Link</button>
               <button onclick="resendTeamInviteEmail('${email}')" title="Resend Magic Link Email" style="padding:4px 8px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔁 Resend</button>
               <button onclick="replaceTeamInvitePrompt('${email}')" title="Change to another teammate" style="padding:4px 8px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Replace</button>
               <button onclick="removePendingTeamInvite('${email}')" title="Remove this invite" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🗑️</button>
@@ -2982,28 +3009,39 @@ async function manageTeamAddMember() {
   const siteUrl = window.location.origin + window.location.pathname;
   const inviteBase = `${siteUrl}?teamInvite=${team.id}&event=${ev.id}`;
   const sb = getSupabaseClient();
+  let emailDispatched = false;
   try {
     if (sb && sb.auth) {
-      sb.auth.signInWithOtp({
+      const res = await sb.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: true,
           emailRedirectTo: inviteBase,
           data: { teamInvite: true, teamId: team.id, teamName: team.name, eventId: ev.id, eventName: ev.name, inviterName: STATE.user.name, memberName: name }
         }
-      }).then(({ data, error }) => {
-        if (error) {
-          console.warn('Supabase OTP invite email warning for', email, error);
+      });
+      if (res && res.error) {
+        console.warn('Supabase OTP invite email warning for', email, res.error);
+        if (res.error.status === 429 || res.error.message?.includes('rate limit') || res.error.code === 'over_email_send_rate_limit') {
+          toast(`⚠️ Notice: Supabase default email rate limit reached (3/hr). Verification link created! Share it via the "📋 Copy Link" button.`, 'warning', 8000);
         } else {
-          console.log('✅ Supabase OTP invite email dispatched immediately to', email);
+          toast(`⚠️ Email delivery notice: ${res.error.message}. You can copy the invite link directly.`, 'info', 6000);
         }
-      }).catch(e => console.warn('Invite email failed for', email, e));
+      } else {
+        emailDispatched = true;
+        toast(`Invite email sent to ${name} (${email})! 🎉`, 'success');
+      }
     }
-  } catch(e) {}
+  } catch(e) {
+    console.warn('Invite error:', e);
+  }
+
+  if (!emailDispatched && (!sb || !sb.auth)) {
+    toast(`Added ${name}! Use "📋 Copy Link" to share their verification link.`, 'success');
+  }
 
   if (nameInput) nameInput.value = '';
   if (emailInput) emailInput.value = '';
-  toast(`Invite email sent to ${name} (${email})! 🎉`, 'success');
   openManageTeamModal(_currentManageEventId, _currentManageTeamId);
   if (STATE.page === 'registrations') renderRegistrationsPage();
   if (STATE.page === 'dashboard') renderStudentDashboard();
