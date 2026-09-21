@@ -2218,7 +2218,8 @@ function renderTeamMembersList() {
           <span style="font-size:11px; color:#15803d; font-weight:700; background:#dcfce7; border:1px solid #86efac; padding:2px 8px; border-radius:12px; white-space:nowrap;">✓ Added</span>
         ` : `
           <span style="font-size:11px; color:#b45309; font-weight:700; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:12px; white-space:nowrap;">⏳ Invite Pending</span>
-          <button onclick="copyTeamInviteLink('${_teamRegTeamId}','${_teamRegEventId}','${memName||memEmail}')" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; color:#475569; padding:2px 8px; cursor:pointer;" title="Copy verification link">📋 Link</button>
+          <button onclick="openMailtoVerification('${memEmail}','${escapeStr(memName)}','${escapeStr(document.getElementById('team-name-input')?.value || 'Team')}','${escapeStr(ev?.name || 'Event')}','${_teamRegTeamId}','${_teamRegEventId}')" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; color:#2563eb; padding:2px 8px; cursor:pointer;" title="Send verification email to ${memEmail} via College Webmail / Gmail">📧 Email</button>
+          <button onclick="copyTeamInviteLink('${_teamRegTeamId}','${_teamRegEventId}','${escapeStr(memName||memEmail)}')" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; color:#475569; padding:2px 8px; cursor:pointer;" title="Copy verification link">📋 Link</button>
         `}
         <button onclick="removeTeamMember(${idx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px; padding:0 4px;" title="Remove">×</button>
       </div>
@@ -2554,6 +2555,11 @@ window.dismissTeamInviteBanner = function() {
   window._pendingTeamInvite = null;
 };
 
+function escapeStr(s) {
+  if (!s) return '';
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
 window.copyTeamInviteLink = function(teamId, eventId, memberName) {
   const siteUrl = window.location.origin + window.location.pathname;
   const url = `${siteUrl}?teamInvite=${teamId}&event=${eventId}`;
@@ -2566,6 +2572,28 @@ window.copyTeamInviteLink = function(teamId, eventId, memberName) {
   } else {
     prompt('Copy verification link:', url);
   }
+};
+
+window.openMailtoVerification = function(memberEmail, memberName, teamName, eventName, teamId, eventId) {
+  const siteUrl = window.location.origin + window.location.pathname;
+  const inviteLink = `${siteUrl}?teamInvite=${teamId}&event=${eventId}`;
+  const inviterName = STATE.user ? STATE.user.name : 'Your Team Leader';
+
+  const subject = encodeURIComponent(`Invitation to join Team "${teamName}" for ${eventName} - VVCE Events Hub`);
+  const body = encodeURIComponent(
+`Hi ${memberName || 'there'},
+
+You have been invited by ${inviterName} to join Team "${teamName}" for the upcoming event "${eventName}" at VVCE Events Hub.
+
+Please click the verification link below to verify your college email and confirm your team spot:
+${inviteLink}
+
+Regards,
+VVCE Events Hub — Vidyavardhaka College of Engineering`
+  );
+
+  window.open(`mailto:${memberEmail}?subject=${subject}&body=${body}`, '_blank');
+  toast(`Opening email composer for ${memberEmail}... 📧`, 'info', 4000);
 };
 
 async function acceptTeamInvite() {
@@ -2751,7 +2779,8 @@ function openManageTeamModal(eventId, teamId) {
           ${isLeader ? `
             <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
               <span style="font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px;">⏳ Pending</span>
-              <button onclick="copyTeamInviteLink('${team.id}','${ev.id}','${memName||email}')" title="Copy Direct Verification Link" style="padding:4px 8px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">📋 Copy Link</button>
+              <button onclick="openMailtoVerification('${email}','${escapeStr(memName)}','${escapeStr(team.name)}','${escapeStr(ev.name)}','${team.id}','${ev.id}')" title="Send verification email to ${email} via College Webmail / Gmail" style="padding:4px 8px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">📧 Email</button>
+              <button onclick="copyTeamInviteLink('${team.id}','${ev.id}','${escapeStr(memName||email)}')" title="Copy Direct Verification Link" style="padding:4px 8px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">📋 Copy Link</button>
               <button onclick="resendTeamInviteEmail('${email}')" title="Resend Magic Link Email" style="padding:4px 8px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔁 Resend</button>
               <button onclick="replaceTeamInvitePrompt('${email}')" title="Change to another teammate" style="padding:4px 8px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Replace</button>
               <button onclick="removePendingTeamInvite('${email}')" title="Remove this invite" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🗑️</button>
