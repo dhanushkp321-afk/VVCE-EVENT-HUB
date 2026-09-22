@@ -371,22 +371,25 @@ async function bootApp() {
     ]);
 
     if (uRes && uRes.data) {
+      // ── Supabase is the single source of truth ──
+      // Remote users completely replace local cache.
+      // Only the 4 built-in demo accounts (never stored in Supabase)
+      // are appended locally so demo login always works.
+      const DEMO_IDS = ['u1', 'u2', 'u3', 'u4'];
       const remoteUsers = uRes.data.map(mapUser);
-      const localUsers = getDB('vvce_users', []);
-      const mergedUsers = [...remoteUsers];
-      localUsers.forEach(lu => {
-        if (!mergedUsers.some(ru => ru.email.toLowerCase() === lu.email.toLowerCase())) {
-          mergedUsers.push(lu);
-          // Sync missing user to Supabase
-          sb.from('users').upsert([{
-            id: lu.id, type: lu.type, name: lu.name, email: lu.email, pass: lu.pass, usn: lu.usn, branch: lu.branch, section: lu.section, year: lu.year, sem: lu.sem, admission_year: lu.admissionYear, dept: lu.dept, phone: lu.phone, interests: lu.interests, skills: lu.skills, bio: lu.bio, linkedin: lu.linkedin, github: lu.github, achievements: lu.achievements, profile_photo: lu.profilePhoto, resume: lu.resume, points: lu.points, points_by_sem: lu.pointsBySem, notifs: lu.notifs, club_name: lu.clubName, club_email: lu.clubEmail, domain: lu.domain, faculty: lu.faculty, approved: lu.approved, "desc": lu.desc, designation: lu.designation
-          }]).then(() => {});
-        }
-      });
-      SUPABASE_CACHE.vvce_users = mergedUsers;
-      try { localStorage.setItem('vvce_users', JSON.stringify(mergedUsers)); } catch(e){}
+      const remoteEmails = remoteUsers.map(u => u.email.toLowerCase());
+
+      // Keep demo accounts locally only (never push them to Supabase)
+      const demoUsers = DEFAULT_USERS.filter(
+        du => DEMO_IDS.includes(du.id) && !remoteEmails.includes(du.email.toLowerCase())
+      );
+
+      const finalUsers = [...remoteUsers, ...demoUsers];
+      SUPABASE_CACHE.vvce_users = finalUsers;
+      try { localStorage.setItem('vvce_users', JSON.stringify(finalUsers)); } catch(e){}
     }
-    if (eRes && eRes.data && eRes.data.length > 0) {
+    if (eRes && eRes.data) {
+      // Events: Supabase is always the source of truth (even if empty — clear means clear)
       SUPABASE_CACHE.vvce_events = eRes.data.map(mapEvent);
       try { localStorage.setItem('vvce_events', JSON.stringify(SUPABASE_CACHE.vvce_events)); } catch(e){}
     }
