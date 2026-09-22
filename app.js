@@ -775,7 +775,25 @@ window.handleFileUpload = async function(event, role) {
     
     // Check if auto-extracted USN is already registered
     if (finalUsn && role === 'student') {
-      const existing = users.find(u => u.type === 'student' && u.usn === finalUsn);
+      let existing = users.find(u => u.type === 'student' && u.usn === finalUsn);
+      if (existing) {
+        // Double-check with Supabase in real-time to avoid false blocks from stale local cache
+        const sb = getSupabaseClient();
+        if (sb && typeof sb.from === 'function') {
+          try {
+            const { data, error } = await sb.from('users').select('id, usn, email').eq('usn', finalUsn);
+            if (!error && (!data || data.length === 0)) {
+              // Not in Supabase! Stale local cache from a previous session — purge it immediately!
+              users = users.filter(u => u.usn !== finalUsn);
+              SUPABASE_CACHE.vvce_users = users;
+              try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
+              existing = null;
+            }
+          } catch(e) {
+            console.warn('Supabase USN check fallback:', e);
+          }
+        }
+      }
       if (existing) {
         showAuthMsg(`❌ A student account with USN ${finalUsn} has already been registered!`, 'error');
         toast(`❌ USN ${finalUsn} already registered`, 'error');
@@ -1138,7 +1156,7 @@ async function checkSupabaseEmailVerification() {
 }
 
 /* ── Student Signup ── */
-function handleStudentSignup() {
+async function handleStudentSignup() {
   const name    = document.getElementById('s-name').value.trim();
   const usn     = document.getElementById('s-usn').value.trim().toUpperCase();
   const branch  = document.getElementById('s-branch').value;
@@ -1164,8 +1182,28 @@ function handleStudentSignup() {
   if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
   if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
-  const users = getDB('vvce_users');
-  if (users.find(u => u.email.toLowerCase() === email)) { showAuthMsg('This email is already registered. Please sign in.', 'warning'); return; }
+  let users = getDB('vvce_users');
+  let existingUser = users.find(u => u.email.toLowerCase() === email || (usn && u.usn === usn));
+  if (existingUser) {
+    const sb = getSupabaseClient();
+    if (sb && typeof sb.from === 'function') {
+      try {
+        const { data, error } = await sb.from('users').select('id, email, usn').or(`email.ilike.${email},usn.eq.${usn}`);
+        if (!error && (!data || data.length === 0)) {
+          // Stale local entry! Purge it from cache and localStorage
+          users = users.filter(u => u.email.toLowerCase() !== email && u.usn !== usn);
+          SUPABASE_CACHE.vvce_users = users;
+          try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
+          existingUser = null;
+        }
+      } catch(e) {}
+    }
+  }
+
+  if (existingUser) {
+    showAuthMsg('This email or USN is already registered. Please sign in.', 'warning');
+    return;
+  }
 
   const newUser = {
     id: genId('u'), type: 'student', name: name.toUpperCase(), email, pass,
