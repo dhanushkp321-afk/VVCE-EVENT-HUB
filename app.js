@@ -1037,7 +1037,18 @@ async function finalizeRegistration(role, userPayload) {
   });
 
   if (error) {
-    showAuthMsg('Signup error: ' + error.message, 'error');
+    // Handle rate limit error specifically with a clear explanation
+    if (error.status === 429 || error.message?.includes('rate limit') || error.message?.includes('over_email_send_rate_limit')) {
+      showAuthMsg(
+        '⚠️ Email sending is temporarily limited (Supabase free tier allows ~3 emails/hour). ' +
+        'Please wait a few minutes and try again, or ask your administrator to connect a custom SMTP provider (e.g. Resend) in Supabase settings.',
+        'warning'
+      );
+    } else if (error.message?.includes('already registered')) {
+      showAuthMsg('This email is already registered. Please sign in instead.', 'warning');
+    } else {
+      showAuthMsg('❌ Signup error: ' + error.message, 'error');
+    }
     return;
   }
 
@@ -1045,18 +1056,29 @@ async function finalizeRegistration(role, userPayload) {
   // We can detect this because data.user.identities will be empty.
   if (data?.user?.identities?.length === 0) {
     // Force Supabase to resend the verification email for this existing unverified account
-    await sb.auth.resend({ type: 'signup', email: userPayload.email });
+    const { error: resendErr } = await sb.auth.resend({ type: 'signup', email: userPayload.email });
+    if (resendErr) {
+      showAuthMsg(
+        `⚠️ Account already exists but re-sending verification email failed: ${resendErr.message}. ` +
+        'Please check your spam folder or try again later.',
+        'warning'
+      );
+      return;
+    }
   }
 
-  showAuthMsg(`🎉 Verification email sent to ${userPayload.email}. Please check your inbox and click the Verify button. Once verified, you can sign in.`, 'success');
-  
+  showAuthMsg(
+    `🎉 Verification email sent to ${userPayload.email}! Please check your inbox (and spam folder) and click the "Verify" button. Once verified, you can sign in.`,
+    'success'
+  );
+
   // Clear password fields and switch to sign in
   const passFields = ['s-pass', 'a-pass', 'f-pass'];
   passFields.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  
+
   switchAuthTab('signin');
 }
 
@@ -3595,8 +3617,20 @@ function renderRegistrationsPage() {
         (t.memberIds || []).includes(userId) ||
         (t.pendingEmails || []).some(em => em.toLowerCase() === userEmail)
       );
-      const isPending = userTeam && (userTeam.pendingEmails || []).length > 0;
-      if (isPending) {
+
+      if (!userTeam) {
+        confirmedUpcoming.push(e);
+        return;
+      }
+
+      // Check if current user is still pending (invited but not yet accepted)
+      const iSelfPending = (userTeam.pendingEmails || []).some(em => em.toLowerCase() === userEmail);
+
+      // Check if OTHER members (not the current user) are still pending
+      const otherPendingCount = (userTeam.pendingEmails || []).filter(em => em.toLowerCase() !== userEmail).length;
+
+      // Goes to pending tab if: I myself haven't accepted, OR other teammates are still unverified
+      if (iSelfPending || otherPendingCount > 0) {
         pendingTeams.push(e);
       } else {
         confirmedUpcoming.push(e);
