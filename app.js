@@ -1126,53 +1126,94 @@ async function checkSupabaseEmailVerification() {
   const sb = getSupabaseClient();
   if (!sb || !sb.auth) return;
 
-  try {
-    // Supabase automatically parses the session from the URL hash on load
-    const { data: { session } } = await sb.auth.getSession();
-    
-    if (session && session.user) {
-      const meta = session.user.user_metadata;
-      
-      // Check if this is a newly verified signup by checking if they are not yet in our DB
-      if (meta && meta.type && meta.email) {
-        let users = getDB('vvce_users');
-        const existing = users.find(u => u.email.toLowerCase() === session.user.email.toLowerCase());
-        
-        if (!existing) {
-          // It's a newly verified user! Save to our DB!
-          const newUser = { ...meta };
-          users.push(newUser);
-          setDB('vvce_users', users);
-          
-          // Sync to Supabase public users table
-          const mapped = {
-            id: meta.id, type: meta.type, name: meta.name, email: meta.email, pass: meta.pass,
-            usn: meta.usn, branch: meta.branch, section: meta.section, year: meta.year,
-            sem: meta.sem, admission_year: meta.admissionYear, dept: meta.dept, phone: meta.phone,
-            interests: meta.interests, skills: meta.skills, bio: meta.bio, linkedin: meta.linkedin,
-            github: meta.github, achievements: meta.achievements, profile_photo: meta.profilePhoto,
-            resume: meta.resume, points: meta.points, points_by_sem: meta.pointsBySem,
-            notifs: meta.notifs, club_name: meta.clubName, club_email: meta.clubEmail,
-            domain: meta.domain, faculty: meta.faculty, approved: meta.approved, desc: meta.desc,
-            designation: meta.designation
-          };
-          await sb.from('users').upsert([mapped]);
-          if (newUser.type === 'student') {
-            await sb.from('registered_students').upsert([mapped]).catch(() => {});
-          }
-
-          if (newUser.type === 'admin') {
-             showAuthMsg('🎉 Email verified! Club registration submitted. Awaiting Dean Student Welfare approval.', 'success');
-             toast('✅ Email verified! Club account submitted for approval.', 'success');
-          } else {
-             toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
-             setTimeout(() => launchApp(newUser), 1000);
-          }
-        }
+  // ── Listen for auth state changes (fires immediately when email link is clicked) ──
+  // This handles the case where the user is redirected back to the site after clicking
+  // the verification email link — Supabase fires SIGNED_IN with the verified session.
+  if (!window._authListenerSetup) {
+    window._authListenerSetup = true;
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) {
+        await handleVerifiedSession(session, event);
       }
+    });
+  }
+
+  try {
+    // Also check immediately on page load (handles page reload after email click)
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && session.user) {
+      await handleVerifiedSession(session, 'PAGE_LOAD');
     }
   } catch(e) {
-    console.error("Email verification check failed:", e);
+    console.error('Email verification check failed:', e);
+  }
+}
+
+async function handleVerifiedSession(session, trigger) {
+  const sb = getSupabaseClient();
+  if (!sb) return;
+
+  const supaUser = session.user;
+  const meta = supaUser.user_metadata || {};
+
+  // Only process if the user has verified their email
+  if (!supaUser.email_confirmed_at && !supaUser.confirmed_at) return;
+
+  // If meta has our custom type/email (set during signUp), use it to build the profile
+  if (meta && meta.type && meta.email) {
+    let users = getDB('vvce_users');
+    let existing = users.find(u => u.email.toLowerCase() === supaUser.email.toLowerCase());
+
+    if (!existing) {
+      // Brand new verified user — save their full profile
+      const newUser = { ...meta };
+      users.push(newUser);
+      setDB('vvce_users', users);
+
+      const mapped = {
+        id: meta.id, type: meta.type, name: meta.name, email: meta.email, pass: meta.pass,
+        usn: meta.usn, branch: meta.branch, section: meta.section, year: meta.year,
+        sem: meta.sem, admission_year: meta.admissionYear, dept: meta.dept, phone: meta.phone,
+        interests: meta.interests, skills: meta.skills, bio: meta.bio, linkedin: meta.linkedin,
+        github: meta.github, achievements: meta.achievements, profile_photo: meta.profilePhoto,
+        resume: meta.resume, points: meta.points, points_by_sem: meta.pointsBySem,
+        notifs: meta.notifs, club_name: meta.clubName, club_email: meta.clubEmail,
+        domain: meta.domain, faculty: meta.faculty, approved: meta.approved, desc: meta.desc,
+        designation: meta.designation
+      };
+      await sb.from('users').upsert([mapped]);
+      if (newUser.type === 'student') {
+        await sb.from('registered_students').upsert([mapped]).catch(() => {});
+      }
+
+      // Clean URL hash so it doesn't re-trigger on refresh
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+
+      if (newUser.type === 'admin') {
+        showAuthMsg('🎉 Email verified! Club registration submitted. Awaiting Dean Student Welfare approval.', 'success');
+        toast('✅ Email verified! Club account submitted for approval.', 'success');
+      } else {
+        toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
+        // Open the app immediately — no delay needed
+        launchApp(newUser);
+      }
+    } else if (existing && trigger !== 'PAGE_LOAD') {
+      // Returning verified user — already in DB, just launch immediately
+      if (!STATE.user) {
+        launchApp(existing);
+      }
+    }
+  } else {
+    // Supabase verified session but no custom metadata (direct Supabase Auth signup)
+    // Try to find them in local DB by email
+    const users = getDB('vvce_users');
+    const existing = users.find(u => u.email.toLowerCase() === supaUser.email.toLowerCase());
+    if (existing && !STATE.user && trigger !== 'PAGE_LOAD') {
+      toast('🎉 Email verified! Welcome back!', 'success');
+      launchApp(existing);
+    }
   }
 }
 
