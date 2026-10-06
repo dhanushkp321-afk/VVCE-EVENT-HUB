@@ -1682,12 +1682,12 @@ function renderSidebar() {
       ${navItem('profile','👤','Profile')}
     `;
   } else { // authority
+    const isDean = isDeanUser(user);
     const pendingEvents = getDB('vvce_events').filter(e => e.status === 'pending');
     const pendingBadge = pendingEvents.length > 0 ? String(pendingEvents.length) : '';
     html = `
       <div class="sb-section-label">Overview</div>
       ${navItem('authority-dashboard','📊','Dashboard')}
-      ${navItem('authority-approvals','✅','Event Approvals', pendingBadge)}
       ${navItem('events','🗓️','All Events')}
       ${navItem('clubs','🏛️','Clubs')}
       ${navItem('authority-clubs','🏛️','Club Monitor')}
@@ -1697,7 +1697,7 @@ function renderSidebar() {
       <div class="nav-item dean-item" data-page="dean-portal" onclick="handleDeanPortalNav()">
         <span class="nav-icon">📋</span>
         <span class="nav-label">Dean SW Portal</span>
-        ${pendingBadge ? `<span class="portal-tab-badge" style="margin-left:auto;margin-right:6px;">${pendingBadge}</span>` : ''}
+        ${isDean && pendingBadge ? `<span class="portal-tab-badge" style="margin-left:auto;margin-right:6px;">${pendingBadge}</span>` : ''}
         <span class="portal-pill portal-pill-dean">DEAN</span>
       </div>
       <div class="nav-item princ-item" data-page="principal-portal" onclick="handlePrincipalPortalNav()">
@@ -5116,19 +5116,13 @@ function renderAuthorityDashboard() {
 
   el.innerHTML=`
     <div class="stats-row">
-      ${statCard('⏳','Pending Approvals',pending.length,pending.length?'Needs review':'All caught up','stat-amber')}
       ${statCard('🏛️','Total Clubs',clubs.filter(c=>c.approved).length,'Active clubs','stat-mint')}
       ${statCard('📅','Upcoming Events',approved.filter(e=>e.date>=today).length,'This week','stat-blue')}
       ${statCard('⚡','Slot Conflicts',checkClashCount(),'Venue clashes','stat-pink')}
     </div>
 
     <!-- Quick actions -->
-    <div class="auth-qa-grid" style="grid-template-columns:repeat(4,1fr);">
-      <div class="auth-qa-card" onclick="showPage('authority-approvals')">
-        <span class="auth-qa-icon">✅</span>
-        <div class="auth-qa-label">Event Approvals</div>
-        ${pending.length?`<div style="font-size:11px;color:#b45309;font-weight:700;">${pending.length} pending</div>`:''}
-      </div>
+    <div class="auth-qa-grid">
       <div class="auth-qa-card" onclick="showPage('authority-clubs')">
         <span class="auth-qa-icon">🏛️</span>
         <div class="auth-qa-label">Monitor Events</div>
@@ -5586,11 +5580,7 @@ function renderAttendancePage() {
 const DEAN_PASS = 'deanwellfair@vvce';
 
 function handleDeanPortalNav() {
-  if (STATE.deanUnlocked || (STATE.user && STATE.user.designation === 'dean')) {
-    STATE.deanUnlocked = true;
-    showPage('dean-portal');
-    return;
-  }
+  if (STATE.deanUnlocked) { showPage('dean-portal'); return; }
   document.getElementById('dean-pass-input').value='';
   document.getElementById('dean-pass-error').style.display='none';
   openModal('modal-dean-pass');
