@@ -105,6 +105,58 @@ function getDBObj(key, def = {}) {
   return def;
 }
 
+function mapEventForSupabase(e) {
+  return {
+    id: e.id,
+    name: e.name,
+    club: e.club,
+    admin_id: e.adminId || e.admin_id,
+    emoji: e.emoji || '🎓',
+    category: e.category || 'Technical',
+    date: e.date,
+    time: e.time,
+    end_date: e.endDate || e.end_date || e.date,
+    end_time: e.endTime || e.end_time || '',
+    venue: e.venue,
+    max_participants: e.maxParticipants ?? e.max_participants ?? 100,
+    reg_count: e.regCount ?? e.reg_count ?? 0,
+    fee: e.fee ?? 0,
+    admin_upi_id: e.adminUpiId || e.admin_upi_id || '',
+    points: e.points ?? 0,
+    desc: e.desc || '',
+    speakers: e.speakers || '',
+    rules: e.rules || '',
+    branches: e.branches || ['All'],
+    status: e.status || 'pending',
+    rej_reason: e.rejReason || e.rej_reason || null,
+    poster: e.poster || null,
+    registrations: e.registrations || [],
+    pending_payments: e.pendingPayments || e.pending_payments || [],
+    attended_students: e.attendedStudents || e.attended_students || [],
+    isTeamEvent: e.isTeamEvent ?? false,
+    minTeamSize: e.minTeamSize ?? 1,
+    maxTeamSize: e.maxTeamSize ?? 1,
+    teams: e.teams || []
+  };
+}
+
+async function syncEventsFromSupabase() {
+  const sb = getSupabaseClient();
+  if (!sb) return getDB('vvce_events');
+  try {
+    const { data, error } = await sb.from('events').select('*');
+    if (!error && Array.isArray(data)) {
+      const mapped = data.map(mapEvent);
+      SUPABASE_CACHE.vvce_events = mapped;
+      try { localStorage.setItem('vvce_events', JSON.stringify(mapped)); } catch(e){}
+      return mapped;
+    }
+  } catch(e) {
+    console.warn('syncEventsFromSupabase failed:', e);
+  }
+  return getDB('vvce_events');
+}
+
 async function setDB(key, val) {
   SUPABASE_CACHE[key] = val;
   try {
@@ -116,23 +168,10 @@ async function setDB(key, val) {
 
   try {
     if (key === 'vvce_events') {
-      const fullMapped = val.map(e => ({
-        id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments, attended_students: e.attendedStudents || [],
-        isTeamEvent: e.isTeamEvent || false,
-        minTeamSize: e.minTeamSize || 1,
-        maxTeamSize: e.maxTeamSize || 1,
-        teams: e.teams || [],
-        waitlist: e.waitlist || [],
-        waitlist_enabled: e.waitlist_enabled || false,
-        publish_at: e.publish_at || null
-      }));
-      const { error } = await sb.from('events').upsert(fullMapped);
+      const mapped = val.map(mapEventForSupabase);
+      const { error } = await sb.from('events').upsert(mapped);
       if (error) {
-        console.warn('Events full upsert warning, retrying with core schema:', error.message);
-        const coreMapped = val.map(e => ({
-          id: e.id, name: e.name, club: e.club, admin_id: e.adminId, emoji: e.emoji, category: e.category, date: e.date, time: e.time, end_date: e.endDate, end_time: e.endTime, venue: e.venue, max_participants: e.maxParticipants, reg_count: e.regCount, fee: e.fee, admin_upi_id: e.adminUpiId, points: e.points, "desc": e.desc, speakers: e.speakers, rules: e.rules, branches: e.branches, status: e.status, rej_reason: e.rejReason, poster: e.poster, registrations: e.registrations, pending_payments: e.pendingPayments, attended_students: e.attendedStudents || []
-        }));
-        await sb.from('events').upsert(coreMapped);
+        console.warn('Events upsert warning:', error.message);
       }
     } else if (key === 'vvce_users') {
       const mapped = val.map(u => ({
@@ -290,11 +329,13 @@ function handleRealtimeUpdate(key, payload) {
         cache.push(mapper(newRecord));
       }
     }
+    // Always persist realtime changes to localStorage!
+    try { localStorage.setItem(key, JSON.stringify(SUPABASE_CACHE[key])); } catch(e){}
   }
 
   // Handle active session changes (e.g. current user updated, approved state changed, points changed)
   if (STATE.user) {
-    const updatedUser = SUPABASE_CACHE.vvce_users.find(u => u.id === STATE.user.id);
+    const updatedUser = (SUPABASE_CACHE.vvce_users || []).find(u => u.id === STATE.user.id);
     if (updatedUser) {
       if (STATE.user.type === 'admin' && STATE.user.approved && !updatedUser.approved) {
         // Force logout if revoked
@@ -317,6 +358,9 @@ function handleRealtimeUpdate(key, payload) {
   if (!isTyping && STATE.page) {
     if (STATE.page === 'participants') {
       if (typeof renderParticipantTable === 'function') renderParticipantTable();
+    } else if (STATE.page === 'dean-portal' && STATE.deanUnlocked) {
+      const curTab = document.querySelector('.portal-tab.active')?.textContent.includes('Monitor') ? 'events' : 'event-approvals';
+      renderDeanPortal(curTab);
     } else {
       showPage(STATE.page);
     }
@@ -2011,6 +2055,9 @@ function renderEventsPage() {
     <div class="event-grid" id="ev-grid"></div>
   `;
   filterEvents();
+  syncEventsFromSupabase().then(() => {
+    if (STATE.page === 'events') filterEvents();
+  });
 }
 
 function filterEvents() {
@@ -4709,6 +4756,15 @@ async function submitEvent(status='pending') {
   events.push(ev);
   await setDB('vvce_events', events);
 
+  // Directly upsert single event to Supabase to guarantee reflection across devices
+  const sb = getSupabaseClient();
+  if (sb) {
+    try {
+      await sb.from('events').upsert([mapEventForSupabase(ev)]);
+      await syncEventsFromSupabase();
+    } catch(e) { console.warn('Supabase direct event upsert:', e); }
+  }
+
   if (status==='pending') {
     toast(`Event "${name}" submitted for Dean approval! ✅`,'success');
     // Notify authority
@@ -4754,6 +4810,12 @@ function renderManageEventsPage() {
       : `<div class="empty-state"><div class="ei">📅</div><div class="et">No events yet</div><div class="es">Create your first event to get started.</div><button class="btn btn-gold" style="margin-top:12px;" onclick="showPage('create-event')">Create Event</button></div>`
     }
   `;
+  syncEventsFromSupabase().then(fresh => {
+    const freshCount = fresh.filter(e => e.adminId === STATE.user.id).length;
+    if (freshCount !== events.length && STATE.page === 'manage-events') {
+      renderManageEventsPage();
+    }
+  });
 }
 
 function submitDraftEvent(id) {
@@ -5264,7 +5326,7 @@ function renderApprovals() {
   `;
 }
 
-function approveEvent(id) {
+async function approveEvent(id) {
   if (!isDeanUser(STATE.user)) {
     toast('⛔ Only the Dean of Student Welfare is authorized to approve events.', 'error');
     return;
@@ -5272,7 +5334,17 @@ function approveEvent(id) {
   const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
   if(!ev) return;
   ev.status='approved'; ev.rejReason=null;
-  setDB('vvce_events',events);
+  await setDB('vvce_events',events);
+
+  // Directly update Supabase table
+  const sb = getSupabaseClient();
+  if (sb) {
+    try {
+      await sb.from('events').update({ status: 'approved', rej_reason: null }).eq('id', id);
+      await syncEventsFromSupabase();
+    } catch(e) { console.warn('Supabase update approval:', e); }
+  }
+
   // Notify admin
   const users=getDB('vvce_users'); const admin=users.find(u=>u.id===ev.adminId);
   if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" has been approved by Dean SW! 🎉`,icon:'✅',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
@@ -5295,7 +5367,7 @@ function openRejectModal(id) {
   document.getElementById('reject-reason').value='';
   openModal('modal-reject');
 }
-function confirmReject() {
+async function confirmReject() {
   if (!isDeanUser(STATE.user)) {
     toast('⛔ Only the Dean of Student Welfare is authorized to reject events.', 'error');
     return;
@@ -5305,7 +5377,16 @@ function confirmReject() {
   const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
   if(!ev) return;
   ev.status='rejected'; ev.rejReason=reason;
-  setDB('vvce_events',events);
+  await setDB('vvce_events',events);
+
+  const sb = getSupabaseClient();
+  if (sb) {
+    try {
+      await sb.from('events').update({ status: 'rejected', rej_reason: reason }).eq('id', id);
+      await syncEventsFromSupabase();
+    } catch(e) { console.warn('Supabase update reject:', e); }
+  }
+
   const users=getDB('vvce_users'); const admin=users.find(u=>u.id===ev.adminId);
   if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" was rejected by Dean SW: ${reason}`,icon:'❌',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
   closeModal('modal-reject');
@@ -5600,6 +5681,15 @@ function verifyDeanPassword() {
 
 function renderDeanPortal(activeTab='dashboard') {
   if (!STATE.deanUnlocked) { handleDeanPortalNav(); return; }
+
+  // Sync latest events in background so newly submitted events from other devices immediately reflect
+  syncEventsFromSupabase().then(fresh => {
+    const freshPending = fresh.filter(e => e.status === 'pending').length;
+    const oldPending = getDB('vvce_events').filter(e => e.status === 'pending').length;
+    if (freshPending !== oldPending && STATE.page === 'dean-portal' && STATE.deanUnlocked) {
+      renderDeanPortal(activeTab);
+    }
+  });
 
   const clubs  = getDB('vvce_users').filter(u=>u.type==='admin');
   const events = getDB('vvce_events');
