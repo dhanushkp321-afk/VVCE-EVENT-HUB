@@ -905,11 +905,20 @@
       c.innerHTML = events.map(e => {
         const sc = statusColors[e.status] || statusColors.approved;
         const regCount = (e.registrations || []).length;
-        const waitCount = (e.waitlist || []).length;
         const isPending = e.status === 'pending';
+        const feeLabel = (!e.fee || e.fee === 0) ? '🆓 Free' : `💰 ₹${e.fee}`;
+        const pointsLabel = e.points ? `⭐ ${e.points} pts` : '';
+        const branchLabel = e.branches && e.branches.length > 0 && !e.branches.includes('All')
+          ? `🎓 ${e.branches.join(', ')}`
+          : '🎓 All Branches';
+        const teamLabel = e.isTeamEvent ? `👥 Team (${e.minTeamSize || 2}–${e.maxTeamSize || 4} members)` : '👤 Solo Event';
+        const posterHtml = e.poster
+          ? `<img src="${e.poster}" alt="poster" style="width:100%;height:90px;object-fit:cover;border-radius:8px;margin-bottom:8px;">`
+          : '';
         return `
           <div class="event-card" style="${isPending ? 'border: 2px solid #fde68a; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.12);' : ''}">
             <div>
+              ${posterHtml}
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                 <div>
                   <strong style="font-size:1.05rem; color:#0f172a;">${e.emoji || '📅'} ${e.name}</strong>
@@ -923,7 +932,10 @@
                 <div>📅 <strong>Date:</strong> ${e.date}</div>
                 <div>⏰ <strong>Time:</strong> ${e.time || 'TBD'}</div>
                 <div>📍 <strong>Venue:</strong> ${e.venue || 'TBD'}</div>
-                <div>👥 <strong>Capacity:</strong> ${regCount} / ${e.max_participants || 100} ${waitCount > 0 ? `<span style="color:#b45309;">(${waitCount} on waitlist)</span>` : ''}</div>
+                <div>👥 <strong>Registered:</strong> ${regCount} / ${e.max_participants || 100}</div>
+                <div>${feeLabel}${pointsLabel ? ' &nbsp;•&nbsp; ' + pointsLabel : ''}</div>
+                <div>${branchLabel}</div>
+                <div>${teamLabel}</div>
               </div>
             </div>
             ${isPending ? `
@@ -972,9 +984,33 @@
       toggleStatusFields(ev.status);
 
       const regCount = (ev.registrations || []).length;
-      const waitCount = (ev.waitlist || []).length;
+      const feeStr = (!ev.fee || ev.fee === 0) ? 'FREE' : `₹${ev.fee}`;
+      const branchStr = ev.branches && ev.branches.length > 0 && !ev.branches.includes('All')
+        ? ev.branches.join(', ') : 'All Branches';
+      const teamStr = ev.isTeamEvent
+        ? `Team Event — ${ev.minTeamSize || 2}–${ev.maxTeamSize || 4} members per team`
+        : 'Solo Event';
+      const upiStr = ev.admin_upi_id || '—';
+      const registrationsList = regCount > 0
+        ? `<div style="margin-top:8px; max-height:120px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+            ${(ev.registrations || []).slice(0, 30).map((uid, i) => `<span style="font-size:11px; color:#334155; background:#f1f5f9; border-radius:4px; padding:2px 6px;">${i+1}. ${uid}</span>`).join('')}
+            ${regCount > 30 ? `<span style="font-size:11px; color:#64748b;">...and ${regCount - 30} more</span>` : ''}
+          </div>` : '<span style="font-size:12px;color:#94a3b8;">No registrations yet.</span>';
+
       document.getElementById('edit-registered-count-info').innerHTML = `
-        <strong>Registration Status:</strong> ${regCount} participants registered • ${waitCount} on waitlist.
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+          <div><span style="font-weight:700; color:#334155;">💰 Fee:</span> ${feeStr}</div>
+          <div><span style="font-weight:700; color:#334155;">⭐ Points:</span> ${ev.points || 0} pts</div>
+          <div><span style="font-weight:700; color:#334155;">🎓 Branches:</span> ${branchStr}</div>
+          <div><span style="font-weight:700; color:#334155;">👥 Type:</span> ${teamStr}</div>
+          <div style="grid-column:1/-1;"><span style="font-weight:700; color:#334155;">🏦 UPI ID:</span> ${upiStr}</div>
+          ${ev.speakers ? `<div style="grid-column:1/-1;"><span style="font-weight:700; color:#334155;">🎙️ Speakers:</span> ${ev.speakers}</div>` : ''}
+          ${ev.poster ? `<div style="grid-column:1/-1;"><span style="font-weight:700; color:#334155;">🖼️ Poster:</span> <a href="${ev.poster}" target="_blank" style="color:#2563eb;">View Poster ↗</a></div>` : ''}
+        </div>
+        <div style="border-top:1px solid #e2e8f0; padding-top:8px;">
+          <strong>👤 Registered Participants (${regCount}):</strong>
+          ${registrationsList}
+        </div>
       `;
 
       // Render event change history
@@ -1084,7 +1120,21 @@
         }
         payload.change_history = history;
 
-        await sb.from('events').update(payload).eq('id', payload.id);
+        // Build a clean payload with only columns that exist in Supabase
+        const dbPayload = {
+          name: payload.name,
+          date: payload.date,
+          time: payload.time,
+          venue: payload.venue,
+          category: payload.category,
+          status: payload.status,
+          rej_reason: payload.rej_reason || null,
+          max_participants: payload.max_participants,
+          points: payload.points,
+          desc: payload.desc
+        };
+
+        await sb.from('events').update(dbPayload).eq('id', payload.id);
 
         await recordAuditAction({
           action: ev?.date !== payload.date ? 'Event Rescheduled' : (ev?.venue !== payload.venue ? 'Venue Changed' : (ev?.status !== payload.status ? `Status Changed to ${payload.status}` : 'Event Updated')),

@@ -322,11 +322,16 @@ function handleRealtimeUpdate(key, payload) {
         cache.push(mapper(newRecord));
       }
     } else if (eventType === 'UPDATE') {
-      const idx = cache.findIndex(item => item.id === newRecord.id);
-      if (idx !== -1 && mapper) {
-        cache[idx] = mapper(newRecord);
-      } else if (mapper) {
-        cache.push(mapper(newRecord));
+      // If event was archived by CPM, remove it from visible cache entirely
+      if (key === 'vvce_events' && newRecord.status === 'archived') {
+        SUPABASE_CACHE[key] = cache.filter(item => item.id !== newRecord.id);
+      } else {
+        const idx = cache.findIndex(item => item.id === newRecord.id);
+        if (idx !== -1 && mapper) {
+          cache[idx] = mapper(newRecord);
+        } else if (mapper) {
+          cache.push(mapper(newRecord));
+        }
       }
     }
     // Always persist realtime changes to localStorage!
@@ -4785,7 +4790,7 @@ async function submitEvent(status='pending') {
    MANAGE EVENTS PAGE (Admin)
 ───────────────────────────────────────────────────────────────*/
 function renderManageEventsPage() {
-  const events = getDB('vvce_events').filter(e=>e.adminId===STATE.user.id);
+  const events = getDB('vvce_events').filter(e=>e.adminId===STATE.user.id && e.status !== 'archived');
   const el = document.getElementById('page-manage-events');
   el.innerHTML = `
     <div class="sec-head">
@@ -5692,7 +5697,7 @@ function renderDeanPortal(activeTab='dashboard') {
   });
 
   const clubs  = getDB('vvce_users').filter(u=>u.type==='admin');
-  const events = getDB('vvce_events');
+  const events = getDB('vvce_events').filter(e => e.status !== 'archived');
   const pending = events.filter(e=>e.status==='pending');
   const approved = events.filter(e=>e.status==='approved');
   const today  = new Date().toISOString().split('T')[0];
