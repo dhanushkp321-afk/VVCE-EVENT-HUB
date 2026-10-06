@@ -5087,6 +5087,16 @@ async function applyAttendanceRewards(eventId, userId, attended, ev) {
 }
 
 
+/* Helper to verify if current user is the Dean of Student Welfare */
+function isDeanUser(user = STATE.user) {
+  if (!user) return false;
+  return user.type === 'authority' && (
+    user.designation === 'dean' ||
+    (user.email && user.email.toLowerCase() === 'dean.sw@vvce.ac.in') ||
+    (user.email && user.email.toLowerCase().startsWith('dean'))
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────
    AUTHORITY DASHBOARD
 ───────────────────────────────────────────────────────────────*/
@@ -5099,7 +5109,7 @@ function renderAuthorityDashboard() {
   const el = document.getElementById('page-authority-dashboard');
 
   const isPrincipal = user.designation === 'principal';
-  const isDean      = user.designation === 'dean';
+  const isDean      = isDeanUser(user);
 
   const today = new Date().toISOString().split('T')[0];
   const todayEvents = approved.filter(e=>e.date===today);
@@ -5199,11 +5209,18 @@ function renderApprovals() {
   const events  = getDB('vvce_events');
   const pending = events.filter(e=>e.status==='pending');
   const el      = document.getElementById('page-authority-approvals');
+  const isDean  = isDeanUser(STATE.user);
 
   el.innerHTML=`
     <div class="sec-head">
       <span class="sec-title">Event Approvals (${pending.length} pending)</span>
     </div>
+    ${!isDean ? `
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;font-size:13px;color:#1e40af;">
+        <span style="font-size:22px;">ℹ️</span>
+        <div><strong>Dean Approval Required:</strong> As per college policy, only the <strong>Dean of Student Welfare</strong> has authorization to approve or reject club events. This view is read-only for monitoring.</div>
+      </div>
+    ` : ''}
     ${pending.length
       ? pending.map(e=>`
         <div class="white-card" style="margin-bottom:10px;">
@@ -5224,10 +5241,17 @@ function renderApprovals() {
                 ${e.desc?`<div style="font-size:12px;color:#374151;margin-top:8px;line-height:1.5;max-width:500px;">${e.desc}</div>`:''}
               </div>
             </div>
-            <div style="display:flex;gap:8px;flex-shrink:0;">
-              <button class="btn btn-green" onclick="approveEvent('${e.id}')">✓ Approve</button>
-              <button class="btn btn-red" onclick="openRejectModal('${e.id}')">✕ Reject</button>
-            </div>
+            ${isDean ? `
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button class="btn btn-green" onclick="approveEvent('${e.id}')">✓ Approve</button>
+                <button class="btn btn-red" onclick="openRejectModal('${e.id}')">✕ Reject</button>
+              </div>
+            ` : `
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+                <span class="badge badge-amber">⏳ Pending Dean Review</span>
+                <span style="font-size:11px;color:#64748b;font-weight:600;">Dean SW action only</span>
+              </div>
+            `}
           </div>
         </div>`).join('')
       : `<div class="empty-state"><div class="ei">✅</div><div class="et">All caught up!</div><div class="es">No events pending approval.</div></div>`
@@ -5247,13 +5271,17 @@ function renderApprovals() {
 }
 
 function approveEvent(id) {
+  if (!isDeanUser(STATE.user)) {
+    toast('⛔ Only the Dean of Student Welfare is authorized to approve events.', 'error');
+    return;
+  }
   const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
   if(!ev) return;
   ev.status='approved'; ev.rejReason=null;
   setDB('vvce_events',events);
   // Notify admin
   const users=getDB('vvce_users'); const admin=users.find(u=>u.id===ev.adminId);
-  if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" has been approved! 🎉`,icon:'✅',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
+  if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" has been approved by Dean SW! 🎉`,icon:'✅',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
   toast(`"${ev.name}" approved! ✅`,'success');
   renderSidebar();
   if (STATE.page === 'dean-portal') {
@@ -5265,11 +5293,19 @@ function approveEvent(id) {
 }
 
 function openRejectModal(id) {
+  if (!isDeanUser(STATE.user)) {
+    toast('⛔ Only the Dean of Student Welfare is authorized to reject events.', 'error');
+    return;
+  }
   STATE.rejectEventId=id;
   document.getElementById('reject-reason').value='';
   openModal('modal-reject');
 }
 function confirmReject() {
+  if (!isDeanUser(STATE.user)) {
+    toast('⛔ Only the Dean of Student Welfare is authorized to reject events.', 'error');
+    return;
+  }
   const id=STATE.rejectEventId; const reason=document.getElementById('reject-reason').value.trim();
   if(!reason){toast('Please provide a rejection reason.','error');return;}
   const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
@@ -5277,7 +5313,7 @@ function confirmReject() {
   ev.status='rejected'; ev.rejReason=reason;
   setDB('vvce_events',events);
   const users=getDB('vvce_users'); const admin=users.find(u=>u.id===ev.adminId);
-  if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" was rejected: ${reason}`,icon:'❌',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
+  if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" was rejected by Dean SW: ${reason}`,icon:'❌',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
   closeModal('modal-reject');
   toast(`Event rejected.`,'info');
   renderSidebar();
@@ -5713,10 +5749,16 @@ function deanEventApprovalsContent(pending) {
                 ${e.desc?`<div style="font-size:12px;color:#374151;margin-top:8px;line-height:1.5;max-width:500px;">${e.desc}</div>`:''}
               </div>
             </div>
-            <div style="display:flex;gap:8px;flex-shrink:0;">
-              <button class="btn btn-green" onclick="approveEvent('${e.id}')">✓ Approve</button>
-              <button class="btn btn-red" onclick="openRejectModal('${e.id}')">✕ Reject</button>
-            </div>
+            ${isDeanUser(STATE.user) ? `
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button class="btn btn-green" onclick="approveEvent('${e.id}')">✓ Approve</button>
+                <button class="btn btn-red" onclick="openRejectModal('${e.id}')">✕ Reject</button>
+              </div>
+            ` : `
+              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                <span class="badge badge-amber">Pending Dean Approval</span>
+              </div>
+            `}
           </div>
         </div>`).join('')
       : `<div class="empty-state"><div class="ei">✅</div><div class="et">All caught up!</div><div class="es">No events pending approval.</div></div>`
@@ -5745,7 +5787,7 @@ function deanEventsContent(events,today) {
             <div class="ev-row-meta">${e.club} • ${formatDate(e.date)} • ${e.venue}</div>
           </div>
           <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red'}">${e.status}</span>
-          ${e.status==='pending'?`<button class="btn btn-green" onclick="approveEvent('${e.id}');renderDeanPortal('events')">Approve</button>
+          ${e.status==='pending' && isDeanUser(STATE.user)?`<button class="btn btn-green" onclick="approveEvent('${e.id}');renderDeanPortal('events')">Approve</button>
           <button class="btn btn-red" onclick="openRejectModal('${e.id}')">Reject</button>`:''}
         </div>`).join('') || `<div class="empty-state"><div class="ei">📅</div><div class="et">No events</div></div>`
       }
@@ -5766,7 +5808,7 @@ function deanFilterEvents() {
       <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
       <div class="ev-row-info"><div class="ev-row-name">${e.name}</div><div class="ev-row-meta">${e.club} • ${formatDate(e.date)}</div></div>
       <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">${e.status}</span>
-      ${e.status==='pending'?`<button class="btn btn-green" onclick="approveEvent('${e.id}');renderDeanPortal('events')">Approve</button>`:''}</div>`).join('') ||
+      ${e.status==='pending' && isDeanUser(STATE.user)?`<button class="btn btn-green" onclick="approveEvent('${e.id}');renderDeanPortal('events')">Approve</button>`:''}</div>`).join('') ||
     `<div class="empty-state"><div class="ei">🔍</div><div class="et">No events found</div></div>`;
 }
 
