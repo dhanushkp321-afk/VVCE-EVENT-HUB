@@ -1447,7 +1447,18 @@ function handleForgotPassword() {
 /* ── Password visibility toggle ── */
 function togglePass(inputId, btn) {
   const inp = document.getElementById(inputId);
-  inp.type = inp.type === 'password' ? 'text' : 'password';
+  if (!inp) return;
+  const isPass = inp.type === 'password';
+  inp.type = isPass ? 'text' : 'password';
+  if (btn) {
+    if (isPass) {
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+      btn.title = "Hide Password";
+    } else {
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+      btn.title = "Show Password";
+    }
+  }
 }
 
 
@@ -1727,6 +1738,7 @@ function renderSidebar() {
       ${navItem('create-event','➕','Create Event')}
       ${navItem('manage-events','📋','My Events')}
       ${navItem('participants','👥','Participants')}
+      ${navItem('authority-clash','⚡','Clash Detect')}
       <div class="sb-section-label">Account</div>
       ${navItem('profile','👤','Profile')}
     `;
@@ -3693,7 +3705,7 @@ function drawCalendar() {
 
   const firstDay = new Date(year,month,1).getDay();
   const totalDays = new Date(year,month+1,0).getDate();
-  let events = getDB('vvce_events').filter(e=>e.status==='approved');
+  let events = getDB('vvce_events').filter(e=>e.status==='approved' || e.status==='rescheduled' || e.status==='completed');
   if (STATE.user && STATE.user.type === 'student') {
     events = events.filter(e => !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(STATE.user.branch));
   }
@@ -3701,20 +3713,40 @@ function drawCalendar() {
 
   for(let i=0;i<firstDay;i++){const c=document.createElement('div');c.className='cal-day other';grid.appendChild(c);}
 
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  let selectedDateToLoad = STATE.selectedDate || todayStr;
+  let defaultSelectedCell = null;
+
   for(let d=1;d<=totalDays;d++){
     const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const cell=document.createElement('div');
     cell.className='cal-day';
-    cell.textContent=d;
 
     const isToday=now.getFullYear()===year&&now.getMonth()===month&&now.getDate()===d;
-    const hasEv=events.some(e=>e.date===ds);
-    const sched=acad.find(s=>s.date===ds);
+    const dayEvents = events.filter(e=>e.date===ds);
+    const sched = acad.find(s=>s.date===ds);
 
     if(isToday) cell.classList.add('today');
-    else if(hasEv) cell.classList.add('has-ev');
+    if(dayEvents.length > 0) cell.classList.add('has-ev');
     if(sched?.type==='holiday') cell.classList.add('holiday');
     else if(sched?.type==='exam') cell.classList.add('exam');
+
+    let dotsHtml = '';
+    if (dayEvents.length > 0) {
+      dotsHtml += `<span style="width:5px; height:5px; border-radius:50%; background:#2563eb; display:inline-block; margin:0 1px;"></span>`;
+    }
+    if (sched?.type==='holiday') {
+      dotsHtml += `<span style="width:5px; height:5px; border-radius:50%; background:#ef4444; display:inline-block; margin:0 1px;"></span>`;
+    } else if (sched?.type==='exam') {
+      dotsHtml += `<span style="width:5px; height:5px; border-radius:50%; background:#f59e0b; display:inline-block; margin:0 1px;"></span>`;
+    }
+
+    cell.innerHTML = `
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%;">
+        <span>${d}</span>
+        ${dotsHtml ? `<div style="display:flex; gap:2px; margin-top:2px;">${dotsHtml}</div>` : ''}
+      </div>
+    `;
 
     cell.dataset.date = ds;
     cell.onclick = function() {
@@ -3724,35 +3756,71 @@ function drawCalendar() {
       STATE.selectedDate = this.dataset.date;
       showCalDateEvents(this.dataset.date);
     };
+
+    if (ds === selectedDateToLoad || (isToday && !STATE.selectedDate)) {
+      cell.classList.add('selected');
+      defaultSelectedCell = cell;
+      selectedDateToLoad = ds;
+    }
+
     grid.appendChild(cell);
   }
+
+  // Pre-load events for selected date on initial view
+  showCalDateEvents(selectedDateToLoad);
 }
 
 function showCalDateEvents(ds) {
-  let events = getDB('vvce_events').filter(e=>e.status==='approved'&&e.date===ds);
+  let events = getDB('vvce_events').filter(e=>(e.status==='approved'||e.status==='rescheduled'||e.status==='completed')&&e.date===ds);
   if (STATE.user && STATE.user.type === 'student') {
     events = events.filter(e => !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(STATE.user.branch));
   }
+  const acad = getDB('vvce_academic').filter(a => a.date === ds);
   const panel  = document.getElementById('cal-events-panel');
   if (!panel) return;
-  if (!events.length) { panel.innerHTML=`<p style="color:#9ca3af;font-size:13px;padding:12px;background:#f8fafc;border-radius:8px;">No events on ${formatDate(ds)}</p>`; return; }
-  panel.innerHTML = events.map(e=>`
-    <div class="sched-row" onclick="openEventModal('${e.id}')">
-      <span class="sched-emoji">${e.emoji||'🎓'}</span>
-      <div class="sched-info">
-        <div class="sched-name">${e.name}</div>
-        <div class="sched-meta">${formatTime(e.time)} • ${e.venue}</div>
+
+  if (!events.length && !acad.length) {
+    panel.innerHTML=`<p style="color:#64748b;font-size:13px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">No scheduled events on <strong>${formatDate(ds)}</strong></p>`;
+    return;
+  }
+
+  let html = `<div style="font-size:12px; font-weight:700; color:#64748b; margin-bottom:8px;">📅 Schedule for ${formatDate(ds)}:</div>`;
+
+  if (acad.length) {
+    html += acad.map(a => `
+      <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:${a.type==='holiday'?'#fef2f2':'#fffbeb'};border:1px solid ${a.type==='holiday'?'#fecaca':'#fde68a'};border-radius:8px;margin-bottom:8px;font-size:13px;font-weight:700;color:${a.type==='holiday'?'#dc2626':'#b45309'};">
+        <span>${a.type==='holiday'?'🏖️ Holiday:':'📝 Exam:'}</span>
+        <span>${a.desc || a.type}</span>
       </div>
-    </div>`).join('');
+    `).join('');
+  }
+
+  if (events.length) {
+    html += events.map(e=>`
+      <div class="sched-row" onclick="openEventModal('${e.id}')" style="cursor:pointer; margin-bottom:8px;">
+        <span class="sched-emoji">${e.emoji||'🎓'}</span>
+        <div class="sched-info">
+          <div class="sched-name">${e.name}</div>
+          <div class="sched-meta">${formatTime(e.time)} • ${e.venue} • ${e.club}</div>
+        </div>
+        <span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${e.status}</span>
+      </div>`).join('');
+  }
+
+  panel.innerHTML = html;
 }
 
 function renderAcadSchedule() {
   const acad   = getDB('vvce_academic');
-  const events = getDB('vvce_events').filter(e=>e.status==='approved');
+  const events = getDB('vvce_events').filter(e=>e.status==='approved'||e.status==='rescheduled');
   const panel  = document.getElementById('acad-schedule');
   if (!panel) return;
 
-  const upcoming = [...acad,...events.map(e=>({date:e.date,type:'event',label:e.name}))].filter(s=>new Date(s.date)>=new Date()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const upcoming = [
+    ...acad.map(a => ({ date: a.date, type: a.type, label: a.desc || a.type })),
+    ...events.map(e => ({ date: e.date, type: 'event', label: e.name }))
+  ].filter(s => s.date >= todayStr).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
 
   if (!upcoming.length) { panel.innerHTML=`<p style="color:#9ca3af;font-size:13px;">No upcoming events</p>`; return; }
   panel.innerHTML = upcoming.map(s=>`
@@ -4491,7 +4559,7 @@ function renderAdminDashboard() {
           <div class="qa-card" onclick="showPage('create-event')"><span class="qa-icon">➕</span><div class="qa-label">Create Event</div></div>
           <div class="qa-card" onclick="showPage('manage-events')"><span class="qa-icon">📋</span><div class="qa-label">Manage Events</div></div>
           <div class="qa-card" onclick="showPage('participants')"><span class="qa-icon">👥</span><div class="qa-label">View Participants</div></div>
-          <div class="qa-card" onclick="toast('Clash detection feature coming soon!','info')"><span class="qa-icon">⚡</span><div class="qa-label">Clash Detect</div></div>
+          <div class="qa-card" onclick="showPage('authority-clash')"><span class="qa-icon">⚡</span><div class="qa-label">Clash Detect</div></div>
         </div>
 
         <!-- Recent events -->
@@ -4750,7 +4818,11 @@ function handlePosterUpload(e) {
   r.readAsDataURL(file);
 }
 
+let _isSubmittingEvent = false;
+
 async function submitEvent(status='pending') {
+  if (_isSubmittingEvent) return;
+
   const name  = document.getElementById('ev-name').value.trim();
   const club  = document.getElementById('ev-club').value.trim();
   const date  = document.getElementById('ev-date').value;
@@ -4782,53 +4854,78 @@ async function submitEvent(status='pending') {
     return;
   }
 
-  // For team events: capacity = maxTeams × maxTeamSize (auto-computed)
-  // For solo events: use the manually entered Max Participants
-  const computedMax = isTeamEvent ? (maxTeams * maxTeamSize) : max;
-
-  const events = getDB('vvce_events');
-  const ev = {
-    id: genId('ev'), name, club, adminId: STATE.user.id,
-    emoji: '🎓', category: cat, date, time,
-    endDate: date, endTime: '',
-    venue, maxParticipants: computedMax, regCount: 0,
-    fee,
-    adminUpiId: upiId,
-    points: document.getElementById('ev-gives-points').checked ? parseInt(document.getElementById('ev-points').value||'0') : 0,
-    desc: document.getElementById('ev-desc').value.trim(),
-    speakers: document.getElementById('ev-speakers').value.trim(),
-    rules: document.getElementById('ev-rules').value.trim(),
-    poster: document.getElementById('ev-poster-data').value||null,
-    branches: branches.length ? branches : ['All'],
-    isTeamEvent, minTeamSize, maxTeamSize,
-    teams: [],
-    status, rejReason: null, registrations: [], pendingPayments: []
-  };
-  events.push(ev);
-  await setDB('vvce_events', events);
-
-  // Directly upsert single event to Supabase to guarantee reflection across devices
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      await sb.from('events').upsert([mapEventForSupabase(ev)]);
-      await syncEventsFromSupabase();
-    } catch(e) { console.warn('Supabase direct event upsert:', e); }
+  // Prevent duplicate requests and lock submit buttons
+  _isSubmittingEvent = true;
+  const submitBtn = document.querySelector('.btn-create-submit');
+  const draftBtn  = document.querySelector('.btn-create-draft');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = status === 'pending' ? 'Sending Request to Dean... ⏳' : 'Saving Draft... ⏳';
+    submitBtn.style.opacity = '0.65';
+    submitBtn.style.cursor = 'not-allowed';
+  }
+  if (draftBtn) {
+    draftBtn.disabled = true;
+    draftBtn.style.opacity = '0.65';
+    draftBtn.style.cursor = 'not-allowed';
   }
 
-  if (status==='pending') {
-    toast(`Event "${name}" submitted for Dean approval! ✅`,'success');
-    // Notify authority
-    const users=getDB('vvce_users');
-    users.filter(u=>u.type==='authority').forEach(u=>{
-      if(!u.notifs) u.notifs=[];
-      u.notifs.push({id:genId('n'),msg:`New event "${name}" by ${club} needs your approval.`,icon:'📋',time:'Just now',timestamp:Date.now(),read:false});
-    });
-    await setDB('vvce_users',users);
-  } else {
-    toast(`Event saved as draft.`,'info');
+  try {
+    // For team events: capacity = maxTeams × maxTeamSize (auto-computed)
+    // For solo events: use the manually entered Max Participants
+    const computedMax = isTeamEvent ? (maxTeams * maxTeamSize) : max;
+
+    const events = getDB('vvce_events');
+    const ev = {
+      id: genId('ev'), name, club, adminId: STATE.user.id,
+      emoji: '🎓', category: cat, date, time,
+      endDate: date, endTime: '',
+      venue, maxParticipants: computedMax, regCount: 0,
+      fee,
+      adminUpiId: upiId,
+      points: document.getElementById('ev-gives-points').checked ? parseInt(document.getElementById('ev-points').value||'0') : 0,
+      desc: document.getElementById('ev-desc').value.trim(),
+      speakers: document.getElementById('ev-speakers').value.trim(),
+      rules: document.getElementById('ev-rules').value.trim(),
+      poster: document.getElementById('ev-poster-data').value||null,
+      branches: branches.length ? branches : ['All'],
+      isTeamEvent, minTeamSize, maxTeamSize,
+      teams: [],
+      status, rejReason: null, registrations: [], pendingPayments: []
+    };
+    events.push(ev);
+    await setDB('vvce_events', events);
+
+    // Directly upsert single event to Supabase to guarantee reflection across devices
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.from('events').upsert([mapEventForSupabase(ev)]);
+        await syncEventsFromSupabase();
+      } catch(e) { console.warn('Supabase direct event upsert:', e); }
+    }
+
+    if (status==='pending') {
+      toast(`Event request "${name}" sent to Dean for approval! ✅`,'success');
+      // Notify authority
+      const users=getDB('vvce_users');
+      users.filter(u=>u.type==='authority').forEach(u=>{
+        if(!u.notifs) u.notifs=[];
+        u.notifs.push({id:genId('n'),msg:`New event "${name}" by ${club} needs your approval.`,icon:'📋',time:'Just now',timestamp:Date.now(),read:false});
+      });
+      await setDB('vvce_users',users);
+      // Go back to home menu as requested
+      showPage('admin-dashboard');
+    } else {
+      toast(`Event saved as draft.`,'info');
+      showPage('manage-events');
+    }
+  } catch (err) {
+    console.error('Error submitting event:', err);
+    toast('Error submitting event: ' + err.message, 'error');
+  } finally {
+    _isSubmittingEvent = false;
   }
-  showPage('manage-events');
 }
 
 
@@ -4837,6 +4934,8 @@ async function submitEvent(status='pending') {
 ───────────────────────────────────────────────────────────────*/
 function renderManageEventsPage() {
   const events = getDB('vvce_events').filter(e=>e.adminId===STATE.user.id && e.status !== 'archived');
+  const allScheduled = getDB('vvce_events').filter(e=>e.status==='approved'||e.status==='pending');
+
   const el = document.getElementById('page-manage-events');
   el.innerHTML = `
     <div class="sec-head">
@@ -4844,20 +4943,26 @@ function renderManageEventsPage() {
       <button class="btn btn-gold" onclick="showPage('create-event')">+ Create Event</button>
     </div>
     ${events.length
-      ? events.map(e=>`
-        <div class="ev-row">
+      ? events.map(e=>{
+        const clash = allScheduled.find(o => o.id !== e.id && o.date === e.date && (o.venue||'').toLowerCase().trim() === (e.venue||'').toLowerCase().trim());
+        return `
+        <div class="ev-row" style="${clash ? 'border-left: 4.5px solid #ef4444; background: #fff8f8; box-shadow: 0 2px 8px rgba(239,68,68,0.1);' : ''}">
           <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
           <div class="ev-row-info">
-            <div class="ev-row-name">${e.name}</div>
+            <div class="ev-row-name">
+              ${clash ? '<span style="color:#ef4444; font-weight:800;">⚠️ </span>' : ''}${e.name}
+            </div>
             <div class="ev-row-meta">${formatDate(e.date)} • ${e.venue} • ${e.isTeamEvent ? `👥 ${(e.teams||[]).length} teams (${e.regCount||0}/${e.maxParticipants})` : `👤 ${e.regCount||0}/${e.maxParticipants} registered`}</div>
+            ${clash ? `<div style="font-size:11px;font-weight:700;color:#dc2626;background:#fee2e2;border:1px solid #fca5a5;padding:3px 8px;border-radius:6px;display:inline-block;margin-top:4px;">⚡ Venue Clash with "${clash.name}" (${clash.club}) on ${formatDate(e.date)} at ${e.venue}</div>` : ''}
             ${e.rejReason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">Rejected: ${e.rejReason}</div>`:''}
           </div>
-          <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red'}">${e.status}</span>
+          <span class="badge ${clash ? 'badge-red' : (e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red')}">${clash ? '⚠️ CLASH' : e.status}</span>
           <div class="ev-row-acts">
             <button class="btn btn-outline" onclick="openEventModal('${e.id}')">View</button>
             ${e.status==='draft'?`<button class="btn btn-gold" onclick="submitDraftEvent('${e.id}')">Submit</button>`:''}
           </div>
-        </div>`).join('')
+        </div>`;
+      }).join('')
       : `<div class="empty-state"><div class="ei">📅</div><div class="et">No events yet</div><div class="es">Create your first event to get started.</div><button class="btn btn-gold" style="margin-top:12px;" onclick="showPage('create-event')">Create Event</button></div>`
     }
   `;
@@ -4871,7 +4976,12 @@ function renderManageEventsPage() {
 
 function submitDraftEvent(id) {
   const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
-  if(ev){ev.status='pending';setDB('vvce_events',events);toast('Event submitted for approval!','success');renderManageEventsPage();}
+  if(ev){
+    ev.status='pending';
+    setDB('vvce_events',events);
+    toast(`Event "${ev.name}" submitted to Dean for approval! ✅`,'success');
+    showPage('admin-dashboard');
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -5558,9 +5668,19 @@ function renderClashDetect() {
   const events = dateVal ? allEvents.filter(e => e.date === dateVal) : allEvents;
   
   const clashes = [];
-  for(let i=0;i<events.length;i++) for(let j=i+1;j<events.length;j++) {
-    if(events[i].date===events[j].date && events[i].venue===events[j].venue) {
-      clashes.push([events[i],events[j]]);
+  const clashingMap = new Map();
+  for(let i=0;i<events.length;i++) {
+    for(let j=i+1;j<events.length;j++) {
+      const a = events[i], b = events[j];
+      const sameDate = a.date === b.date;
+      const sameVenue = (a.venue || '').toLowerCase().trim() === (b.venue || '').toLowerCase().trim();
+      if(sameDate && sameVenue) {
+        clashes.push([a, b]);
+        if (!clashingMap.has(a.id)) clashingMap.set(a.id, []);
+        if (!clashingMap.has(b.id)) clashingMap.set(b.id, []);
+        clashingMap.get(a.id).push(b.name);
+        clashingMap.get(b.id).push(a.name);
+      }
     }
   }
 
@@ -5569,50 +5689,74 @@ function renderClashDetect() {
   const el = document.getElementById('page-authority-clash');
   el.innerHTML=`
     <div class="sec-head">
-      <span class="sec-title">Clash Detection</span>
-      <span class="badge ${clashes.length?'badge-red':'badge-green'}">${clashes.length} clashes found</span>
+      <span class="sec-title">Venue Clash Detection</span>
+      <span class="badge ${clashes.length?'badge-red':'badge-green'}">${clashes.length} ${clashes.length === 1 ? 'clash' : 'clashes'} found</span>
     </div>
     
-    <div style="background:rgba(255,255,255,0.8);padding:1rem;border-radius:10px;margin-bottom:1rem;display:flex;align-items:center;gap:10px;">
-      <label style="font-weight:700;font-size:13px;">Check specific date:</label>
+    <div style="background:rgba(255,255,255,0.85);padding:1rem;border-radius:12px;margin-bottom:1rem;display:flex;align-items:center;gap:10px;border:1px solid #e2e8f0;flex-wrap:wrap;">
+      <label style="font-weight:700;font-size:13px;color:#334155;">Check specific date:</label>
       <input type="date" id="clash-date-filter" class="auth-input" style="max-width:200px;margin-bottom:0;" value="${dateVal}" onchange="runClashFilter()">
-      <button class="btn-sm btn-outline" onclick="document.getElementById('clash-date-filter').value='';runClashFilter()">Clear</button>
+      <button class="btn-sm btn-outline" onclick="document.getElementById('clash-date-filter').value='';runClashFilter()">Show All Dates</button>
     </div>
     ${clashes.length
       ? clashes.map(([a,b])=>`
-        <div class="clash-chip clash-error">
-          <div style="font-weight:700;font-size:13px;margin-bottom:8px;">⚡ Venue & Time Conflict</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
-            <div style="background:rgba(255,255,255,0.6);padding:8px;border-radius:6px;">
-              <div style="font-weight:700;">${a.name}</div>
-              <div style="color:#6b7280;">${a.club} • ${formatTime(a.time)}</div>
+        <div class="clash-chip clash-error" style="border: 1.5px solid #ef4444; background: #fef2f2; box-shadow: 0 4px 12px rgba(239,68,68,0.12); margin-bottom: 12px; border-radius: 12px; padding: 14px;">
+          <div style="font-weight:800;font-size:13.5px;color:#b91c1c;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <span>⚠️ VENUE CLASH DETECTED</span>
+            <span style="font-size:12px;color:#7f1d1d;font-weight:600;">(Same date & venue)</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px;">
+            <div style="background:#ffffff;border:1px solid #fca5a5;padding:10px;border-radius:8px;">
+              <div style="font-weight:800;color:#0f172a;">${a.name}</div>
+              <div style="color:#64748b;margin-top:2px;">🏛️ ${a.club} • ⏰ ${formatTime(a.time)}</div>
+              <div style="margin-top:4px;"><span class="badge ${a.status==='approved'?'badge-green':'badge-amber'}">${a.status.toUpperCase()}</span></div>
             </div>
-            <div style="background:rgba(255,255,255,0.6);padding:8px;border-radius:6px;">
-              <div style="font-weight:700;">${b.name}</div>
-              <div style="color:#6b7280;">${b.club} • ${formatTime(b.time)}</div>
+            <div style="background:#ffffff;border:1px solid #fca5a5;padding:10px;border-radius:8px;">
+              <div style="font-weight:800;color:#0f172a;">${b.name}</div>
+              <div style="color:#64748b;margin-top:2px;">🏛️ ${b.club} • ⏰ ${formatTime(b.time)}</div>
+              <div style="margin-top:4px;"><span class="badge ${b.status==='approved'?'badge-green':'badge-amber'}">${b.status.toUpperCase()}</span></div>
             </div>
           </div>
-          <div style="font-size:11px;color:#991b1b;margin-top:6px;">📍 ${a.venue} — 📅 ${formatDate(a.date)}</div>
+          <div style="font-size:12px;font-weight:700;color:#991b1b;margin-top:8px;">📍 Venue: ${a.venue} &bull; 📅 Date: ${formatDate(a.date)}</div>
         </div>`).join('')
-      : `<div class="clash-chip clash-ok"><div style="font-weight:700;color:#15803d;">✓ No venue clashes detected!</div><div style="font-size:12px;color:#059669;margin-top:4px;">All approved events have unique venue-date combinations.</div></div>`
+      : `<div class="clash-chip clash-ok" style="border:1.5px solid #86efac;background:#f0fdf4;border-radius:12px;padding:14px;"><div style="font-weight:700;color:#15803d;">✓ No venue clashes detected!</div><div style="font-size:12px;color:#059669;margin-top:4px;">All events have distinct dates or separate venues.</div></div>`
     }
 
-    <!-- All events table -->
+    <!-- All events table with highlighted red mark for clashes -->
     <div style="margin-top:1.5rem;">
-      <div class="sec-title" style="margin-bottom:10px;">All Scheduled Events</div>
-      <div class="table-wrap">
+      <div class="sec-head">
+        <span class="sec-title">All Scheduled Events</span>
+        <span style="font-size:12px; color:#64748b;">(Events with conflicts highlighted in red)</span>
+      </div>
+      <div class="table-wrap" style="border-radius:12px; overflow:hidden; border:1px solid #e2e8f0; background:#fff;">
         <table class="data-table">
           <thead><tr><th>Event</th><th>Club</th><th>Date</th><th>Time</th><th>Venue</th><th>Status</th></tr></thead>
           <tbody>
-            ${events.sort((a,b)=>a.date.localeCompare(b.date)).map(e=>`
-              <tr>
-                <td class="td-name">${e.name}</td>
-                <td>${e.club}</td>
-                <td>${formatDate(e.date)}</td>
-                <td>${formatTime(e.time)}</td>
-                <td>${e.venue}</td>
-                <td><span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${e.status}</span></td>
-              </tr>`).join('')}
+            ${events.sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
+              const hasClash = clashingMap.has(e.id);
+              const otherNames = hasClash ? clashingMap.get(e.id).join(', ') : '';
+              return `
+                <tr style="${hasClash ? 'background:#fee2e2 !important; border-left:5px solid #dc2626;' : ''}">
+                  <td class="td-name">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      ${hasClash ? '<span style="color:#dc2626; font-size:16px;">⚠️</span>' : ''}
+                      <span style="${hasClash ? 'color:#991b1b; font-weight:800;' : ''}">${e.name}</span>
+                    </div>
+                    ${hasClash ? `<div style="font-size:11px; font-weight:700; color:#b91c1c; margin-top:2px;">⚡ Clashes with: "${otherNames}"</div>` : ''}
+                  </td>
+                  <td>${e.club}</td>
+                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">${formatDate(e.date)}</td>
+                  <td>${formatTime(e.time)}</td>
+                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">📍 ${e.venue}</td>
+                  <td>
+                    ${hasClash
+                      ? `<span class="badge" style="background:#fecaca; color:#991b1b; border:1px solid #ef4444; font-weight:800;">⚠️ CLASH</span>`
+                      : `<span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${e.status}</span>`
+                    }
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -5945,36 +6089,96 @@ function deanFilterEvents() {
 
 function deanClashContent(events) {
   const dateVal = document.getElementById('dean-clash-date-filter')?.value || '';
-  let approved = events.filter(e=>e.status==='approved');
-  if (dateVal) approved = approved.filter(e=>e.date===dateVal);
+  let activeEvents = events.filter(e=>e.status==='approved'||e.status==='pending');
+  if (dateVal) activeEvents = activeEvents.filter(e=>e.date===dateVal);
 
   const clashes=[];
-  for(let i=0;i<approved.length;i++) for(let j=i+1;j<approved.length;j++) {
-    if(approved[i].date===approved[j].date&&approved[i].venue===approved[j].venue) clashes.push([approved[i],approved[j]]);
+  const clashingMap = new Map();
+  for(let i=0;i<activeEvents.length;i++) {
+    for(let j=i+1;j<activeEvents.length;j++) {
+      const a = activeEvents[i], b = activeEvents[j];
+      const sameDate = a.date === b.date;
+      const sameVenue = (a.venue || '').toLowerCase().trim() === (b.venue || '').toLowerCase().trim();
+      if(sameDate && sameVenue) {
+        clashes.push([a, b]);
+        if (!clashingMap.has(a.id)) clashingMap.set(a.id, []);
+        if (!clashingMap.has(b.id)) clashingMap.set(b.id, []);
+        clashingMap.get(a.id).push(b.name);
+        clashingMap.get(b.id).push(a.name);
+      }
+    }
   }
 
   window.runDeanClashFilter = () => renderDeanPortal('clash');
 
   return `
-    <div class="sec-head"><span class="sec-title">Venue Clash Detection</span><span class="badge ${clashes.length?'badge-red':'badge-green'}">${clashes.length} clashes</span></div>
+    <div class="sec-head"><span class="sec-title">Venue Clash Detection</span><span class="badge ${clashes.length?'badge-red':'badge-green'}">${clashes.length} ${clashes.length === 1 ? 'clash' : 'clashes'}</span></div>
     
-    <div style="background:rgba(255,255,255,0.8);padding:1rem;border-radius:10px;margin-bottom:1rem;display:flex;align-items:center;gap:10px;">
+    <div style="background:rgba(255,255,255,0.8);padding:1rem;border-radius:10px;margin-bottom:1rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <label style="font-weight:700;font-size:13px;">Check specific date:</label>
       <input type="date" id="dean-clash-date-filter" class="auth-input" style="max-width:200px;margin-bottom:0;" value="${dateVal}" onchange="runDeanClashFilter()">
-      <button class="btn-sm btn-outline" onclick="document.getElementById('dean-clash-date-filter').value='';runDeanClashFilter()">Clear</button>
+      <button class="btn-sm btn-outline" onclick="document.getElementById('dean-clash-date-filter').value='';runDeanClashFilter()">Show All Dates</button>
     </div>
 
     ${clashes.length
       ? clashes.map(([a,b])=>`
-        <div class="clash-chip clash-error">
-          <div style="font-weight:700;margin-bottom:6px;">⚡ Conflict at ${a.venue} on ${formatDate(a.date)}</div>
+        <div class="clash-chip clash-error" style="border: 1.5px solid #ef4444; background: #fef2f2; box-shadow: 0 4px 12px rgba(239,68,68,0.12); margin-bottom: 12px; border-radius: 12px; padding: 14px;">
+          <div style="font-weight:800;font-size:13.5px;color:#b91c1c;margin-bottom:8px;">⚡ Conflict at ${a.venue} on ${formatDate(a.date)}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
-            <div style="background:rgba(255,255,255,0.7);padding:8px;border-radius:6px;"><strong>${a.name}</strong><br>${a.club} • ${formatTime(a.time)}</div>
-            <div style="background:rgba(255,255,255,0.7);padding:8px;border-radius:6px;"><strong>${b.name}</strong><br>${b.club} • ${formatTime(b.time)}</div>
+            <div style="background:rgba(255,255,255,0.85);padding:10px;border-radius:8px;border:1px solid #fca5a5;">
+              <strong style="color:#0f172a;">${a.name}</strong><br>
+              <span style="color:#64748b;">${a.club} • ${formatTime(a.time)}</span>
+              <div style="margin-top:4px;"><span class="badge ${a.status==='approved'?'badge-green':'badge-amber'}">${a.status.toUpperCase()}</span></div>
+            </div>
+            <div style="background:rgba(255,255,255,0.85);padding:10px;border-radius:8px;border:1px solid #fca5a5;">
+              <strong style="color:#0f172a;">${b.name}</strong><br>
+              <span style="color:#64748b;">${b.club} • ${formatTime(b.time)}</span>
+              <div style="margin-top:4px;"><span class="badge ${b.status==='approved'?'badge-green':'badge-amber'}">${b.status.toUpperCase()}</span></div>
+            </div>
           </div>
         </div>`).join('')
-      : `<div class="clash-chip clash-ok"><strong>✅ No venue clashes detected!</strong><br><span style="font-size:12px;color:#059669;">All approved events have unique time-venue combinations.</span></div>`
+      : `<div class="clash-chip clash-ok" style="border:1.5px solid #86efac;background:#f0fdf4;border-radius:12px;padding:14px;"><strong style="color:#15803d;">✅ No venue clashes detected!</strong><br><span style="font-size:12px;color:#059669;">All scheduled events have unique time-venue combinations.</span></div>`
     }
+
+    <!-- All events table with red clash highlight -->
+    <div style="margin-top:1.5rem;">
+      <div class="sec-head">
+        <span class="sec-title">Scheduled Events Monitor</span>
+        <span style="font-size:12px; color:#64748b;">(Conflicting events highlighted in red)</span>
+      </div>
+      <div class="table-wrap" style="border-radius:12px; overflow:hidden; border:1px solid #e2e8f0; background:#fff;">
+        <table class="data-table">
+          <thead><tr><th>Event</th><th>Club</th><th>Date</th><th>Time</th><th>Venue</th><th>Status</th></tr></thead>
+          <tbody>
+            ${activeEvents.sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
+              const hasClash = clashingMap.has(e.id);
+              const otherNames = hasClash ? clashingMap.get(e.id).join(', ') : '';
+              return `
+                <tr style="${hasClash ? 'background:#fee2e2 !important; border-left:5px solid #dc2626;' : ''}">
+                  <td class="td-name">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      ${hasClash ? '<span style="color:#dc2626; font-size:16px;">⚠️</span>' : ''}
+                      <span style="${hasClash ? 'color:#991b1b; font-weight:800;' : ''}">${e.name}</span>
+                    </div>
+                    ${hasClash ? `<div style="font-size:11px; font-weight:700; color:#b91c1c; margin-top:2px;">⚡ Clashes with: "${otherNames}"</div>` : ''}
+                  </td>
+                  <td>${e.club}</td>
+                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">${formatDate(e.date)}</td>
+                  <td>${formatTime(e.time)}</td>
+                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">📍 ${e.venue}</td>
+                  <td>
+                    ${hasClash
+                      ? `<span class="badge" style="background:#fecaca; color:#991b1b; border:1px solid #ef4444; font-weight:800;">⚠️ CLASH</span>`
+                      : `<span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${e.status}</span>`
+                    }
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
 }
 

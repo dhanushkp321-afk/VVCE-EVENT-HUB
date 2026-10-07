@@ -592,7 +592,12 @@
       <p>This portal requires secondary authentication</p>
     </div>
     <div class="auth-field-group">
-      <input class="auth-input" type="password" id="dean-pass-input" placeholder="Enter portal password" onkeydown="if(event.key==='Enter') verifyDeanPassword()">
+      <div class="auth-pass-wrap">
+        <input class="auth-input" type="password" id="dean-pass-input" placeholder="Enter portal password" onkeydown="if(event.key==='Enter') verifyDeanPassword()">
+        <button type="button" class="pass-toggle" onclick="togglePass('dean-pass-input', this)" title="Show/Hide Password">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
     </div>
     <div id="dean-pass-error" class="auth-msg error" style="display:none;"></div>
     <button class="btn-signin" style="margin-top:6px;" onclick="verifyDeanPassword()">Access Portal 🔐</button>
@@ -608,7 +613,12 @@
       <p>Secondary authentication required</p>
     </div>
     <div class="auth-field-group">
-      <input class="auth-input" type="password" id="principal-pass-input" placeholder="Enter portal password" onkeydown="if(event.key==='Enter') verifyPrincipalPassword()">
+      <div class="auth-pass-wrap">
+        <input class="auth-input" type="password" id="principal-pass-input" placeholder="Enter portal password" onkeydown="if(event.key==='Enter') verifyPrincipalPassword()">
+        <button type="button" class="pass-toggle" onclick="togglePass('principal-pass-input', this)" title="Show/Hide Password">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
     </div>
     <div id="principal-pass-error" class="auth-msg error" style="display:none;"></div>
     <button class="btn-purple-submit" onclick="verifyPrincipalPassword()">Access Portal 🔐</button>
@@ -960,6 +970,6 @@
 </div>
 
 
-  <script src="app.js?v=4.0"></script>
+  <script src="app.js?v=4.1"></script>
 </body>
 </html>
