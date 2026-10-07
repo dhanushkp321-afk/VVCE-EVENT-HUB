@@ -69,6 +69,9 @@ const SUPABASE_CACHE = {
 const PENDING_SCREENSHOTS = {};
 
 function getDB(key, def = []) {
+  if (key === 'vvce_principal_status') {
+    return getDBObj('vvce_principal_status', { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" });
+  }
   if (SUPABASE_CACHE[key] && Array.isArray(SUPABASE_CACHE[key]) && SUPABASE_CACHE[key].length > 0) {
     return SUPABASE_CACHE[key];
   }
@@ -91,15 +94,18 @@ function getDB(key, def = []) {
 }
 
 function getDBObj(key, def = {}) {
-  if (SUPABASE_CACHE[key] && Object.keys(SUPABASE_CACHE[key]).length > 0) {
-    return SUPABASE_CACHE[key];
+  const cached = SUPABASE_CACHE[key];
+  if (cached && typeof cached === 'object' && !Array.isArray(cached) && Object.keys(cached).length > 0) {
+    return cached;
   }
   try {
     const local = localStorage.getItem(key);
     if (local) {
       const parsed = JSON.parse(local);
-      SUPABASE_CACHE[key] = parsed;
-      return parsed;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        SUPABASE_CACHE[key] = parsed;
+        return parsed;
+      }
     }
   } catch (e) {}
   return def;
@@ -276,8 +282,13 @@ function mapAcademic(a) {
 }
 
 function mapPrincipalStatus(s) {
+  if (!s) return { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" };
   return {
-    text: s.text, note: s.note, updated: s.updated, color: s.color, icon: s.icon
+    text: s.text || 'Available',
+    note: (s.note === 'undefined' || !s.note) ? '' : s.note,
+    updated: s.updated || 'Just now',
+    color: s.color || '#48bb78',
+    icon: s.icon || '✅'
   };
 }
 
@@ -296,6 +307,10 @@ function handleRealtimeUpdate(key, payload) {
       SUPABASE_CACHE.vvce_principal_status = { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" };
     } else {
       SUPABASE_CACHE.vvce_principal_status = mapPrincipalStatus(newRecord);
+    }
+    try { localStorage.setItem('vvce_principal_status', JSON.stringify(SUPABASE_CACHE.vvce_principal_status)); } catch(e){}
+    if (['dashboard','admin-dashboard','authority-dashboard','principal-portal'].includes(STATE.page)) {
+      showPage(STATE.page);
     }
   } else if (key === 'vvce_princ_attend') {
     if (eventType === 'INSERT') {
@@ -471,8 +486,8 @@ async function bootApp() {
       try { localStorage.setItem('vvce_academic', JSON.stringify(SUPABASE_CACHE.vvce_academic)); } catch(e){}
     }
     if (psRes && psRes.data && psRes.data.length > 0) {
-      const s = psRes.data[0];
-      SUPABASE_CACHE.vvce_principal_status = { text: s.text, note: s.note, updated: s.updated, color: s.color, icon: s.icon };
+      SUPABASE_CACHE.vvce_principal_status = mapPrincipalStatus(psRes.data[0]);
+      try { localStorage.setItem('vvce_principal_status', JSON.stringify(SUPABASE_CACHE.vvce_principal_status)); } catch(e){}
     } else {
       SUPABASE_CACHE.vvce_principal_status = {"text":"Available","note":"","updated":"Just now","color":"#48bb78","icon":"✅"};
     }
@@ -2008,6 +2023,8 @@ function renderStudentDashboard() {
 
       <!-- Right sidebar -->
       <div>
+        ${renderPrincipalAvailability()}
+
         <!-- Upcoming events -->
         <div class="sec-title" style="margin-bottom:10px;">📅 Upcoming Events</div>
         ${upcoming.length
@@ -4552,8 +4569,10 @@ function renderAdminDashboard() {
         </div>
       </div>
 
-      <!-- Right: quick actions -->
+      <!-- Right: quick actions & principal availability -->
       <div>
+        ${renderPrincipalAvailability()}
+
         <div class="sec-title" style="margin-bottom:10px;">Quick Actions</div>
         <div class="qa-grid">
           <div class="qa-card" onclick="showPage('create-event')"><span class="qa-icon">➕</span><div class="qa-label">Create Event</div></div>
@@ -5394,18 +5413,34 @@ function renderAuthorityDashboard() {
 }
 
 function renderPrincipalAvailability() {
-  const princStatus = getDB('vvce_principal_status');
+  const princStatus = getDBObj('vvce_principal_status', { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" });
+  const noteText = (princStatus.note && princStatus.note !== 'undefined') ? princStatus.note : '';
+  const color = princStatus.color || '#48bb78';
+  const icon = princStatus.icon || '✅';
+  const text = princStatus.text || 'Available';
+  const updated = princStatus.updated || 'Recently';
+
   return `
-    <div class="avail-card">
-      <div class="avail-head">
-        <span class="sec-title" style="font-size:14px;">Principal Availability</span>
+    <div class="avail-card" style="background:#ffffff; border-radius:12px; border:1.5px solid ${color}; padding:14px; box-shadow:0 2px 8px rgba(0,0,0,0.04); margin-bottom:1rem;">
+      <div class="avail-head" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span class="sec-title" style="font-size:13.5px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px;">
+          <span>🎓</span> Principal's Availability
+        </span>
+        <span class="badge" style="background:${color}20; color:${color}; border:1px solid ${color}; font-weight:700; font-size:11px;">
+          ${text}
+        </span>
       </div>
-      <div class="avail-status" style="display:flex;align-items:center;gap:8px;">
-        <div style="color:${princStatus.color};font-size:18px;">${princStatus.icon}</div>
-        <div style="font-weight:600;">${princStatus.text}</div>
+      <div class="avail-status" style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${color}10;border-radius:8px;">
+        <div style="font-size:22px;">${icon}</div>
+        <div>
+          <div style="font-weight:700; font-size:13.5px; color:#1e293b;">${text}</div>
+          ${noteText ? `<div style="font-size:11.5px; color:#475569; margin-top:2px;">"${noteText}"</div>` : ''}
+        </div>
       </div>
-      ${princStatus.note ? `<div style="font-size:12px;color:#4b5563;margin-top:4px;">"${princStatus.note}"</div>` : ''}
-      <div class="avail-upd" style="margin-top:8px;">Updated ${princStatus.updated}</div>
+      <div class="avail-upd" style="margin-top:8px; font-size:10.5px; color:#94a3b8; display:flex; justify-content:space-between;">
+        <span>Last Updated</span>
+        <span style="font-weight:600; color:#64748b;">${updated}</span>
+      </div>
     </div>`;
 }
 
@@ -6246,7 +6281,8 @@ function renderPrincipalPortal() {
   const clubs  = getDB('vvce_users').filter(u=>u.type==='admin');
   const users  = getDB('vvce_users').filter(u=>u.type==='student');
   const toAttendIds = getDB('vvce_princ_attend');
-  const princStatus = getDB('vvce_principal_status');
+  const princStatus = getDBObj('vvce_principal_status', { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" });
+  const statusNote = (princStatus.note && princStatus.note !== 'undefined') ? princStatus.note : '';
   const princSchedules = getDB('vvce_principal_schedule');
   const el     = document.getElementById('page-principal-portal');
   
@@ -6269,12 +6305,12 @@ function renderPrincipalPortal() {
     </div>
 
     <!-- Current Status Section -->
-    <div class="white-card" style="margin-bottom:1.5rem; border: 1px solid ${princStatus.color}; background-color: #fffaf0;">
+    <div class="white-card" style="margin-bottom:1.5rem; border: 1.5px solid ${princStatus.color || '#48bb78'}; background-color: #fffaf0;">
       <div style="display:flex; justify-content:space-between; margin-bottom:1rem;">
-         <div><span style="color:${princStatus.color};font-size:12px;">●</span> Current Status<br><strong style="font-size:16px;">${princStatus.icon} ${princStatus.text}</strong></div>
-         <div style="font-size:12px; color:#a0aec0;">Updated ${princStatus.updated}</div>
+         <div><span style="color:${princStatus.color || '#48bb78'};font-size:12px;">●</span> Current Status<br><strong style="font-size:16px;">${princStatus.icon || '✅'} ${princStatus.text || 'Available'}</strong></div>
+         <div style="font-size:12px; color:#a0aec0;">Updated ${princStatus.updated || 'Just now'}</div>
       </div>
-      <input type="text" id="princ-status-note" value="${princStatus.note}" placeholder="Optional status note (e.g. Back by 3 PM)..." style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:1rem; font-family:inherit;">
+      <input type="text" id="princ-status-note" value="${statusNote}" placeholder="Optional status note (e.g. Back by 3 PM)..." style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:1rem; font-family:inherit;">
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; margin-bottom:1rem;">
         <button class="btn" style="background:#48bb78; color:white;" onclick="setPrincStatus('Available', '#48bb78', '✅')">✅ Available</button>
         <button class="btn" style="background:#4299e1; color:white;" onclick="setPrincStatus('In Meeting', '#4299e1', '🤝')">🤝 In Meeting</button>
@@ -6398,17 +6434,19 @@ function lockPrincipalPortal() {
 }
 
 /* ── Principal Status & Schedule Logic ── */
-window.setPrincStatus = function(text, color, icon) {
-  const note = document.getElementById('princ-status-note').value;
+window.setPrincStatus = async function(text, color, icon) {
+  const noteInput = document.getElementById('princ-status-note');
+  const rawNote = noteInput ? noteInput.value.trim() : '';
+  const note = rawNote === 'undefined' ? '' : rawNote;
   const updated = new Date().toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
-  setDB('vvce_principal_status', {text, note, updated, color, icon});
+  await setDB('vvce_principal_status', {text, note, updated, color, icon});
   renderPrincipalPortal();
-  toast('Status updated successfully!', 'success');
+  toast(`Principal status updated to "${text}"! Live across all dashboards. ✅`, 'success');
 };
 
 window.updatePrincStatusBtn = function() {
   const select = document.getElementById('princ-status-select');
-  const text = select.value;
+  const text = select ? select.value : 'Available';
   let color = '#48bb78', icon = '✅';
   if(text === 'In Meeting') { color = '#4299e1'; icon = '🤝'; }
   else if(text === 'Out of Campus') { color = '#ed8936'; icon = '🏎️'; }
