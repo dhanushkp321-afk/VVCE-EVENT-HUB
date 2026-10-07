@@ -6358,12 +6358,6 @@ function renderPrincipalPortal() {
       </div>
     </div>
 
-    <div class="stats-row">
-      ${statCard('👥','Total Students',users.length,'Registered students','stat-blue')}
-      ${statCard('🏛️','Active Clubs',clubs.filter(c=>c.approved).length,'Approved clubs','stat-mint')}
-      ${statCard('📅','Total Events',events.filter(e=>e.status==='approved').length,'Approved events','stat-amber')}
-      ${statCard('📌','Events to Attend',toAttendIds.length,'My Schedule','stat-purple')}
-    </div>
 
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;">
       <!-- Events overview -->
