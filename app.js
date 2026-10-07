@@ -2338,6 +2338,7 @@ function toggleTeamFields() {
   const card = document.getElementById('team-event-card-wrap');
   const title = document.getElementById('team-card-title');
 
+  // Show/hide team fields
   if (wrap) wrap.style.display = isChecked ? 'block' : 'none';
   if (card) {
     card.style.background = isChecked ? '#f5f3ff' : '#f8fafc';
@@ -2345,7 +2346,31 @@ function toggleTeamFields() {
     card.style.boxShadow = isChecked ? '0 2px 8px rgba(139,92,246,0.15)' : 'none';
   }
   if (title) title.style.color = isChecked ? '#6d28d9' : '#0f172a';
+
+  // Disable Max Participants when team event is on (auto-computed)
+  const maxInput = document.getElementById('ev-max');
+  const hint = document.getElementById('ev-max-team-hint');
+  if (maxInput) {
+    maxInput.disabled = isChecked;
+    maxInput.style.opacity = isChecked ? '0.45' : '1';
+    maxInput.style.cursor = isChecked ? 'not-allowed' : '';
+    maxInput.style.background = isChecked ? '#f1f0ff' : '';
+  }
+  if (hint) hint.style.display = isChecked ? 'block' : 'none';
+
+  // If turning ON, compute initial value
+  if (isChecked) updateMaxParticipantsFromTeam();
 }
+
+function updateMaxParticipantsFromTeam() {
+  const maxTeams = parseInt(document.getElementById('ev-max-teams')?.value || '20');
+  const maxMembers = parseInt(document.getElementById('ev-team-max')?.value || '4');
+  const maxInput = document.getElementById('ev-max');
+  if (maxInput && maxTeams > 0 && maxMembers > 0) {
+    maxInput.value = maxTeams * maxMembers;
+  }
+}
+
 
 function openTeamRegisterModal(ev) {
   _teamRegEventId = ev.id;
@@ -4516,7 +4541,13 @@ function renderCreateEventPage() {
         <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
           <div class="form-group"><label>Event Date *</label><input type="date" id="ev-date"></div>
           <div class="form-group"><label>Start Time *</label><input type="time" id="ev-time"></div>
-          <div class="form-group"><label>Max Participants *</label><input type="number" id="ev-max" value="100" min="5"></div>
+          <div class="form-group" id="ev-max-wrap">
+            <label id="ev-max-label">Max Participants *</label>
+            <input type="number" id="ev-max" value="100" min="5">
+            <div id="ev-max-team-hint" style="display:none; font-size:11px; color:#7c3aed; margin-top:4px; font-weight:600;">
+              Auto-calculated from Max Teams × Max Members
+            </div>
+          </div>
         </div>
 
         <div class="form-row">
@@ -4622,14 +4653,19 @@ function renderCreateEventPage() {
             <div style="font-size:12px; font-weight:700; color:#7c3aed; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">
               👥 Team Size Limits (Including Team Leader)
             </div>
-            <div class="form-row" style="grid-template-columns:1fr 1fr; margin-bottom:0;">
+            <div class="form-row" style="grid-template-columns:1fr 1fr 1fr; margin-bottom:0;">
               <div class="form-group" style="margin-bottom:0;">
                 <label style="font-size:12px; font-weight:600; color:#374151;">Minimum Members *</label>
-                <input type="number" id="ev-team-min" value="2" min="1" max="20" style="background:#ffffff; border:1.5px solid #c4b5fd;">
+                <input type="number" id="ev-team-min" value="2" min="1" max="20" style="background:#ffffff; border:1.5px solid #c4b5fd;" onchange="updateMaxParticipantsFromTeam()">
               </div>
               <div class="form-group" style="margin-bottom:0;">
                 <label style="font-size:12px; font-weight:600; color:#374151;">Maximum Members *</label>
-                <input type="number" id="ev-team-max" value="4" min="1" max="20" style="background:#ffffff; border:1.5px solid #c4b5fd;">
+                <input type="number" id="ev-team-max" value="4" min="1" max="20" style="background:#ffffff; border:1.5px solid #c4b5fd;" onchange="updateMaxParticipantsFromTeam()">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:12px; font-weight:700; color:#6d28d9;">Max Teams *</label>
+                <input type="number" id="ev-max-teams" value="20" min="1" style="background:#ffffff; border:1.5px solid #8b5cf6;" oninput="updateMaxParticipantsFromTeam()">
+                <div style="font-size:10.5px; color:#6d28d9; margin-top:3px; font-weight:500;">Total = Teams × Max Members</div>
               </div>
             </div>
           </div>
@@ -4739,13 +4775,23 @@ async function submitEvent(status='pending') {
   const isTeamEvent = document.getElementById('ev-is-team')?.checked || false;
   const minTeamSize = isTeamEvent ? parseInt(document.getElementById('ev-team-min')?.value || '2') : 1;
   const maxTeamSize = isTeamEvent ? parseInt(document.getElementById('ev-team-max')?.value || '4') : 1;
+  const maxTeams    = isTeamEvent ? parseInt(document.getElementById('ev-max-teams')?.value || '20') : 0;
+
+  if (isTeamEvent && (!maxTeams || maxTeams < 1)) {
+    toast('⚠️ Please enter the maximum number of teams allowed.', 'error');
+    return;
+  }
+
+  // For team events: capacity = maxTeams × maxTeamSize (auto-computed)
+  // For solo events: use the manually entered Max Participants
+  const computedMax = isTeamEvent ? (maxTeams * maxTeamSize) : max;
 
   const events = getDB('vvce_events');
   const ev = {
     id: genId('ev'), name, club, adminId: STATE.user.id,
     emoji: '🎓', category: cat, date, time,
     endDate: date, endTime: '',
-    venue, maxParticipants: max, regCount: 0,
+    venue, maxParticipants: computedMax, regCount: 0,
     fee,
     adminUpiId: upiId,
     points: document.getElementById('ev-gives-points').checked ? parseInt(document.getElementById('ev-points').value||'0') : 0,
