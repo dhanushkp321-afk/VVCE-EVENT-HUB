@@ -111,9 +111,8 @@
           <span class="demo-label">Quick Demo:</span>
           <button class="demo-btn" onclick="quickLogin('student')">Student</button>
           <button class="demo-btn" onclick="quickLogin('admin')">Club Admin</button>
-          <button class="demo-btn" onclick="quickLogin('dean')">Dean</button>
-          <button class="demo-btn" onclick="quickLogin('principal')">Principal</button>
-        </div>
+          <button class="demo-btn" onclick="quickLogin('authority')">Approving Authority</button>
+          </div>
       </div>
 
 
@@ -303,6 +302,16 @@
               ⏳ Club accounts require <strong>Dean Student Welfare approval</strong> before you can log in.
             </div>
 
+            
+            <!-- Select Approving Authority (Required) -->
+            <div class="auth-field-group" style="background:rgba(99,102,241,0.08); padding:14px; border-radius:12px; border:1px solid rgba(99,102,241,0.25); margin-bottom:15px;">
+              <label class="auth-label" style="color:#a5b4fc; font-weight:700; font-size:14px;">🏛️ Select Approving Authority *</label>
+              <select class="auth-input" id="a-authority" style="background:rgba(15,23,42,0.6); border-color:rgba(99,102,241,0.4); color:#fff; cursor:pointer;" required>
+                <option value="">-- Loading Approving Authorities... --</option>
+              </select>
+              <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Club registration requests will be routed to this authority's review queue.</div>
+            </div>
+
             <!-- Faculty Coordinator Name -->
             <div class="auth-field-group" style="background:rgba(99,102,241,0.08); padding:14px; border-radius:12px; border:1px solid rgba(99,102,241,0.25); margin-bottom:15px;">
               <label class="auth-label" style="color:#a5b4fc; font-weight:700; font-size:14px;">👩‍🏫 Faculty Coordinator Name *</label>
@@ -420,7 +429,7 @@
               Analyzing ID Card... <span class="spinner" style="display:inline-block; animation:spin 1s linear infinite;">⏳</span>
             </div>
             <div style="text-align:center; margin-top:12px;">
-              <span style="font-size:12px; color:#a5b4fc; text-decoration:underline; cursor:pointer;" onclick="bypassPrincipalScan()">Are you the Principal? Register without scanning →</span>
+              
             </div>
           </div>
 
@@ -437,10 +446,8 @@
             <select class="auth-input" id="f-designation">
               <option value="faculty">Faculty</option>
               <option value="hod">Head of Department (HOD)</option>
-              <option value="dean">Dean Student Welfare</option>
+              <option value="authority">Approving Authority</option>
               <option value="dean-academics">Dean Academics</option>
-              <option value="vice-principal">Vice Principal</option>
-              <option value="principal">Principal</option>
             </select>
           </div>
           <div class="auth-field-group">
@@ -562,9 +569,7 @@
     <!-- Authority: Attendance -->
     <div class="page" id="page-authority-attendance"></div>
     <!-- Dean Portal -->
-    <div class="page" id="page-dean-portal"></div>
-    <!-- Principal Portal -->
-    <div class="page" id="page-principal-portal"></div>
+    <div class="page" id="page-authority-portal"></div>
 
   </div><!-- /app-main -->
 </div><!-- /app -->
@@ -584,44 +589,23 @@
 </div>
 
 <!-- Dean Portal Password Modal -->
-<div class="modal-overlay" id="modal-dean-pass">
+<div class="modal-overlay" id="modal-authority-pass">
   <div class="modal-box modal-narrow">
-    <div class="portal-lock-header dean-lock">
+    <div class="portal-lock-header authority-lock">
       <div class="portal-lock-icon">📋</div>
-      <h3>Dean Student Welfare</h3>
+      <h3 id="authority-modal-title">Approving Authority</h3>
       <p>This portal requires secondary authentication</p>
     </div>
     <div class="auth-field-group">
       <div class="auth-pass-wrap">
-        <input class="auth-input" type="password" id="dean-pass-input" placeholder="Enter portal password" onkeydown="if(event.key==='Enter') verifyDeanPassword()">
-        <button type="button" class="pass-toggle" onclick="togglePass('dean-pass-input', this)" title="Show/Hide Password">
+        <input class="auth-input" type="password" id="authority-pass-input" placeholder="Enter portal password" onkeydown="if(event.key==='Enter') verifyAuthorityPassword()">
+        <button type="button" class="pass-toggle" onclick="togglePass('authority-pass-input', this)" title="Show/Hide Password">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </div>
-    <div id="dean-pass-error" class="auth-msg error" style="display:none;"></div>
-    <button class="btn-signin" style="margin-top:6px;" onclick="verifyDeanPassword()">Access Portal 🔐</button>
-  </div>
-</div>
-
-<!-- Principal Portal Password Modal -->
-<div class="modal-overlay" id="modal-principal-pass">
-  <div class="modal-box modal-narrow">
-    <div class="portal-lock-header principal-lock">
-      <div class="portal-lock-icon">🎓</div>
-      <h3>Principal Portal</h3>
-      <p>Secondary authentication required</p>
-    </div>
-    <div class="auth-field-group">
-      <div class="auth-pass-wrap">
-        <input class="auth-input" type="password" id="principal-pass-input" placeholder="Enter portal password" onkeydown="if(event.key==='Enter') verifyPrincipalPassword()">
-        <button type="button" class="pass-toggle" onclick="togglePass('principal-pass-input', this)" title="Show/Hide Password">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-      </div>
-    </div>
-    <div id="principal-pass-error" class="auth-msg error" style="display:none;"></div>
-    <button class="btn-purple-submit" onclick="verifyPrincipalPassword()">Access Portal 🔐</button>
+    <div id="authority-pass-error" class="auth-msg error" style="display:none;"></div>
+    <button class="btn-signin" style="margin-top:6px;" onclick="verifyAuthorityPassword()">Access Portal 🔐</button>
   </div>
 </div>
 
@@ -706,23 +690,7 @@
   </div>
 </div>
 
-<!-- Principal Schedule Modal -->
-<div class="modal-overlay" id="modal-princ-schedule">
-  <div class="modal-box">
-    <div class="modal-head">
-      <h2>Add Schedule</h2>
-      <button class="modal-x" onclick="closeModal('modal-princ-schedule')">✕</button>
-    </div>
-    <div class="reg-two-col">
-      <div class="auth-field-group">
-        <label class="auth-label">Date</label>
-        <input class="auth-input" type="date" id="ps-date">
-      </div>
-      <div class="auth-field-group">
-        <label class="auth-label">Time</label>
-        <input class="auth-input" type="text" id="ps-time" placeholder="11:45 - 12:45">
-      </div>
-    </div>
+
     <div class="auth-field-group">
       <label class="auth-label">Purpose</label>
       <input class="auth-input" type="text" id="ps-purpose" placeholder="e.g. Inauguration">
@@ -970,6 +938,6 @@
 </div>
 
 
-  <script src="app.js?v=4.3"></script>
+  <script src="app.js?v=5.0"></script>
 </body>
 </html>

@@ -65,6 +65,102 @@ const SUPABASE_CACHE = {
   vvce_academic: []
 };
 
+/* ============================================================================
+   APPROVING AUTHORITIES & SECURITY HELPERS
+   ============================================================================ */
+let APPROVING_AUTHORITIES_CACHE = [];
+
+async function hashPasswordWithSalt(password, saltStr) {
+  const enc = new TextEncoder();
+  const salt = enc.encode(saltStr || ('salt_' + Math.random().toString(36).substring(2, 10)));
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']
+  );
+  const derivedBits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial, 256
+  );
+  const hashArray = Array.from(new Uint8Array(derivedBits));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return { hash: hashHex, salt: new TextDecoder().decode(salt) };
+}
+
+async function verifyPasswordWithSalt(password, storedHash, saltStr) {
+  try {
+    const { hash } = await hashPasswordWithSalt(password, saltStr);
+    return hash === storedHash;
+  } catch (e) {
+    console.error('Password verification error:', e);
+    return false;
+  }
+}
+
+async function syncApprovingAuthoritiesFromSupabase() {
+  const sb = getSupabaseClient();
+  try {
+    if (sb) {
+      const { data, error } = await sb.from('approving_authorities').select('*').order('created_at', { ascending: true });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        APPROVING_AUTHORITIES_CACHE = data;
+        localStorage.setItem('vvce_approving_authorities', JSON.stringify(data));
+        populateClubRegistrationAuthoritiesDropdown();
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('syncApprovingAuthoritiesFromSupabase warning:', err);
+  }
+
+  // Fallback to localStorage or default Dean authority
+  const raw = localStorage.getItem('vvce_approving_authorities');
+  if (raw) {
+    try {
+      APPROVING_AUTHORITIES_CACHE = JSON.parse(raw);
+    } catch (e) {
+      APPROVING_AUTHORITIES_CACHE = [];
+    }
+  }
+
+  if (!APPROVING_AUTHORITIES_CACHE.length) {
+    APPROVING_AUTHORITIES_CACHE = [
+      {
+        id: 'auth_dean_sw',
+        name: 'Dean Student Welfare',
+        email: 'dean.sw@vvce.ac.in',
+        designation: 'Dean Student Welfare',
+        password_hash: 'b6fdb537e29bb3ff3ce1b00e66eb139a039750bca80ca60d69611894d3ec8595',
+        salt: 'vvce_salt_dean_2026',
+        active: true,
+        created_at: new Date().toISOString()
+      }
+    ];
+    localStorage.setItem('vvce_approving_authorities', JSON.stringify(APPROVING_AUTHORITIES_CACHE));
+  }
+  populateClubRegistrationAuthoritiesDropdown();
+  return APPROVING_AUTHORITIES_CACHE;
+}
+
+function getActiveApprovingAuthorities() {
+  return APPROVING_AUTHORITIES_CACHE.filter(a => a.active !== false);
+}
+
+function populateClubRegistrationAuthoritiesDropdown() {
+  const sel = document.getElementById('a-authority');
+  if (!sel) return;
+  const active = getActiveApprovingAuthorities();
+  if (!active.length) {
+    sel.innerHTML = '<option value="">-- No Active Approving Authorities --</option>';
+    return;
+  }
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">-- Select Approving Authority --</option>' +
+    active.map(a => `<option value="${a.id}">${a.name} (${a.designation || 'Approving Authority'})</option>`).join('');
+  if (currentVal && active.some(a => a.id === currentVal)) {
+    sel.value = currentVal;
+  }
+}
+
+
 /* Stores payment screenshots keyed by "eventId::uid" to avoid embedding base64 in onclick attrs */
 const PENDING_SCREENSHOTS = {};
 
@@ -142,7 +238,13 @@ function mapEventForSupabase(e) {
     isTeamEvent: e.isTeamEvent ?? false,
     minTeamSize: e.minTeamSize ?? 1,
     maxTeamSize: e.maxTeamSize ?? 1,
-    teams: e.teams || []
+    teams: e.teams || [],
+    authorityId: e.authority_id || e.authorityId || null,
+    authorityName: e.authority_name || e.authorityName || null,
+    approvedByAuthorityId: e.approved_by_authority_id || e.approvedByAuthorityId || null,
+    approvedByAuthorityName: e.approved_by_authority_name || e.approvedByAuthorityName || null,
+    approvedAt: e.approved_at || e.approvedAt || null,
+    decisionHistory: e.decision_history || e.decisionHistory || []
   };
 }
 
@@ -181,7 +283,7 @@ async function setDB(key, val) {
       }
     } else if (key === 'vvce_users') {
       const mapped = val.map(u => ({
-        id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admission_year: u.admissionYear, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profile_photo: u.profilePhoto, resume: u.resume, points: u.points, points_by_sem: u.pointsBySem, notifs: u.notifs, club_name: u.clubName, club_email: u.clubEmail, domain: u.domain, faculty: u.faculty, approved: u.approved, "desc": u.desc, designation: u.designation
+        id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admission_year: u.admissionYear, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profile_photo: u.profilePhoto, resume: u.resume, points: u.points, points_by_sem: u.pointsBySem, notifs: u.notifs, club_name: u.clubName, club_email: u.clubEmail, domain: u.domain, faculty: u.faculty, approved: u.approved, "desc": u.desc, designation: u.designation, authority_id: u.authorityId || u.authority_id || null, authority_name: u.authorityName || u.authority_name || null, approval_history: u.approvalHistory || u.approval_history || []
       }));
       await sb.from('users').upsert(mapped);
       // Also sync fresh/real student registrations to the dedicated registered_students table
@@ -252,7 +354,7 @@ function isBranchMatch(eventBranches, userBranch) {
 /* Realtime Sync Helpers */
 function mapUser(u) {
   return {
-    id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points, pointsBySem: u.points_by_sem, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation
+    id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points, pointsBySem: u.points_by_sem, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation, authorityId: u.authority_id || u.authorityId || null, authorityName: u.authority_name || u.authorityName || null, approvalHistory: u.approval_history || u.approvalHistory || []
   };
 }
 
@@ -1371,6 +1473,9 @@ window.handleClubLogoUpload = function(event) {
 /* ── Club Admin Signup ── */
 function handleAdminSignup() {
   const faculty   = document.getElementById('a-faculty').value.trim();
+  const authorityId = document.getElementById('a-authority')?.value || '';
+  const activeAuthorities = getActiveApprovingAuthorities();
+  const selectedAuthority = activeAuthorities.find(a => a.id === authorityId);
   const name      = document.getElementById('a-name').value.trim();
   const club      = document.getElementById('a-club').value.trim();
   const domain    = document.getElementById('a-domain').value;
@@ -1382,8 +1487,12 @@ function handleAdminSignup() {
   const desc      = document.getElementById('a-desc').value.trim();
   const pass      = document.getElementById('a-pass').value;
 
+  if (!authorityId || !selectedAuthority) {
+    showAuthMsg('⚠️ Please select a valid Approving Authority.', 'error');
+    return;
+  }
   if (!faculty) {
-    showAuthMsg('❌ Please enter the Faculty Coordinator Name.', 'error');
+    showAuthMsg('⚠️ Please enter the Faculty Coordinator Name.', 'error');
     return;
   }
 
@@ -1402,9 +1511,17 @@ function handleAdminSignup() {
   const newUser = {
     id: genId('u'), type: 'admin', name: name.toUpperCase(), email, pass,
     clubName: club, clubEmail, domain, branch, usn, faculty, phone, desc, approved: false,
+    authorityId: selectedAuthority.id,
+    authorityName: selectedAuthority.name,
+    approvalHistory: [{
+      action: 'submitted',
+      authorityId: selectedAuthority.id,
+      authorityName: selectedAuthority.name,
+      timestamp: new Date().toISOString()
+    }],
     clubLogo: window._clubLogoBase64 || null,
     profilePhoto: window._clubLogoBase64 || null,
-    notifs: [{ id: genId('n'), msg: 'Club registration submitted! Pending Dean SW approval.', time: 'Just now', read: false, icon: '⏳' }]
+    notifs: [{ id: genId('n'), msg: `Club registration submitted! Pending approval from ${selectedAuthority.name}.`, time: 'Just now', read: false, icon: '⏳' }]
   };
 
   finalizeRegistration('admin', newUser);
@@ -1679,7 +1796,7 @@ function showPage(pageId) {
     'authority-clash':      renderClashDetect,
     'authority-attendance': renderAttendancePage,
     'dean-portal':          () => renderDeanPortal(),
-    'principal-portal':     () => renderPrincipalPortal(),
+    // 'principal-portal' removed as requested
   };
   if (renders[pageId]) renders[pageId]();
 }
@@ -1757,32 +1874,43 @@ function renderSidebar() {
       <div class="sb-section-label">Account</div>
       ${navItem('profile','👤','Profile')}
     `;
-  } else { // authority
-    const isDean = isDeanUser(user);
-    const pendingEvents = getDB('vvce_events').filter(e => e.status === 'pending');
-    const pendingBadge = pendingEvents.length > 0 ? String(pendingEvents.length) : '';
+  
+  } else { // authority (Faculty / Approving Authority)
+    const activeAuthorities = getActiveApprovingAuthorities();
+    const isUnlocked = STATE.authorityUnlocked;
+    const currentAuthName = STATE.currentAuthorityName || 'Select Authority';
+
+    // Count pending events assigned to currently unlocked authority
+    const allPending = getDB('vvce_events').filter(e => e.status === 'pending');
+    const myPending = isUnlocked && STATE.currentAuthorityId
+      ? allPending.filter(e => !e.authorityId || e.authorityId === STATE.currentAuthorityId)
+      : allPending;
+    const pendingBadge = myPending.length > 0 ? String(myPending.length) : '';
+
     html = `
-      <div class="sb-section-label">Overview</div>
+      <div class="sb-section-label">Faculty Navigation</div>
       ${navItem('authority-dashboard','📊','Dashboard')}
-      ${navItem('events','🗓️','All Events')}
-      ${navItem('clubs','🏛️','Clubs')}
-      ${navItem('authority-clubs','🏛️','Club Monitor')}
+      ${navItem('events','📅','All Events')}
+      ${navItem('clubs','👥','Clubs Directory')}
+      ${navItem('authority-clubs','🏛️','Club Activity Monitor')}
       ${navItem('authority-clash','⚡','Clash Detect')}
-      ${user.designation !== 'dean' && user.designation !== 'principal' ? navItem('authority-attendance','📊','Attendance') : ''}
-      <div class="sb-section-label">Special Portals</div>
-      <div class="nav-item dean-item" data-page="dean-portal" onclick="handleDeanPortalNav()">
-        <span class="nav-icon">📋</span>
-        <span class="nav-label">Dean SW Portal</span>
-        ${isDean && pendingBadge ? `<span class="portal-tab-badge" style="margin-left:auto;margin-right:6px;">${pendingBadge}</span>` : ''}
-        <span class="portal-pill portal-pill-dean">DEAN</span>
-      </div>
-      <div class="nav-item princ-item" data-page="principal-portal" onclick="handlePrincipalPortalNav()">
-        <span class="nav-icon">🎓</span>
-        <span class="nav-label">Principal Portal</span>
-        <span class="portal-pill portal-pill-princ">PRINC</span>
+      ${navItem('authority-attendance','📋','Attendance')}
+
+      <div class="sb-section-label">Approving Authority</div>
+      <div class="nav-item dean-item ${STATE.page==='authority-portal'?'active':''}" data-page="authority-portal" onclick="handleAuthoritySectionNav()">
+        <span class="nav-icon">🔐</span>
+        <div style="display:flex; flex-direction:column; line-height:1.2; overflow:hidden;">
+          <span class="nav-label" style="font-size:12.5px;">Approving Authority</span>
+          <span style="font-size:10px; color:${isUnlocked?'#86efac':'#cbd5e1'}; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
+            ${isUnlocked ? '✓ ' + currentAuthName : 'Login Required'}
+          </span>
+        </div>
+        ${isUnlocked && pendingBadge ? `<span class="portal-tab-badge" style="margin-left:auto;margin-right:6px;">${pendingBadge}</span>` : ''}
+        <span class="portal-pill portal-pill-dean">${isUnlocked ? 'ACTIVE' : 'LOCK'}</span>
       </div>
     `;
   }
+
   nav.innerHTML = html;
 }
 
@@ -4856,6 +4984,9 @@ async function submitEvent(status='pending') {
   }
 
   if (!name||!club||!date||!time||!venue) { toast('Please fill all required fields (marked with *).','error'); return; }
+  const userClub = STATE.user;
+  const authorityId = userClub.authorityId || null;
+  const authorityName = userClub.authorityName || 'Approving Authority';
   const fee = parseInt(document.getElementById('create-ev-fee').value||'0');
   const upiId = document.getElementById('create-ev-upi')?.value.trim() || '';
   if (fee > 0 && !upiId) {
@@ -4910,7 +5041,15 @@ async function submitEvent(status='pending') {
       branches: branches.length ? branches : ['All'],
       isTeamEvent, minTeamSize, maxTeamSize,
       teams: [],
-      status, rejReason: null, registrations: [], pendingPayments: []
+      status, rejReason: null, registrations: [], pendingPayments: [],
+      authorityId: authorityId,
+      authorityName: authorityName,
+      decisionHistory: [{
+        action: 'submitted',
+        authorityId: authorityId,
+        authorityName: authorityName,
+        timestamp: new Date().toISOString()
+      }]
     };
     events.push(ev);
     await setDB('vvce_events', events);
@@ -4921,11 +5060,12 @@ async function submitEvent(status='pending') {
       try {
         await sb.from('events').upsert([mapEventForSupabase(ev)]);
         await syncEventsFromSupabase();
+  syncApprovingAuthoritiesFromSupabase();
       } catch(e) { console.warn('Supabase direct event upsert:', e); }
     }
 
     if (status==='pending') {
-      toast(`Event request "${name}" sent to Dean for approval! ✅`,'success');
+      toast(`Event request "${name}" sent to ${authorityName} for approval! ⏳`, 'success');
       // Notify authority
       const users=getDB('vvce_users');
       users.filter(u=>u.type==='authority').forEach(u=>{
@@ -5495,7 +5635,7 @@ function renderApprovals() {
             </div>
             ${isDean ? `
               <div style="display:flex;gap:8px;flex-shrink:0;">
-                <button class="btn btn-green" onclick="approveEvent('${e.id}')">✓ Approve</button>
+                <button class="btn btn-green" onclick="authorityApproveEvent('${e.id}')">✓ Approve</button>
                 <button class="btn btn-red" onclick="openRejectModal('${e.id}')">✕ Reject</button>
               </div>
             ` : `
@@ -6061,7 +6201,7 @@ function deanEventApprovalsContent(pending) {
             </div>
             ${isDeanUser(STATE.user) ? `
               <div style="display:flex;gap:8px;flex-shrink:0;">
-                <button class="btn btn-green" onclick="approveEvent('${e.id}')">✓ Approve</button>
+                <button class="btn btn-green" onclick="authorityApproveEvent('${e.id}')">✓ Approve</button>
                 <button class="btn btn-red" onclick="openRejectModal('${e.id}')">✕ Reject</button>
               </div>
             ` : `
@@ -6097,7 +6237,7 @@ function deanEventsContent(events,today) {
             <div class="ev-row-meta">${e.club} • ${formatDate(e.date)} • ${e.venue}</div>
           </div>
           <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red'}">${e.status}</span>
-          ${e.status==='pending' && isDeanUser(STATE.user)?`<button class="btn btn-green" onclick="approveEvent('${e.id}');renderDeanPortal('events')">Approve</button>
+          ${e.status==='pending' && isDeanUser(STATE.user)?`<button class="btn btn-green" onclick="authorityApproveEvent('${e.id}');renderDeanPortal('events')">Approve</button>
           <button class="btn btn-red" onclick="openRejectModal('${e.id}')">Reject</button>`:''}
         </div>`).join('') || `<div class="empty-state"><div class="ei">📅</div><div class="et">No events</div></div>`
       }
@@ -6118,7 +6258,7 @@ function deanFilterEvents() {
       <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
       <div class="ev-row-info"><div class="ev-row-name">${e.name}</div><div class="ev-row-meta">${e.club} • ${formatDate(e.date)}</div></div>
       <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">${e.status}</span>
-      ${e.status==='pending' && isDeanUser(STATE.user)?`<button class="btn btn-green" onclick="approveEvent('${e.id}');renderDeanPortal('events')">Approve</button>`:''}</div>`).join('') ||
+      ${e.status==='pending' && isDeanUser(STATE.user)?`<button class="btn btn-green" onclick="authorityApproveEvent('${e.id}');renderDeanPortal('events')">Approve</button>`:''}</div>`).join('') ||
     `<div class="empty-state"><div class="ei">🔍</div><div class="et">No events found</div></div>`;
 }
 
@@ -6847,3 +6987,688 @@ function applyFestiveParticles(effect) {
     container.appendChild(p);
   }
 }
+
+
+/* ============================================================================
+   GENERALIZED APPROVING AUTHORITY PORTAL & AUTHENTICATION
+   ============================================================================ */
+
+window.handleAuthoritySectionNav = function() {
+  if (STATE.authorityUnlocked && STATE.currentAuthorityId) {
+    showPage('authority-portal');
+    return;
+  }
+  openAuthoritySelectionModal();
+};
+
+window.openAuthoritySelectionModal = function() {
+  const active = getActiveApprovingAuthorities();
+  const modal = document.getElementById('modal-authority-pass');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('authority-modal-title');
+  if (titleEl) titleEl.textContent = 'Approving Authority Portal';
+
+  // Inject authority selector dropdown above password input if not present
+  let selContainer = document.getElementById('auth-modal-select-container');
+  if (!selContainer) {
+    const passInput = document.getElementById('authority-pass-input');
+    selContainer = document.createElement('div');
+    selContainer.id = 'auth-modal-select-container';
+    selContainer.style.marginBottom = '12px';
+    selContainer.innerHTML = `
+      <label style="display:block; font-size:12px; font-weight:700; color:#cbd5e1; margin-bottom:5px; text-align:left;">
+        Select Approving Authority
+      </label>
+      <select id="modal-authority-select" class="auth-input" style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer;" onchange="onAuthorityModalSelectChange()">
+      </select>
+    `;
+    passInput.parentElement.parentElement.insertBefore(selContainer, passInput.parentElement);
+  }
+
+  const sel = document.getElementById('modal-authority-select');
+  if (sel) {
+    if (!active.length) {
+      sel.innerHTML = '<option value="">-- No Active Authorities Found --</option>';
+    } else {
+      sel.innerHTML = '<option value="">-- Select Authority to Access --</option>' +
+        active.map(a => `<option value="${a.id}">${a.name} (${a.designation || 'Approving Authority'})</option>`).join('');
+      if (STATE.currentAuthorityId && active.some(a => a.id === STATE.currentAuthorityId)) {
+        sel.value = STATE.currentAuthorityId;
+      }
+    }
+  }
+
+  const passInput = document.getElementById('authority-pass-input');
+  if (passInput) passInput.value = '';
+  const err = document.getElementById('authority-pass-error');
+  if (err) err.style.display = 'none';
+
+  openModal('modal-authority-pass');
+};
+
+window.onAuthorityModalSelectChange = function() {
+  const err = document.getElementById('authority-pass-error');
+  if (err) err.style.display = 'none';
+};
+
+window.verifyAuthorityPassword = async function() {
+  const sel = document.getElementById('modal-authority-select');
+  const authId = sel ? sel.value : null;
+  const pass = document.getElementById('authority-pass-input').value;
+  const err = document.getElementById('authority-pass-error');
+
+  if (!authId) {
+    err.textContent = 'Please select an approving authority from the list.';
+    err.style.display = 'block';
+    return;
+  }
+
+  const authorities = getActiveApprovingAuthorities();
+  const target = authorities.find(a => a.id === authId);
+  if (!target) {
+    err.textContent = 'Selected authority is not active or no longer exists.';
+    err.style.display = 'block';
+    return;
+  }
+
+  let isValid = false;
+  // If target has stored salt and password_hash
+  if (target.password_hash && target.salt) {
+    isValid = await verifyPasswordWithSalt(pass, target.password_hash, target.salt);
+  } else if (target.pass) {
+    // Backward compatibility for raw test records
+    isValid = (pass === target.pass);
+  } else if (target.id === 'auth_dean_sw' && pass === 'deanwellfair@vvce') {
+    isValid = true;
+  }
+
+  if (isValid) {
+    STATE.authorityUnlocked = true;
+    STATE.currentAuthorityId = target.id;
+    STATE.currentAuthorityName = target.name;
+    closeModal('modal-authority-pass');
+    toast(`Authenticated as ${target.name}! ✓`, 'success');
+    renderSidebar();
+    showPage('authority-portal');
+  } else {
+    err.textContent = 'Invalid credentials for ' + target.name + '. Please try again.';
+    err.style.display = 'block';
+  }
+};
+
+window.lockAuthorityPortal = function() {
+  STATE.authorityUnlocked = false;
+  STATE.currentAuthorityId = null;
+  STATE.currentAuthorityName = null;
+  toast('Approving Authority portal locked.', 'info');
+  renderSidebar();
+  showPage('authority-dashboard');
+};
+
+function renderAuthorityPortal(activeTab = 'dashboard') {
+  if (!STATE.authorityUnlocked || !STATE.currentAuthorityId) {
+    handleAuthoritySectionNav();
+    return;
+  }
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  // Background sync for freshness
+  syncEventsFromSupabase().then(() => {
+    // re-render if still active
+  });
+
+  const allClubs = getDB('vvce_users').filter(u => u.type === 'admin');
+  // Filter clubs assigned to this authority (or unassigned/legacy clubs)
+  const assignedClubs = allClubs.filter(c => !c.authorityId || c.authorityId === currentAuthId);
+
+  const allEvents = getDB('vvce_events').filter(e => e.status !== 'archived');
+  // Filter events assigned to this authority (or unassigned legacy events)
+  const assignedEvents = allEvents.filter(e => !e.authorityId || e.authorityId === currentAuthId);
+
+  const pendingEvents = assignedEvents.filter(e => e.status === 'pending');
+  const approvedEvents = assignedEvents.filter(e => e.status === 'approved');
+  const rejectedEvents = assignedEvents.filter(e => e.status === 'rejected');
+  const today = new Date().toISOString().split('T')[0];
+
+  const pendingClubs = assignedClubs.filter(c => !c.approved);
+  const approvedClubs = assignedClubs.filter(c => c.approved);
+
+  const el = document.getElementById('page-authority-portal');
+  if (!el) return;
+
+  el.innerHTML = `
+    <!-- Authenticated Authority Header -->
+    <div class="dean-portal-hdr" style="background:linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%); border:1px solid rgba(199,210,254,0.3);">
+      <div class="dpicon dpicon-gold" style="background:#4338ca;">🏛️</div>
+      <div class="dp-info">
+        <div class="dp-title" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          ${currentAuthName}
+          <span class="dp-authed" style="background:rgba(34,197,94,0.2); color:#4ade80; border-color:rgba(34,197,94,0.3);">✓ AUTHORIZED</span>
+        </div>
+        <div class="dp-sub">Official Approving Authority Review & Decision Queue</div>
+      </div>
+      <button class="dp-lock-btn" onclick="lockAuthorityPortal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2);">🔒 Lock Portal</button>
+    </div>
+
+    <!-- Portal Navigation Tabs -->
+    <div class="portal-tabs" style="gap:8px;">
+      <button class="portal-tab ${activeTab==='dashboard'?'active':''}" onclick="renderAuthorityPortal('dashboard')">📊 Overview</button>
+      <button class="portal-tab ${activeTab==='club-approvals'?'active':''}" onclick="renderAuthorityPortal('club-approvals')">
+        👥 Club Registrations ${pendingClubs.length>0 ? `<span class="portal-tab-badge">${pendingClubs.length}</span>` : ''}
+      </button>
+      <button class="portal-tab ${activeTab==='event-approvals'?'active':''}" onclick="renderAuthorityPortal('event-approvals')">
+        📋 Event Approvals ${pendingEvents.length>0 ? `<span class="portal-tab-badge">${pendingEvents.length}</span>` : ''}
+      </button>
+      <button class="portal-tab ${activeTab==='events'?'active':''}" onclick="renderAuthorityPortal('events')">📅 Event Records</button>
+      <button class="portal-tab ${activeTab==='clubs'?'active':''}" onclick="renderAuthorityPortal('clubs')">🏛️ Assigned Clubs</button>
+      <button class="portal-tab ${activeTab==='clash'?'active':''}" onclick="renderAuthorityPortal('clash')">⚡ Global Clash Detection</button>
+    </div>
+
+    <div id="authority-tab-content">
+      ${activeTab==='dashboard' ? renderAuthorityDashboardTab(assignedClubs, assignedEvents, pendingClubs, pendingEvents, approvedEvents, today) : ''}
+      ${activeTab==='club-approvals' ? renderAuthorityClubApprovalsTab(pendingClubs, approvedClubs) : ''}
+      ${activeTab==='event-approvals' ? renderAuthorityEventApprovalsTab(pendingEvents) : ''}
+      ${activeTab==='events' ? renderAuthorityEventRecordsTab(assignedEvents, today) : ''}
+      ${activeTab==='clubs' ? renderAuthorityClubRecordsTab(assignedClubs, allEvents) : ''}
+      ${activeTab==='clash' ? renderAuthorityClashTab() : ''}
+    </div>
+  `;
+}
+
+function renderAuthorityDashboardTab(clubs, events, pendingClubs, pendingEvents, approvedEvents, today) {
+  const globalClashCount = checkClashCount();
+  const upcomingEvents = approvedEvents.filter(e => e.date >= today);
+
+  return `
+    <div class="stats-row" style="margin-bottom:1.5rem;">
+      ${statCard('🏛️', 'Assigned Clubs', clubs.length, `${clubs.filter(c=>c.approved).length} approved, ${pendingClubs.length} pending`, 'stat-mint')}
+      ${statCard('👥', 'Club Reg Requests', pendingClubs.length, 'Needs verification', pendingClubs.length ? 'stat-amber' : 'stat-mint')}
+      ${statCard('⏳', 'Pending Events', pendingEvents.length, 'Awaiting approval', pendingEvents.length ? 'stat-amber' : 'stat-mint')}
+      ${statCard('📅', 'Upcoming Events', upcomingEvents.length, 'Scheduled & live', 'stat-blue')}
+      ${statCard('⚡', 'Global Clashes', globalClashCount, 'Across campus', globalClashCount ? 'stat-pink' : 'stat-mint')}
+    </div>
+
+    <div class="white-card" style="margin-top:1rem;">
+      <div class="sec-title" style="margin-bottom:1rem;">Quick Authority Actions</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+        <div class="auth-qa-card" onclick="renderAuthorityPortal('club-approvals')">
+          <span class="auth-qa-icon">👥</span>
+          <div class="auth-qa-label">Review Club Registrations</div>
+          ${pendingClubs.length ? `<div style="font-size:11px;color:#b45309;font-weight:600;">${pendingClubs.length} pending approval</div>` : '<div style="font-size:11px;color:#10b981;">Up to date</div>'}
+        </div>
+        <div class="auth-qa-card" onclick="renderAuthorityPortal('event-approvals')">
+          <span class="auth-qa-icon">📋</span>
+          <div class="auth-qa-label">Approve Event Proposals</div>
+          ${pendingEvents.length ? `<div style="font-size:11px;color:#b45309;font-weight:600;">${pendingEvents.length} events pending</div>` : '<div style="font-size:11px;color:#10b981;">No pending proposals</div>'}
+        </div>
+        <div class="auth-qa-card" onclick="renderAuthorityPortal('clash')">
+          <span class="auth-qa-icon">⚡</span>
+          <div class="auth-qa-label">Global Clash Detection</div>
+          <div style="font-size:11px;color:#64748b;">Cross-department verification</div>
+        </div>
+        <div class="auth-qa-card" onclick="renderAuthorityPortal('clubs')">
+          <span class="auth-qa-icon">🏛️</span>
+          <div class="auth-qa-label">Track Club Activities</div>
+          <div style="font-size:11px;color:#64748b;">${clubs.length} assigned clubs</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAuthorityClubApprovalsTab(pending, approved) {
+  return `
+    <div class="sec-head">
+      <span class="sec-title">Pending Club Registrations (${pending.length})</span>
+    </div>
+    ${pending.length ? pending.map(c => `
+      <div class="white-card" style="margin-bottom:12px; border-left:4px solid #f59e0b;">
+        <div class="cpcard-head">
+          <div>
+            <div class="cpcard-name" style="font-size:18px;">${c.clubName || c.name}</div>
+            <div class="cpcard-domain">${c.domain || 'General'} • ${c.branch || 'VVCE'} • ${c.email}</div>
+          </div>
+          <span class="badge badge-amber">Pending Registration</span>
+        </div>
+        <div class="cpcard-info" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:8px; font-size:13px; color:#374151; margin:12px 0;">
+          <span>👤 <strong>Lead Rep:</strong> ${titleCase(c.name)} (${c.usn || '-'})</span>
+          <span>👩‍🏫 <strong>Faculty Coord:</strong> ${c.faculty || '-'}</span>
+          <span>📧 <strong>Club Email:</strong> ${c.clubEmail || '-'}</span>
+          <span>📞 <strong>Contact Phone:</strong> ${c.phone || '-'}</span>
+        </div>
+        ${c.desc ? `<div style="font-size:13px; color:#334155; background:#f8fafc; padding:10px 14px; border-radius:8px; margin-bottom:12px; border:1px solid #e2e8f0;">${c.desc}</div>` : ''}
+        
+        <!-- Decision Actions -->
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button class="btn btn-green" onclick="authorityApproveClub('${c.id}')">✓ Approve Club Registration</button>
+          <button class="btn btn-red" onclick="authorityRejectClubPrompt('${c.id}')">✕ Reject with Reason</button>
+          <button class="btn btn-outline" onclick="viewClubDetail('${c.id}')">View Full Dossier</button>
+        </div>
+      </div>
+    `).join('') : `
+      <div class="empty-state" style="padding:40px 20px;">
+        <div class="ei">✓</div>
+        <div class="et">No Pending Club Registrations</div>
+        <div class="es">All club registration requests for this authority have been processed.</div>
+      </div>
+    `}
+
+    ${approved.length ? `
+      <div style="margin-top:2rem;">
+        <div class="sec-title" style="margin-bottom:12px;">Active Approved Clubs (${approved.length})</div>
+        ${approved.map(c => `
+          <div class="ev-row" style="margin-bottom:8px;">
+            <span class="ev-row-emoji">🏛️</span>
+            <div class="ev-row-info">
+              <div class="ev-row-name">${c.clubName || c.name}</div>
+              <div class="ev-row-meta">${c.domain || 'General'} • Rep: ${titleCase(c.name)} • Coord: ${c.faculty || '-'}</div>
+            </div>
+            <span class="badge badge-green">Active</span>
+            <button class="btn btn-outline btn-sm" onclick="viewClubDetail('${c.id}')">Dossier</button>
+            <button class="btn btn-red btn-sm" onclick="authorityRevokeClub('${c.id}')">Revoke Access</button>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+  `;
+}
+
+function renderAuthorityEventApprovalsTab(pending) {
+  const allActiveEvents = getDB('vvce_events').filter(e => e.status === 'approved' || e.status === 'pending');
+
+  return `
+    <div class="sec-head">
+      <span class="sec-title">Event Proposals Awaiting Your Approval (${pending.length})</span>
+    </div>
+    ${pending.length ? pending.map(e => {
+      // Check for venue clash against ANY approved event
+      const conflict = allActiveEvents.find(other => 
+        other.id !== e.id &&
+        other.status === 'approved' &&
+        other.date === e.date &&
+        (other.venue || '').trim().toLowerCase() === (e.venue || '').trim().toLowerCase()
+      );
+
+      return `
+        <div class="white-card" style="margin-bottom:14px; border: ${conflict ? '2px solid #ef4444' : '1px solid #e2e8f0'}; background:${conflict ? '#fff5f5' : '#fff'};">
+          ${conflict ? `
+            <div style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:10px 14px; border-radius:8px; margin-bottom:12px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:18px;">⚠️</span>
+              <div>
+                GLOBAL VENUE CLASH WARNING: Conflicting approved event "${conflict.name}" (${conflict.club}) is already booked for ${e.venue} on ${formatDate(e.date)} (${formatTime(conflict.time)}). Approval is blocked.
+              </div>
+            </div>
+          ` : ''}
+
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+            <div style="display:flex; gap:14px; align-items:flex-start;">
+              <span style="font-size:40px;">${e.emoji || '🎓'}</span>
+              <div>
+                <div style="font-weight:800; font-size:18px; color:#0f172a;">${e.name}</div>
+                <div style="font-size:13px; color:#64748b; margin-top:2px;">Organized by <strong>${e.club}</strong></div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:6px 16px; margin-top:10px; font-size:12.5px; color:#334155;">
+                  <span>📅 <strong>Date:</strong> ${formatDate(e.date)}</span>
+                  <span>🕐 <strong>Time:</strong> ${formatTime(e.time)}</span>
+                  <span>📍 <strong>Venue:</strong> ${e.venue}</span>
+                  <span>👥 <strong>Max Part:</strong> ${e.maxParticipants}</span>
+                  <span>⭐ <strong>Points:</strong> ${e.points} pts</span>
+                  <span>💰 <strong>Fee:</strong> ${e.fee > 0 ? '₹' + e.fee : 'Free'}</span>
+                </div>
+                ${e.desc ? `<div style="font-size:13px; color:#475569; margin-top:10px; line-height:1.5; background:#f8fafc; padding:10px 12px; border-radius:8px;">${e.desc}</div>` : ''}
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end; flex-shrink:0;">
+              ${conflict ? `
+                <button class="btn" style="background:#cbd5e1; color:#64748b; cursor:not-allowed;" title="Resolve venue conflict before approving" disabled>
+                  ⚠️ Clash Blocked
+                </button>
+              ` : `
+                <button class="btn btn-green" onclick="authorityApproveEvent('${e.id}')">
+                  ✓ Approve Event
+                </button>
+              `}
+              <button class="btn btn-red" onclick="authorityRejectEventPrompt('${e.id}')">
+                ✕ Reject with Reason
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('') : `
+      <div class="empty-state" style="padding:40px 20px;">
+        <div class="ei">✓</div>
+        <div class="et">All Caught Up!</div>
+        <div class="es">No event proposals pending review for this authority.</div>
+      </div>
+    `}
+  `;
+}
+
+function renderAuthorityEventRecordsTab(events, today) {
+  const sorted = events.slice().sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+
+  return `
+    <div class="filter-row" style="margin-bottom:1rem;">
+      <input class="search-inp" id="auth-ev-search" placeholder="🔍 Search event records by name or club..." oninput="authorityFilterEventRecords()">
+      <select class="filter-sel" id="auth-ev-status" onchange="authorityFilterEventRecords()">
+        <option value="">All Statuses</option>
+        <option value="approved">Approved</option>
+        <option value="pending">Pending</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+    <div id="auth-ev-records-list">
+      ${renderAuthorityEventRows(sorted)}
+    </div>
+  `;
+}
+
+function renderAuthorityEventRows(evList) {
+  if (!evList.length) return '<div class="empty-state"><div class="ei">📅</div><div class="et">No events found</div></div>';
+
+  return evList.map(e => `
+    <div class="ev-row" style="margin-bottom:8px;">
+      <span class="ev-row-emoji">${e.emoji || '🎓'}</span>
+      <div class="ev-row-info">
+        <div class="ev-row-name" style="font-weight:700;">${e.name}</div>
+        <div class="ev-row-meta">${e.club} • ${formatDate(e.date)} • 📍 ${e.venue}</div>
+        ${e.rejReason ? `<div style="font-size:11px; color:#dc2626; margin-top:2px;">Rejection Note: ${e.rejReason}</div>` : ''}
+      </div>
+      <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">
+        ${e.status.toUpperCase()}
+      </span>
+      ${e.status==='pending' ? `
+        <button class="btn btn-green btn-sm" onclick="authorityApproveEvent('${e.id}')">Approve</button>
+        <button class="btn btn-red btn-sm" onclick="authorityRejectEventPrompt('${e.id}')">Reject</button>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function authorityFilterEventRecords() {
+  const q = (document.getElementById('auth-ev-search')?.value || '').toLowerCase();
+  const status = document.getElementById('auth-ev-status')?.value || '';
+  const currentAuthId = STATE.currentAuthorityId;
+  let evs = getDB('vvce_events').filter(e => !e.authorityId || e.authorityId === currentAuthId);
+
+  if (q) evs = evs.filter(e => e.name.toLowerCase().includes(q) || (e.club && e.club.toLowerCase().includes(q)));
+  if (status) evs = evs.filter(e => e.status === status);
+
+  const container = document.getElementById('auth-ev-records-list');
+  if (container) container.innerHTML = renderAuthorityEventRows(evs);
+}
+
+function renderAuthorityClubRecordsTab(clubs, allEvents) {
+  return `
+    <div class="sec-head">
+      <span class="sec-title">Clubs Assigned to This Authority (${clubs.length})</span>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;">
+      ${clubs.map(c => {
+        const clubEvents = allEvents.filter(e => e.adminId === c.id || e.club === c.clubName);
+        const appCount = clubEvents.filter(e => e.status === 'approved').length;
+        const pendCount = clubEvents.filter(e => e.status === 'pending').length;
+        const rejCount = clubEvents.filter(e => e.status === 'rejected').length;
+
+        return `
+          <div class="white-card" style="box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+              <div>
+                <h4 style="font-size:16px; font-weight:800; margin:0; color:#0f172a;">${c.clubName || c.name}</h4>
+                <div style="font-size:12px; color:#64748b;">${c.domain || 'Technical'} • Coord: ${c.faculty || '-'}</div>
+              </div>
+              <span class="badge ${c.approved ? 'badge-green' : 'badge-amber'}">${c.approved ? 'Approved' : 'Pending'}</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; background:#f8fafc; padding:8px 10px; border-radius:8px; margin:10px 0; text-align:center; font-size:11px;">
+              <div><strong style="color:#10b981; font-size:14px;">${appCount}</strong><br>Approved</div>
+              <div><strong style="color:#f59e0b; font-size:14px;">${pendCount}</strong><br>Pending</div>
+              <div><strong style="color:#ef4444; font-size:14px;">${rejCount}</strong><br>Rejected</div>
+            </div>
+            <div style="font-size:12px; color:#475569; margin-bottom:10px;">
+              <div>👤 <strong>Representative:</strong> ${titleCase(c.name)} (${c.usn || '-'})</div>
+              <div>📧 <strong>Contact:</strong> ${c.clubEmail || c.email}</div>
+            </div>
+            <button class="btn btn-outline btn-sm" style="width:100%;" onclick="viewClubDetail('${c.id}')">View Club Details & History</button>
+          </div>
+        `;
+      }).join('') || '<div class="empty-state"><div class="ei">🏛️</div><div class="et">No assigned clubs</div></div>'}
+    </div>
+  `;
+}
+
+function renderAuthorityClashTab() {
+  const events = getDB('vvce_events');
+  return deanClashContent(events);
+}
+
+// -----------------------------------------------------------------------------
+// Authority Approval & Rejection Handlers with Global Clash Enforcement
+// -----------------------------------------------------------------------------
+window.authorityApproveEvent = async function(id) {
+  if (!STATE.authorityUnlocked || !STATE.currentAuthorityId) {
+    toast('⚠️ You must authenticate as an Approving Authority first.', 'error');
+    return;
+  }
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) {
+    toast('Event not found.', 'error');
+    return;
+  }
+
+  // 1. Client-Side Global Clash Verification across ALL clubs/departments
+  const allEvents = events.filter(e => e.status === 'approved' && e.id !== id);
+  const clash = allEvents.find(other => 
+    other.date === ev.date &&
+    (other.venue || '').trim().toLowerCase() === (ev.venue || '').trim().toLowerCase()
+  );
+
+  if (clash) {
+    toast(`⚠️ Cannot approve! Global clash detected with approved event "${clash.name}" (${clash.club}) at ${ev.venue} on ${ev.date}.`, 'error', 6000);
+    return;
+  }
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  // 2. Server/Database Atomic Concurrency Check (via RPC if configured in Supabase)
+  const sb = getSupabaseClient();
+  let serverHandled = false;
+
+  if (sb) {
+    try {
+      const { data, error } = await sb.rpc('approve_event_with_clash_check', {
+        p_event_id: id,
+        p_authority_id: currentAuthId,
+        p_authority_name: currentAuthName
+      });
+
+      if (!error && data) {
+        if (!data.success) {
+          toast(`⚠️ Approval Rejected by Server: ${data.error}`, 'error', 6000);
+          return;
+        }
+        serverHandled = true;
+      }
+    } catch (rpcErr) {
+      console.warn('RPC approve_event_with_clash_check fallback to direct update:', rpcErr);
+    }
+  }
+
+  // Local state update & audit history
+  const decisionEntry = {
+    action: 'approved',
+    authorityId: currentAuthId,
+    authorityName: currentAuthName,
+    timestamp: new Date().toISOString()
+  };
+
+  ev.status = 'approved';
+  ev.rejReason = null;
+  ev.approvedByAuthorityId = currentAuthId;
+  ev.approvedByAuthorityName = currentAuthName;
+  ev.approvedAt = new Date().toISOString();
+  if (!ev.decisionHistory) ev.decisionHistory = [];
+  ev.decisionHistory.push(decisionEntry);
+
+  await setDB('vvce_events', events);
+
+  if (!serverHandled && sb) {
+    try {
+      await sb.from('events').update({
+        status: 'approved',
+        rej_reason: null,
+        approved_by_authority_id: currentAuthId,
+        approved_by_authority_name: currentAuthName,
+        approved_at: new Date().toISOString(),
+        decision_history: ev.decisionHistory
+      }).eq('id', id);
+    } catch(e) {
+      console.warn('Supabase direct update:', e);
+    }
+  }
+
+  // Notify Club Admin
+  const users = getDB('vvce_users');
+  const admin = users.find(u => u.id === ev.adminId);
+  if (admin) {
+    if (!admin.notifs) admin.notifs = [];
+    admin.notifs.push({
+      id: genId('n'),
+      msg: `Your event proposal "${ev.name}" was APPROVED by ${currentAuthName}! 🎉`,
+      icon: '✓',
+      time: 'Just now',
+      timestamp: Date.now(),
+      read: false
+    });
+    setDB('vvce_users', users);
+  }
+
+  toast(`Event "${ev.name}" approved successfully by ${currentAuthName}! ✓`, 'success');
+  renderAuthorityPortal('event-approvals');
+};
+
+window.authorityRejectEventPrompt = async function(id) {
+  const reason = prompt('Please enter a rejection reason (optional):');
+  if (reason === null) return; // user cancelled prompt
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  const decisionEntry = {
+    action: 'rejected',
+    reason: reason.trim() || 'Not specified',
+    authorityId: currentAuthId,
+    authorityName: currentAuthName,
+    timestamp: new Date().toISOString()
+  };
+
+  ev.status = 'rejected';
+  ev.rejReason = reason.trim() || 'Rejected by Approving Authority';
+  if (!ev.decisionHistory) ev.decisionHistory = [];
+  ev.decisionHistory.push(decisionEntry);
+
+  await setDB('vvce_events', events);
+
+  const sb = getSupabaseClient();
+  if (sb) {
+    try {
+      await sb.from('events').update({
+        status: 'rejected',
+        rej_reason: ev.rejReason,
+        decision_history: ev.decisionHistory
+      }).eq('id', id);
+    } catch(e) {}
+  }
+
+  // Notify Club Admin
+  const users = getDB('vvce_users');
+  const admin = users.find(u => u.id === ev.adminId);
+  if (admin) {
+    if (!admin.notifs) admin.notifs = [];
+    admin.notifs.push({
+      id: genId('n'),
+      msg: `Your event proposal "${ev.name}" was REJECTED by ${currentAuthName}. Reason: ${ev.rejReason}`,
+      icon: '✕',
+      time: 'Just now',
+      timestamp: Date.now(),
+      read: false
+    });
+    setDB('vvce_users', users);
+  }
+
+  toast(`Event proposal rejected.`, 'warning');
+  renderAuthorityPortal('event-approvals');
+};
+
+window.authorityApproveClub = async function(id) {
+  const users = getDB('vvce_users');
+  const club = users.find(u => u.id === id);
+  if (!club) return;
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  club.approved = true;
+  if (!club.approvalHistory) club.approvalHistory = [];
+  club.approvalHistory.push({
+    action: 'approved',
+    authorityId: currentAuthId,
+    authorityName: currentAuthName,
+    timestamp: new Date().toISOString()
+  });
+
+  await setDB('vvce_users', users);
+
+  if (club.id === STATE.user.id) STATE.user = club;
+  toast(`Club "${club.clubName || club.name}" approved successfully! ✓`, 'success');
+  renderAuthorityPortal('club-approvals');
+};
+
+window.authorityRejectClubPrompt = async function(id) {
+  const reason = prompt('Please enter the reason for rejecting this club registration:');
+  if (reason === null) return;
+
+  const users = getDB('vvce_users');
+  const club = users.find(u => u.id === id);
+  if (!club) return;
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  club.approved = false;
+  club.rejectionReason = reason.trim() || 'Registration rejected by Approving Authority';
+  if (!club.approvalHistory) club.approvalHistory = [];
+  club.approvalHistory.push({
+    action: 'rejected',
+    reason: club.rejectionReason,
+    authorityId: currentAuthId,
+    authorityName: currentAuthName,
+    timestamp: new Date().toISOString()
+  });
+
+  await setDB('vvce_users', users);
+  toast('Club registration rejected.', 'warning');
+  renderAuthorityPortal('club-approvals');
+};
+
+window.authorityRevokeClub = async function(id) {
+  if (!confirm('Are you sure you want to revoke this club\'s active status?')) return;
+  const users = getDB('vvce_users');
+  const club = users.find(u => u.id === id);
+  if (!club) return;
+
+  club.approved = false;
+  await setDB('vvce_users', users);
+  toast('Club access revoked.', 'warning');
+  renderAuthorityPortal('club-approvals');
+};
