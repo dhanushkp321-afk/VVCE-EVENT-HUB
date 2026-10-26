@@ -2151,7 +2151,7 @@ function renderStudentDashboard() {
 
       <!-- Right sidebar -->
       <div>
-        ${renderPrincipalAvailability()}
+        
 
         <!-- Upcoming events -->
         <div class="sec-title" style="margin-bottom:10px;">📅 Upcoming Events</div>
@@ -4699,7 +4699,7 @@ function renderAdminDashboard() {
 
       <!-- Right: quick actions & principal availability -->
       <div>
-        ${renderPrincipalAvailability()}
+        
 
         <div class="sec-title" style="margin-bottom:10px;">Quick Actions</div>
         <div class="qa-grid">
@@ -5490,7 +5490,7 @@ function renderAuthorityDashboard() {
   const pending  = events.filter(e=>e.status==='pending');
   const el = document.getElementById('page-authority-dashboard');
 
-  const isPrincipal = user.designation === 'principal';
+  const isPrincipal = false;
   const isDean      = isDeanUser(user);
 
   const today = new Date().toISOString().split('T')[0];
@@ -5539,12 +5539,12 @@ function renderAuthorityDashboard() {
 
       <!-- Principal availability (right side) -->
       <div>
-        ${renderPrincipalAvailability()}
+        
         ${isDean||isPrincipal?`
           <div style="margin-top:1rem;">
             <div class="sec-title" style="margin-bottom:10px;">Special Portals</div>
-            ${isDean||isPrincipal?`<div class="auth-qa-card" style="margin-bottom:8px;" onclick="handleDeanPortalNav()"><span class="auth-qa-icon">📋</span><div class="auth-qa-label">Dean SW Portal</div></div>`:''}
-            ${isPrincipal?`<div class="auth-qa-card" onclick="handlePrincipalPortalNav()"><span class="auth-qa-icon">🎓</span><div class="auth-qa-label">Principal Portal</div></div>`:''}
+            
+            
           </div>`:''
         }
       </div>
@@ -5552,37 +5552,7 @@ function renderAuthorityDashboard() {
   `;
 }
 
-function renderPrincipalAvailability() {
-  const princStatus = getDBObj('vvce_principal_status', { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" });
-  const noteText = (princStatus.note && princStatus.note !== 'undefined') ? princStatus.note : '';
-  const color = princStatus.color || '#48bb78';
-  const icon = princStatus.icon || '✅';
-  const text = princStatus.text || 'Available';
-  const updated = princStatus.updated || 'Recently';
-
-  return `
-    <div class="avail-card" style="background:#ffffff; border-radius:12px; border:1.5px solid ${color}; padding:14px; box-shadow:0 2px 8px rgba(0,0,0,0.04); margin-bottom:1rem;">
-      <div class="avail-head" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span class="sec-title" style="font-size:13.5px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px;">
-          <span>🎓</span> Principal's Availability
-        </span>
-        <span class="badge" style="background:${color}20; color:${color}; border:1px solid ${color}; font-weight:700; font-size:11px;">
-          ${text}
-        </span>
-      </div>
-      <div class="avail-status" style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${color}10;border-radius:8px;">
-        <div style="font-size:22px;">${icon}</div>
-        <div>
-          <div style="font-weight:700; font-size:13.5px; color:#1e293b;">${text}</div>
-          ${noteText ? `<div style="font-size:11.5px; color:#475569; margin-top:2px;">"${noteText}"</div>` : ''}
-        </div>
-      </div>
-      <div class="avail-upd" style="margin-top:8px; font-size:10.5px; color:#94a3b8; display:flex; justify-content:space-between;">
-        <span>Last Updated</span>
-        <span style="font-weight:600; color:#64748b;">${updated}</span>
-      </div>
-    </div>`;
-}
+function renderPrincipalAvailability() { return ""; }
 
 function checkClashCount() {
   const events = getDB('vvce_events').filter(e=>e.status==='approved');
@@ -6379,288 +6349,14 @@ function lockDeanPortal() {
 ───────────────────────────────────────────────────────────────*/
 const PRINCIPAL_PASS = 'principal@vvce2025';
 
-function handlePrincipalPortalNav() {
-  if (STATE.principalUnlocked) { showPage('principal-portal'); return; }
-  document.getElementById('principal-pass-input').value='';
-  document.getElementById('principal-pass-error').style.display='none';
-  openModal('modal-principal-pass');
-}
-
-function verifyPrincipalPassword() {
-  const pass=document.getElementById('principal-pass-input').value;
-  if(pass===PRINCIPAL_PASS){
-    STATE.principalUnlocked=true;
-    closeModal('modal-principal-pass');
-    showPage('principal-portal');
-  } else {
-    const err=document.getElementById('principal-pass-error');
-    err.textContent='Incorrect password. Please try again.'; err.style.display='';
-  }
-}
-
-window.toggleAttendEvent = function(eventId) {
-  const toAttend = getDB('vvce_princ_attend');
-  if(toAttend.includes(eventId)) {
-    setDB('vvce_princ_attend', toAttend.filter(id => id !== eventId));
-    toast('Event removed from your schedule.');
-  } else {
-    toAttend.push(eventId);
-    setDB('vvce_princ_attend', toAttend);
-    toast('Event added to your schedule!', 'success');
-  }
-  renderPrincipalPortal();
-};
-
-window.simulatePrincipalEmailNotif = function(eventName, timeStr) {
-  toast(`📧 Email sent to princy@vvce.ac.in: Reminder - ${eventName} starts in 5 minutes!`, 'info', 6000);
-};
-
-function renderPrincipalPortal() {
-  if(!STATE.principalUnlocked){ handlePrincipalPortalNav(); return; }
-  const events = getDB('vvce_events');
-  const clubs  = getDB('vvce_users').filter(u=>u.type==='admin');
-  const users  = getDB('vvce_users').filter(u=>u.type==='student');
-  const toAttendIds = getDB('vvce_princ_attend');
-  const princStatus = getDBObj('vvce_principal_status', { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" });
-  const statusNote = (princStatus.note && princStatus.note !== 'undefined') ? princStatus.note : '';
-  const princSchedules = getDB('vvce_principal_schedule');
-  const el     = document.getElementById('page-principal-portal');
-  
-  if (toAttendIds.length > 0 && !window.demoEmailSent) {
-    const firstEvent = events.find(e => e.id === toAttendIds[0]);
-    if (firstEvent) {
-      setTimeout(() => simulatePrincipalEmailNotif(firstEvent.name, firstEvent.time), 1500);
-      window.demoEmailSent = true;
-    }
-  }
-
-  el.innerHTML=`
-    <div class="dean-portal-hdr">
-      <div class="dpicon dpicon-purple">🎓</div>
-      <div class="dp-info">
-        <div class="dp-title">Principal Portal <span class="dp-authed" style="background:rgba(139,92,246,0.15);color:#a78bfa;border-color:rgba(139,92,246,0.2);">✓ AUTHENTICATED</span></div>
-        <div class="dp-sub">Institution-level overview and controls</div>
-      </div>
-      <button class="dp-lock-btn" onclick="lockPrincipalPortal()">🔒 Lock Portal</button>
-    </div>
-
-    <!-- Current Status Section -->
-    <div class="white-card" style="margin-bottom:1.5rem; border: 1.5px solid ${princStatus.color || '#48bb78'}; background-color: #fffaf0;">
-      <div style="display:flex; justify-content:space-between; margin-bottom:1rem;">
-         <div><span style="color:${princStatus.color || '#48bb78'};font-size:12px;">●</span> Current Status<br><strong style="font-size:16px;">${princStatus.icon || '✅'} ${princStatus.text || 'Available'}</strong></div>
-         <div style="font-size:12px; color:#a0aec0;">Updated ${princStatus.updated || 'Just now'}</div>
-      </div>
-      <input type="text" id="princ-status-note" value="${statusNote}" placeholder="Optional status note (e.g. Back by 3 PM)..." style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:1rem; font-family:inherit;">
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; margin-bottom:1rem;">
-        <button class="btn" style="background:#48bb78; color:white;" onclick="setPrincStatus('Available', '#48bb78', '✅')">✅ Available</button>
-        <button class="btn" style="background:#4299e1; color:white;" onclick="setPrincStatus('In Meeting', '#4299e1', '🤝')">🤝 In Meeting</button>
-        <button class="btn" style="background:#ed8936; color:white;" onclick="setPrincStatus('Out of Campus', '#ed8936', '🏎️')">🏎️ Out of Campus</button>
-        <button class="btn" style="background:#4a5568; color:white;" onclick="setPrincStatus('Not Available', '#4a5568', '⛔')">⛔ Not Available</button>
-      </div>
-      <div style="display:flex; gap:10px;">
-         <select id="princ-status-select" style="flex:1; padding:10px; border:1px solid #e2e8f0; border-radius:8px;">
-           <option value="Available" ${princStatus.text === 'Available' ? 'selected' : ''}>Available</option>
-           <option value="In Meeting" ${princStatus.text === 'In Meeting' ? 'selected' : ''}>In Meeting</option>
-           <option value="Out of Campus" ${princStatus.text === 'Out of Campus' ? 'selected' : ''}>Out of Campus</option>
-           <option value="Not Available" ${princStatus.text === 'Not Available' ? 'selected' : ''}>Not Available</option>
-         </select>
-         <button class="btn" style="background:#8b5cf6; color:white; padding:0 20px;" onclick="updatePrincStatusBtn()">Update</button>
-      </div>
-    </div>
-
-    <!-- Schedule Manager Section -->
-    <div class="white-card" style="margin-bottom:1.5rem;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <div>
-          <div style="font-size:18px; font-weight:700;">Schedule Manager</div>
-          <div style="font-size:12px; color:#718096;">${princSchedules.length} Item(s)</div>
-        </div>
-        <button class="btn" style="background:#8b5cf6; color:white;" onclick="openPrincScheduleModal()">+ Add Schedule</button>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table">
-           <thead><tr><th>DATE</th><th>TIME</th><th>PURPOSE</th><th>LOCATION</th><th>NOTES</th><th>ACTIONS</th></tr></thead>
-           <tbody>
-             ${princSchedules.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:#9ca3af;">No schedules added yet.</td></tr>' : ''}
-             ${princSchedules.map(s => `<tr>
-               <td>${s.date}</td>
-               <td>${s.time}</td>
-               <td>${s.purpose}</td>
-               <td>${s.location}</td>
-               <td>${s.notes}</td>
-               <td>
-                 <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;" onclick="editPrincSchedule('${s.id}')">Edit</button> 
-                 <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;color:red;border-color:red;" onclick="deletePrincSchedule('${s.id}')">Del</button>
-               </td>
-             </tr>`).join('')}
-           </tbody>
-        </table>
-      </div>
-    </div>
 
 
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;">
-      <!-- Events overview -->
-      <div class="white-card">
-        <div class="sec-title" style="margin-bottom:1rem;">Institution Events & Scheduling</div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>Event</th><th>Date & Time</th><th>Venue</th><th>My Schedule</th></tr></thead>
-            <tbody>
-              ${events.filter(e=>e.status==='approved').slice(0,10).map(e=>`
-                <tr style="cursor:pointer;" onclick="openEventModal('${e.id}')">
-                  <td class="td-name">${e.name}</td>
-                  <td>${formatDate(e.date)} ${formatTime(e.time)}</td>
-                  <td>${e.venue}</td>
-                  <td>
-                    ${toAttendIds.includes(e.id)
-                      ? `<button class="btn btn-green" style="padding:6px 12px;font-size:12px;" onclick="event.stopPropagation(); toggleAttendEvent('${e.id}')">✓ Attending</button>`
-                      : `<button class="btn btn-outline" style="padding:6px 12px;font-size:12px;" onclick="event.stopPropagation(); toggleAttendEvent('${e.id}')">+ Attend</button>`
-                    }
-                  </td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
-      <!-- Right panel -->
-      <div>
-        <div class="avail-card" style="margin-bottom:1rem;">
-          <div class="avail-head"><span style="font-weight:700;font-size:14px;">My Schedule (To Attend)</span></div>
-          <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
-            ${toAttendIds.length === 0 
-              ? `<div style="font-size:12px;color:#6b7280;text-align:center;">No events in schedule</div>`
-              : toAttendIds.map(id => {
-                  const e = events.find(ev=>ev.id===id);
-                  if(!e) return '';
-                  return `<div style="background:rgba(255,255,255,0.7);padding:10px;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer;" onclick="openEventModal('${e.id}')">
-                            <div style="font-weight:700;font-size:13px;color:#111827;">${e.name}</div>
-                            <div style="font-size:11px;color:#4b5563;margin-top:4px;">🕒 ${formatDate(e.date)} at ${formatTime(e.time)}</div>
-                            <div style="font-size:11px;color:#4b5563;margin-top:2px;">📍 ${e.venue}</div>
-                          </div>`;
-                }).join('')
-            }
-          </div>
-        </div>
-        <div class="white-card">
-          <div class="sec-title" style="margin-bottom:10px;">Event Types Overview</div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;">
-              <span style="font-size:13px;font-weight:600;">On-Campus Events</span>
-              <span class="badge badge-green">${events.filter(e=>e.venue.toLowerCase().includes('hall') || e.venue.toLowerCase().includes('lab') || e.venue.toLowerCase().includes('ground') || e.venue.toLowerCase().includes('room')).length} Active</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;">
-              <span style="font-size:13px;font-weight:600;">Off-Campus Events</span>
-              <span class="badge badge-amber">${events.filter(e=>!e.venue.toLowerCase().includes('hall') && !e.venue.toLowerCase().includes('lab') && !e.venue.toLowerCase().includes('ground') && !e.venue.toLowerCase().includes('room')).length} Active</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
 
-function lockPrincipalPortal() {
-  STATE.principalUnlocked=false;
-  toast('Principal portal locked.','info');
-  showPage('authority-dashboard');
-}
 
-/* ── Principal Status & Schedule Logic ── */
-window.setPrincStatus = async function(text, color, icon) {
-  const noteInput = document.getElementById('princ-status-note');
-  const rawNote = noteInput ? noteInput.value.trim() : '';
-  const note = rawNote === 'undefined' ? '' : rawNote;
-  const updated = new Date().toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
-  await setDB('vvce_principal_status', {text, note, updated, color, icon});
-  renderPrincipalPortal();
-  toast(`Principal status updated to "${text}"! Live across all dashboards. ✅`, 'success');
-};
 
-window.updatePrincStatusBtn = function() {
-  const select = document.getElementById('princ-status-select');
-  const text = select ? select.value : 'Available';
-  let color = '#48bb78', icon = '✅';
-  if(text === 'In Meeting') { color = '#4299e1'; icon = '🤝'; }
-  else if(text === 'Out of Campus') { color = '#ed8936'; icon = '🏎️'; }
-  else if(text === 'Not Available') { color = '#4a5568'; icon = '⛔'; }
-  setPrincStatus(text, color, icon);
-};
 
-window.openPrincScheduleModal = function(id = null) {
-  if (id) {
-    const schedules = getDB('vvce_principal_schedule');
-    const s = schedules.find(x => x.id === id);
-    if(s) {
-      document.getElementById('ps-date').value = s.dateRaw || s.date;
-      document.getElementById('ps-time').value = s.time;
-      document.getElementById('ps-purpose').value = s.purpose;
-      document.getElementById('ps-location').value = s.location;
-      document.getElementById('ps-notes').value = s.notes;
-      window.editingPrincScheduleId = id;
-    }
-  } else {
-    document.getElementById('ps-date').value = '';
-    document.getElementById('ps-time').value = '';
-    document.getElementById('ps-purpose').value = '';
-    document.getElementById('ps-location').value = '';
-    document.getElementById('ps-notes').value = '';
-    window.editingPrincScheduleId = null;
-  }
-  openModal('modal-princ-schedule');
-};
 
-window.savePrincSchedule = function() {
-  const dateRaw = document.getElementById('ps-date').value;
-  const time = document.getElementById('ps-time').value;
-  const purpose = document.getElementById('ps-purpose').value;
-  const location = document.getElementById('ps-location').value;
-  const notes = document.getElementById('ps-notes').value;
-
-  if(!dateRaw || !time || !purpose) {
-    toast('Please fill date, time, and purpose.', 'error');
-    return;
-  }
-  
-  const d = new Date(dateRaw);
-  const dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
-
-  const schedules = getDB('vvce_principal_schedule');
-  
-  if (window.editingPrincScheduleId) {
-    const idx = schedules.findIndex(x => x.id === window.editingPrincScheduleId);
-    if(idx > -1) {
-      schedules[idx] = { id: window.editingPrincScheduleId, dateRaw, date: dateStr, time, purpose, location, notes };
-      toast('Schedule updated!', 'success');
-    }
-  } else {
-    schedules.push({
-      id: 'ps_' + Date.now(),
-      dateRaw,
-      date: dateStr,
-      time, purpose, location, notes
-    });
-    toast('Schedule added!', 'success');
-  }
-  
-  setDB('vvce_principal_schedule', schedules);
-  closeModal('modal-princ-schedule');
-  renderPrincipalPortal();
-};
-
-window.editPrincSchedule = function(id) {
-  openPrincScheduleModal(id);
-};
-
-window.deletePrincSchedule = function(id) {
-  if(!confirm('Delete this schedule?')) return;
-  let schedules = getDB('vvce_principal_schedule');
-  schedules = schedules.filter(x => x.id !== id);
-  setDB('vvce_principal_schedule', schedules);
-  toast('Schedule deleted.', 'info');
-  renderPrincipalPortal();
-};
 
 
 /* ─────────────────────────────────────────────────────────────
