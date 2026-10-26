@@ -1209,13 +1209,49 @@ async function handleLogin() {
 /* Quick demo login */
 function quickLogin(role) {
   const maps = {
-    student:   'akash@vvce.ac.in',
-    admin:     'harshill@vvce.ac.in',
-    dean:      'dean.sw@vvce.ac.in',
-    principal: 'principal@vvce.ac.in',
+    student:   { email: 'akash@vvce.ac.in', pass: 'demo1234' },
+    admin:     { email: 'harshill@vvce.ac.in', pass: 'demo1234' },
+    authority: { email: 'dean.sw@vvce.ac.in', pass: 'demo1234' },
+    dean:      { email: 'dean.sw@vvce.ac.in', pass: 'demo1234' }
   };
-  document.getElementById('login-email').value = maps[role] || maps.student;
-  document.getElementById('login-pass').value  = 'demo1234';
+
+  const target = maps[role] || maps.student;
+  const emailInput = document.getElementById('login-email');
+  const passInput  = document.getElementById('login-pass');
+  if (emailInput) emailInput.value = target.email;
+  if (passInput) passInput.value  = target.pass;
+
+  // If logging in as Approving Authority demo, directly authenticate & unlock authority portal
+  if (role === 'authority' || role === 'dean') {
+    let users = getDB('vvce_users');
+    let authUser = users.find(u => u.email.toLowerCase() === target.email.toLowerCase() && u.type === 'authority');
+    if (!authUser) {
+      authUser = {
+        id: 'u3',
+        type: 'authority',
+        name: 'Dr. Priya Nair',
+        email: 'dean.sw@vvce.ac.in',
+        pass: 'demo1234',
+        designation: 'Dean Student Welfare',
+        dept: 'Student Welfare',
+        phone: '+91 98765 43212',
+        notifs: []
+      };
+      users.push(authUser);
+      setDB('vvce_users', users);
+    }
+
+    // Auto-unlock demo authority credentials
+    STATE.authorityUnlocked = true;
+    STATE.currentAuthorityId = 'auth_dean_sw';
+    STATE.currentAuthorityName = 'Dean Student Welfare';
+
+    launchApp(authUser);
+    showPage('authority-portal');
+    toast('Logged in as Approving Authority (Dean Student Welfare) ✓', 'success');
+    return;
+  }
+
   handleLogin();
 }
 
@@ -1763,7 +1799,8 @@ function showPage(pageId) {
     'authority-clubs': 'Club Monitor',
     'authority-clash': 'Clash Detection',
     'authority-attendance': 'Attendance',
-    'dean-portal': 'Dean Student Welfare Portal',
+    'authority-portal': 'Approving Authority Portal',
+    'dean-portal': 'Approving Authority Portal',
     'principal-portal': 'Principal Portal',
   };
   document.getElementById('topbar-title').textContent = titles[pageId] || pageId;
@@ -1795,6 +1832,8 @@ function showPage(pageId) {
     'authority-clubs':      renderClubMonitor,
     'authority-clash':      renderClashDetect,
     'authority-attendance': renderAttendancePage,
+    'authority-portal':     () => renderAuthorityPortal(),
+    'dean-portal':          () => renderAuthorityPortal(),
     'dean-portal':          () => renderDeanPortal(),
     // 'principal-portal' removed as requested
   };
@@ -1833,7 +1872,7 @@ function renderSidebar() {
   if (sbRole) sbRole.textContent = {
     student: (() => { const cs = computeStudentYearSem(user); return `${user.branch || ''} • ${cs.sem}`; })(),
     admin: user.clubName || 'Club Admin',
-    authority: titleCase(user.designation) || 'Faculty',
+    authority: STATE.authorityUnlocked && STATE.currentAuthorityName ? STATE.currentAuthorityName : (titleCase(user.designation) || 'Approving Authority'),
   }[user.type] || '';
 
   const sbBadge = document.getElementById('sb-rolebadge');
