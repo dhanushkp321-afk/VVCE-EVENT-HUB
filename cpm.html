@@ -1,41 +1,3 @@
-
-
-    <!-- APPROVING AUTHORITIES TAB -->
-    <div id="tab-authorities" class="tab-content">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px;">
-        <div>
-          <h2 style="font-family:'Outfit'; font-weight:800; color:#0f172a; margin:0; font-size:1.6rem;">Approving Authorities Management</h2>
-          <p style="color:#64748b; margin:4px 0 0; font-size:0.9rem;">Configure institutional approving authorities, reset credentials, and control review queues.</p>
-        </div>
-        <button class="btn btn-primary" onclick="openAddAuthorityModal()" style="display:flex; align-items:center; gap:8px;">
-          <span>➕</span> Add Approving Authority
-        </button>
-      </div>
-
-      <!-- Authorities List Card -->
-      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:1.5rem; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-          <h3 style="font-size:1.1rem; color:#1e293b; font-weight:700; margin:0;">Configured Authorities</h3>
-          <span id="authority-count-badge" class="badge" style="background:#f1f5f9; color:#475569; font-size:12px; font-weight:700;">0 authorities</span>
-        </div>
-        <div style="overflow-x:auto;">
-          <table class="data-table" style="width:100%; border-collapse:collapse;">
-            <thead>
-              <tr style="text-align:left; border-bottom:2px solid #f1f5f9; font-size:12px; color:#64748b; text-transform:uppercase;">
-                <th style="padding:10px 12px;">Authority Name</th>
-                <th style="padding:10px 12px;">Designation / Email</th>
-                <th style="padding:10px 12px;">Status</th>
-                <th style="padding:10px 12px;">Created</th>
-                <th style="padding:10px 12px; text-align:right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="authorities-table-body">
-              <tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">Loading authorities...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,322 +6,7 @@
   <title>VVCE Events — CPM Control Panel</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-    /* ========================================================================
-       APPROVING AUTHORITIES MANAGEMENT (CPM)
-       ======================================================================== */
-    let cachedAuthorities = [];
-
-    // Salted PBKDF2 Password Hashing
-    async function hashPasswordWithSalt(password, saltStr) {
-      const enc = new TextEncoder();
-      const salt = enc.encode(saltStr || ('salt_' + Math.random().toString(36).substring(2, 10)));
-      const keyMaterial = await crypto.subtle.importKey(
-        'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']
-      );
-      const derivedBits = await crypto.subtle.deriveBits(
-        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial, 256
-      );
-      const hashArray = Array.from(new Uint8Array(derivedBits));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      return { hash: hashHex, salt: new TextDecoder().decode(salt) };
-    }
-
-    function togglePassVisibility(inputId, btn) {
-      const el = document.getElementById(inputId);
-      if (!el) return;
-      if (el.type === 'password') {
-        el.type = 'text';
-        btn.textContent = '🙈';
-      } else {
-        el.type = 'password';
-        btn.textContent = '👁️';
-      }
-    }
-
-    function openAddAuthorityModal() {
-      if (currentAdminRole !== 'super_admin' && currentAdminRole !== 'event_manager') {
-        alert('Unauthorized: Only authorized administrators can configure authorities.');
-        return;
-      }
-      document.getElementById('new-auth-name').value = '';
-      document.getElementById('new-auth-email').value = '';
-      document.getElementById('new-auth-pass').value = '';
-      document.getElementById('new-auth-pass-confirm').value = '';
-      document.getElementById('add-auth-error').style.display = 'none';
-      document.getElementById('add-authority-modal').style.display = 'flex';
-    }
-
-    function closeAddAuthorityModal() {
-      document.getElementById('add-authority-modal').style.display = 'none';
-    }
-
-    function openChangeAuthPassModal(id, name) {
-      if (currentAdminRole !== 'super_admin') {
-        alert('Unauthorized: Only Super Administrators can reset authority passwords.');
-        return;
-      }
-      document.getElementById('change-auth-id').value = id;
-      document.getElementById('change-auth-name-display').textContent = name;
-      document.getElementById('change-auth-pass').value = '';
-      document.getElementById('change-auth-pass-confirm').value = '';
-      document.getElementById('change-auth-error').style.display = 'none';
-      document.getElementById('change-auth-pass-modal').style.display = 'flex';
-    }
-
-    function closeChangeAuthPassModal() {
-      document.getElementById('change-auth-pass-modal').style.display = 'none';
-    }
-
-    async function loadAuthorities() {
-      try {
-        const { data, error } = await sb.from('approving_authorities').select('*').order('created_at', { ascending: true });
-        if (error) {
-          console.warn('Could not fetch from approving_authorities table, falling back to local storage cache:', error);
-          const raw = localStorage.getItem('vvce_approving_authorities');
-          cachedAuthorities = raw ? JSON.parse(raw) : getInitialDefaultAuthorities();
-        } else {
-          cachedAuthorities = Array.isArray(data) && data.length ? data : getInitialDefaultAuthorities();
-          localStorage.setItem('vvce_approving_authorities', JSON.stringify(cachedAuthorities));
-        }
-      } catch (err) {
-        console.warn('loadAuthorities error:', err);
-        const raw = localStorage.getItem('vvce_approving_authorities');
-        cachedAuthorities = raw ? JSON.parse(raw) : getInitialDefaultAuthorities();
-      }
-      renderAuthoritiesTable();
-    }
-
-    function getInitialDefaultAuthorities() {
-      return [
-        {
-          id: 'auth_dean_sw',
-          name: 'Dean Student Welfare',
-          email: 'dean.sw@vvce.ac.in',
-          designation: 'Dean Student Welfare',
-          password_hash: 'b6fdb537e29bb3ff3ce1b00e66eb139a039750bca80ca60d69611894d3ec8595',
-          salt: 'vvce_salt_dean_2026',
-          active: true,
-          created_at: new Date().toISOString()
-        }
-      ];
-    }
-
-    function renderAuthoritiesTable() {
-      const tbody = document.getElementById('authorities-table-body');
-      const countBadge = document.getElementById('authority-count-badge');
-      if (!tbody) return;
-      if (countBadge) countBadge.textContent = cachedAuthorities.length + ' authorities';
-
-      if (!cachedAuthorities.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">No approving authorities configured yet. Click "Add Approving Authority" to create one.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = cachedAuthorities.map(a => {
-        const dateStr = a.created_at ? new Date(a.created_at).toLocaleDateString() : 'N/A';
-        const isSuper = currentAdminRole === 'super_admin';
-        return `
-          <tr style="border-bottom:1px solid #f1f5f9; font-size:13px; color:#334155;">
-            <td style="padding:12px;">
-              <strong style="color:#0f172a; font-size:14px;">${a.name}</strong>
-            </td>
-            <td style="padding:12px;">
-              <div>${a.designation || 'Approving Authority'}</div>
-              <div style="font-size:11px; color:#64748b;">${a.email || 'No email specified'}</div>
-            </td>
-            <td style="padding:12px;">
-              <span class="badge" style="background:${a.active ? '#f0fdf4' : '#fef2f2'}; color:${a.active ? '#15803d' : '#b91c1c'}; border:1px solid ${a.active ? '#bbf7d0' : '#fecaca'};">
-                ${a.active ? '● Active' : '○ Deactivated'}
-              </span>
-            </td>
-            <td style="padding:12px; font-size:12px; color:#64748b;">${dateStr}</td>
-            <td style="padding:12px; text-align:right;">
-              <div style="display:flex; justify-content:flex-end; gap:8px;">
-                <button class="btn btn-sm" style="background:#f1f5f9; color:#334155;" onclick="openChangeAuthPassModal('${a.id}', '${a.name.replace(/'/g, "\\'")}')" title="Change Password">
-                  🔑 Password
-                </button>
-                <button class="btn btn-sm ${a.active ? 'btn-danger' : 'btn-success'}" onclick="toggleAuthorityActive('${a.id}', ${!a.active})" style="padding:4px 8px; font-size:11px;">
-                  ${a.active ? 'Deactivate' : 'Activate'}
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    async function handleCreateAuthority(e) {
-      e.preventDefault();
-      const errEl = document.getElementById('add-auth-error');
-      errEl.style.display = 'none';
-
-      const name = document.getElementById('new-auth-name').value.trim();
-      const email = document.getElementById('new-auth-email').value.trim();
-      const pass = document.getElementById('new-auth-pass').value;
-      const confirmPass = document.getElementById('new-auth-pass-confirm').value;
-
-      if (!name) {
-        errEl.textContent = 'Please enter an authority name.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      if (pass !== confirmPass) {
-        errEl.textContent = 'Passwords do not match.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      if (pass.length < 6) {
-        errEl.textContent = 'Password must be at least 6 characters.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      // Case-insensitive duplicate name check
-      const duplicate = cachedAuthorities.find(a => a.name.toLowerCase() === name.toLowerCase());
-      if (duplicate) {
-        errEl.textContent = 'An authority with this name already exists (case-insensitive).';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      const submitBtn = document.getElementById('submit-new-auth-btn');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Creating...';
-
-      try {
-        const salt = 'salt_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
-        const { hash } = await hashPasswordWithSalt(pass, salt);
-
-        const newAuth = {
-          id: 'auth_' + Date.now(),
-          name,
-          email: email || null,
-          designation: 'Approving Authority',
-          password_hash: hash,
-          salt: salt,
-          active: true,
-          created_at: new Date().toISOString()
-        };
-
-        // Save to Supabase
-        const { error } = await sb.from('approving_authorities').insert([newAuth]);
-        if (error) {
-          console.warn('Could not insert to Supabase approving_authorities, saving locally:', error);
-        }
-
-        cachedAuthorities.push(newAuth);
-        localStorage.setItem('vvce_approving_authorities', JSON.stringify(cachedAuthorities));
-
-        await recordAuditAction({
-          action: 'Authority Created',
-          target: newAuth.id,
-          details: 'Created approving authority: ' + name
-        });
-
-        closeAddAuthorityModal();
-        renderAuthoritiesTable();
-        showToast('Approving Authority "' + name + '" created successfully! Live across all portals.');
-      } catch (err) {
-        console.error('Error creating authority:', err);
-        errEl.textContent = err.message || 'Failed to create authority.';
-        errEl.style.display = 'block';
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Confirm & Create';
-      }
-    }
-
-    async function handleChangeAuthorityPassword(e) {
-      e.preventDefault();
-      const errEl = document.getElementById('change-auth-error');
-      errEl.style.display = 'none';
-
-      const id = document.getElementById('change-auth-id').value;
-      const pass = document.getElementById('change-auth-pass').value;
-      const confirmPass = document.getElementById('change-auth-pass-confirm').value;
-
-      if (pass !== confirmPass) {
-        errEl.textContent = 'Passwords do not match.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      if (pass.length < 6) {
-        errEl.textContent = 'Password must be at least 6 characters.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      const submitBtn = document.getElementById('submit-change-pass-btn');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Updating...';
-
-      try {
-        const salt = 'salt_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
-        const { hash } = await hashPasswordWithSalt(pass, salt);
-
-        // Update in Supabase
-        await sb.from('approving_authorities').update({
-          password_hash: hash,
-          salt: salt,
-          updated_at: new Date().toISOString()
-        }).eq('id', id);
-
-        const target = cachedAuthorities.find(a => a.id === id);
-        if (target) {
-          target.password_hash = hash;
-          target.salt = salt;
-          target.updated_at = new Date().toISOString();
-        }
-        localStorage.setItem('vvce_approving_authorities', JSON.stringify(cachedAuthorities));
-
-        await recordAuditAction({
-          action: 'Authority Password Changed',
-          target: id,
-          details: 'Updated password for authority: ' + (target ? target.name : id)
-        });
-
-        closeChangeAuthPassModal();
-        showToast('Password updated successfully!');
-      } catch (err) {
-        console.error('Error updating password:', err);
-        errEl.textContent = err.message || 'Failed to update password.';
-        errEl.style.display = 'block';
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Update Password';
-      }
-    }
-
-    async function toggleAuthorityActive(id, newStatus) {
-      const target = cachedAuthorities.find(a => a.id === id);
-      const actionName = newStatus ? 'Activate' : 'Deactivate';
-      if (!confirm(actionName + ' approving authority "' + (target ? target.name : id) + '"? Historical records will be preserved.')) return;
-
-      try {
-        await sb.from('approving_authorities').update({ active: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
-        if (target) target.active = newStatus;
-        localStorage.setItem('vvce_approving_authorities', JSON.stringify(cachedAuthorities));
-
-        await recordAuditAction({
-          action: 'Authority ' + actionName + 'd',
-          target: id,
-          details: actionName + 'd authority: ' + (target ? target.name : id)
-        });
-
-        renderAuthoritiesTable();
-        showToast('Authority status updated successfully.');
-      } catch (err) {
-        console.error('Failed to toggle authority status:', err);
-        alert('Failed to update authority status.');
-      }
-    }
-
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --gold: #f59e0b;
@@ -932,6 +579,43 @@
         </div>
       </div>
     </section>
+
+    <!-- APPROVING AUTHORITIES TAB -->
+    <section id="tab-authorities" class="tab-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h2 style="font-family:'Outfit'; font-weight:800; color:#0f172a; margin:0; font-size:1.6rem;">Approving Authorities Management</h2>
+          <p style="color:#64748b; margin:4px 0 0; font-size:0.9rem;">Configure institutional approving authorities, reset credentials, and control review queues.</p>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="openAddAuthorityModal()" style="display:flex; align-items:center; gap:8px;">
+          <span>➕</span> Add Approving Authority
+        </button>
+      </div>
+
+      <!-- Authorities List Card -->
+      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:1.5rem; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <h3 style="font-size:1.1rem; color:#1e293b; font-weight:700; margin:0;">Configured Authorities</h3>
+          <span id="authority-count-badge" class="badge" style="background:#f1f5f9; color:#475569; font-size:12px; font-weight:700;">0 authorities</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table" style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="text-align:left; border-bottom:2px solid #f1f5f9; font-size:12px; color:#64748b; text-transform:uppercase;">
+                <th style="padding:10px 12px;">Authority Name</th>
+                <th style="padding:10px 12px;">Designation / Email</th>
+                <th style="padding:10px 12px;">Status</th>
+                <th style="padding:10px 12px;">Created</th>
+                <th style="padding:10px 12px; text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="authorities-table-body">
+              <tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">Loading authorities...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Edit Modal -->
@@ -1242,7 +926,8 @@
         theme: document.getElementById('nav-theme'),
         analytics: document.getElementById('nav-analytics'),
         audit: document.getElementById('nav-audit'),
-        emergency: document.getElementById('nav-emergency')
+        emergency: document.getElementById('nav-emergency'),
+        authorities: document.getElementById('nav-authorities')
       };
 
       Object.values(tabs).forEach(b => { if (b) b.style.display = ''; });
@@ -1299,6 +984,7 @@
       if (target) target.classList.add('active');
       if (tab === 'analytics') loadAnalytics();
       if (tab === 'audit') loadAuditLog();
+      if (tab === 'authorities') loadAuthorities();
       if (tab === 'recycle') loadRecycleBin();
     }
 
@@ -2203,6 +1889,318 @@
       t.style.display = 'block';
       setTimeout(() => { t.style.display = 'none'; }, 3500);
     }
+
+    /* ========================================================================
+       APPROVING AUTHORITIES MANAGEMENT (CPM)
+       ======================================================================== */
+    let cachedAuthorities = [];
+
+    // Salted PBKDF2 Password Hashing
+    async function hashPasswordWithSalt(password, saltStr) {
+      const enc = new TextEncoder();
+      const salt = enc.encode(saltStr || ('salt_' + Math.random().toString(36).substring(2, 10)));
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']
+      );
+      const derivedBits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial, 256
+      );
+      const hashArray = Array.from(new Uint8Array(derivedBits));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return { hash: hashHex, salt: new TextDecoder().decode(salt) };
+    }
+
+    function togglePassVisibility(inputId, btn) {
+      const el = document.getElementById(inputId);
+      if (!el) return;
+      if (el.type === 'password') {
+        el.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        el.type = 'password';
+        btn.textContent = '👁️';
+      }
+    }
+
+    function openAddAuthorityModal() {
+      document.getElementById('new-auth-name').value = '';
+      document.getElementById('new-auth-email').value = '';
+      document.getElementById('new-auth-pass').value = '';
+      document.getElementById('new-auth-pass-confirm').value = '';
+      document.getElementById('add-auth-error').style.display = 'none';
+      document.getElementById('add-authority-modal').style.display = 'flex';
+    }
+
+    function closeAddAuthorityModal() {
+      document.getElementById('add-authority-modal').style.display = 'none';
+    }
+
+    function openChangeAuthPassModal(id, name) {
+      document.getElementById('change-auth-id').value = id;
+      document.getElementById('change-auth-name-display').textContent = name;
+      document.getElementById('change-auth-pass').value = '';
+      document.getElementById('change-auth-pass-confirm').value = '';
+      document.getElementById('change-auth-error').style.display = 'none';
+      document.getElementById('change-auth-pass-modal').style.display = 'flex';
+    }
+
+    function closeChangeAuthPassModal() {
+      document.getElementById('change-auth-pass-modal').style.display = 'none';
+    }
+
+    async function loadAuthorities() {
+      try {
+        const { data, error } = await sb.from('approving_authorities').select('*').order('created_at', { ascending: true });
+        if (error) {
+          console.warn('Could not fetch from approving_authorities table, falling back to local storage cache:', error);
+          const raw = localStorage.getItem('vvce_approving_authorities');
+          cachedAuthorities = raw ? JSON.parse(raw) : getInitialDefaultAuthorities();
+        } else {
+          cachedAuthorities = Array.isArray(data) && data.length ? data : getInitialDefaultAuthorities();
+          localStorage.setItem('vvce_approving_authorities', JSON.stringify(cachedAuthorities));
+        }
+      } catch (err) {
+        console.warn('loadAuthorities error:', err);
+        const raw = localStorage.getItem('vvce_approving_authorities');
+        cachedAuthorities = raw ? JSON.parse(raw) : getInitialDefaultAuthorities();
+      }
+      renderAuthoritiesTable();
+    }
+
+    function getInitialDefaultAuthorities() {
+      return [
+        {
+          id: 'auth_dean_sw',
+          name: 'Dean Student Welfare',
+          email: 'dean.sw@vvce.ac.in',
+          designation: 'Dean Student Welfare',
+          password_hash: 'b6fdb537e29bb3ff3ce1b00e66eb139a039750bca80ca60d69611894d3ec8595',
+          salt: 'vvce_salt_dean_2026',
+          active: true,
+          created_at: new Date().toISOString()
+        }
+      ];
+    }
+
+    function renderAuthoritiesTable() {
+      const tbody = document.getElementById('authorities-table-body');
+      const countBadge = document.getElementById('authority-count-badge');
+      if (!tbody) return;
+      if (countBadge) countBadge.textContent = cachedAuthorities.length + ' authorities';
+
+      if (!cachedAuthorities.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8;">No approving authorities configured yet. Click "Add Approving Authority" to create one.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = cachedAuthorities.map(a => {
+        const dateStr = a.created_at ? new Date(a.created_at).toLocaleDateString() : 'N/A';
+        return `
+          <tr style="border-bottom:1px solid #f1f5f9; font-size:13px; color:#334155;">
+            <td style="padding:12px;">
+              <strong style="color:#0f172a; font-size:14px;">${a.name}</strong>
+            </td>
+            <td style="padding:12px;">
+              <div>${a.designation || 'Approving Authority'}</div>
+              <div style="font-size:11px; color:#64748b;">${a.email || 'No email specified'}</div>
+            </td>
+            <td style="padding:12px;">
+              <span class="badge" style="background:${a.active ? '#f0fdf4' : '#fef2f2'}; color:${a.active ? '#15803d' : '#b91c1c'}; border:1px solid ${a.active ? '#bbf7d0' : '#fecaca'};">
+                ${a.active ? '● Active' : '○ Deactivated'}
+              </span>
+            </td>
+            <td style="padding:12px; font-size:12px; color:#64748b;">${dateStr}</td>
+            <td style="padding:12px; text-align:right;">
+              <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button type="button" class="btn btn-sm" style="background:#f1f5f9; color:#334155;" onclick="openChangeAuthPassModal('${a.id}', '${a.name.replace(/'/g, "\\'")}')" title="Change Password">
+                  🔑 Password
+                </button>
+                <button type="button" class="btn btn-sm ${a.active ? 'btn-danger' : 'btn-success'}" onclick="toggleAuthorityActive('${a.id}', ${!a.active})" style="padding:4px 8px; font-size:11px;">
+                  ${a.active ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function handleCreateAuthority(e) {
+      e.preventDefault();
+      const errEl = document.getElementById('add-auth-error');
+      errEl.style.display = 'none';
+
+      const name = document.getElementById('new-auth-name').value.trim();
+      const email = document.getElementById('new-auth-email').value.trim();
+      const pass = document.getElementById('new-auth-pass').value;
+      const confirmPass = document.getElementById('new-auth-pass-confirm').value;
+
+      if (!name) {
+        errEl.textContent = 'Please enter an authority name.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      if (pass !== confirmPass) {
+        errEl.textContent = 'Passwords do not match.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      if (pass.length < 6) {
+        errEl.textContent = 'Password must be at least 6 characters.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      // Case-insensitive duplicate name check
+      const duplicate = cachedAuthorities.find(a => a.name.toLowerCase() === name.toLowerCase());
+      if (duplicate) {
+        errEl.textContent = 'An authority with this name already exists (case-insensitive).';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const submitBtn = document.getElementById('submit-new-auth-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating...';
+
+      try {
+        const salt = 'salt_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+        const { hash } = await hashPasswordWithSalt(pass, salt);
+
+        const newAuth = {
+          id: 'auth_' + Date.now(),
+          name,
+          email: email || null,
+          designation: 'Approving Authority',
+          password_hash: hash,
+          salt: salt,
+          active: true,
+          created_at: new Date().toISOString()
+        };
+
+        // Save to Supabase
+        const { error } = await sb.from('approving_authorities').insert([newAuth]);
+        if (error) {
+          console.warn('Could not insert to Supabase approving_authorities, saving locally:', error);
+        }
+
+        cachedAuthorities.push(newAuth);
+        localStorage.setItem('vvce_approving_authorities', JSON.stringify(cachedAuthorities));
+
+        if (typeof recordAuditAction === 'function') {
+          await recordAuditAction({
+            action: 'Authority Created',
+            target: newAuth.id,
+            details: 'Created approving authority: ' + name
+          });
+        }
+
+        closeAddAuthorityModal();
+        renderAuthoritiesTable();
+        showToast('Approving Authority "' + name + '" created successfully! Live across all portals.');
+      } catch (err) {
+        console.error('Error creating authority:', err);
+        errEl.textContent = err.message || 'Failed to create authority.';
+        errEl.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Confirm & Create';
+      }
+    }
+
+    async function handleChangeAuthorityPassword(e) {
+      e.preventDefault();
+      const errEl = document.getElementById('change-auth-error');
+      errEl.style.display = 'none';
+
+      const id = document.getElementById('change-auth-id').value;
+      const pass = document.getElementById('change-auth-pass').value;
+      const confirmPass = document.getElementById('change-auth-pass-confirm').value;
+
+      if (pass !== confirmPass) {
+        errEl.textContent = 'Passwords do not match.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      if (pass.length < 6) {
+        errEl.textContent = 'Password must be at least 6 characters.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const submitBtn = document.getElementById('submit-change-pass-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Updating...';
+
+      try {
+        const salt = 'salt_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+        const { hash } = await hashPasswordWithSalt(pass, salt);
+
+        // Update in Supabase
+        await sb.from('approving_authorities').update({
+          password_hash: hash,
+          salt: salt,
+          updated_at: new Date().toISOString()
+        }).eq('id', id);
+
+        const target = cachedAuthorities.find(a => a.id === id);
+        if (target) {
+          target.password_hash = hash;
+          target.salt = salt;
+          target.updated_at = new Date().toISOString();
+        }
+        localStorage.setItem('vvce_approving_authorities', JSON.stringify(cachedAuthorities));
+
+        if (typeof recordAuditAction === 'function') {
+          await recordAuditAction({
+            action: 'Authority Password Changed',
+            target: id,
+            details: 'Updated password for authority: ' + (target ? target.name : id)
+          });
+        }
+
+        closeChangeAuthPassModal();
+        showToast('Password updated successfully!');
+      } catch (err) {
+        console.error('Error updating password:', err);
+        errEl.textContent = err.message || 'Failed to update password.';
+        errEl.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Update Password';
+      }
+    }
+
+    async function toggleAuthorityActive(id, newStatus) {
+      const target = cachedAuthorities.find(a => a.id === id);
+      const actionName = newStatus ? 'Activate' : 'Deactivate';
+      if (!confirm(actionName + ' approving authority "' + (target ? target.name : id) + '"? Historical records will be preserved.')) return;
+
+      try {
+        await sb.from('approving_authorities').update({ active: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
+        if (target) target.active = newStatus;
+        localStorage.setItem('vvce_approving_authorities', JSON.stringify(cachedAuthorities));
+
+        if (typeof recordAuditAction === 'function') {
+          await recordAuditAction({
+            action: 'Authority ' + actionName + 'd',
+            target: id,
+            details: actionName + 'd authority: ' + (target ? target.name : id)
+          });
+        }
+
+        renderAuthoritiesTable();
+        showToast('Authority status updated successfully.');
+      } catch (err) {
+        console.error('Failed to toggle authority status:', err);
+        alert('Failed to update authority status.');
+      }
+    }
+
   </script>
 </body>
 </html>
