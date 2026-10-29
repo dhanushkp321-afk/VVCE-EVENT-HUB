@@ -1166,10 +1166,64 @@ async function handleLogin() {
     showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed to sign in.', 'error'); return;
   }
 
+  // 1. Check if an active Approving Authority is logging in directly with their email & password
+  await syncApprovingAuthoritiesFromSupabase();
+  const activeAuthorities = getActiveApprovingAuthorities();
+  const matchedAuthority = activeAuthorities.find(a => a.email && a.email.toLowerCase() === email);
+
+  if (matchedAuthority) {
+    let isValid = false;
+    if (matchedAuthority.password_hash && matchedAuthority.salt) {
+      isValid = await verifyPasswordWithSalt(pass, matchedAuthority.password_hash, matchedAuthority.salt);
+    } else if (matchedAuthority.pass) {
+      isValid = (pass === matchedAuthority.pass);
+    } else if (matchedAuthority.id === 'auth_dean_sw' && (pass === 'deanwellfair@vvce' || pass === 'demo1234')) {
+      isValid = true;
+    }
+
+    if (isValid) {
+      // Find or build an authority user object for state
+      let users = getDB('vvce_users');
+      let authUser = users.find(u => u.email.toLowerCase() === email && u.type === 'authority');
+      if (!authUser) {
+        authUser = {
+          id: matchedAuthority.id || genId('u'),
+          type: 'authority',
+          name: matchedAuthority.name,
+          email: matchedAuthority.email,
+          pass: pass,
+          designation: matchedAuthority.designation || 'Approving Authority',
+          dept: 'Administration',
+          phone: '',
+          notifs: []
+        };
+        users.push(authUser);
+        setDB('vvce_users', users);
+      }
+
+      // Unlock authority portal session directly
+      STATE.user = authUser;
+      STATE.authorityUnlocked = true;
+      STATE.currentAuthorityId = matchedAuthority.id;
+      STATE.currentAuthorityName = matchedAuthority.name;
+
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      document.body.style.background = '#f1f5f9';
+
+      renderSidebar();
+      renderTopbarUser();
+      showPage('authority-portal');
+      toast(`Welcome, ${matchedAuthority.name}! Direct Authority Access Granted ✓`, 'success');
+      return;
+    }
+  }
+
+  // 2. Standard user login check (Students, Club Admins, Faculty)
   let users = getDB('vvce_users');
   let user = users.find(u => u.email.toLowerCase() === email && u.pass === pass);
 
-  // If not found in local cache, do a direct Supabase lookup as an immediate fallback
+  // Fallback to direct Supabase lookup
   if (!user) {
     const sb = getSupabaseClient();
     if (sb && typeof sb.from === 'function') {
@@ -1179,7 +1233,6 @@ async function handleLogin() {
           const remoteUser = mapUser(data[0]);
           if (remoteUser.pass === pass) {
             user = remoteUser;
-            // Update cache
             if (!users.some(u => u.id === user.id)) {
               users.push(user);
               SUPABASE_CACHE.vvce_users = users;
@@ -1735,9 +1788,20 @@ function launchApp(user) {
   renderTopbarUser();
   checkTeamInviteUrl();
 
-  if (user.type === 'student') showPage('dashboard');
-  else if (user.type === 'admin') showPage('admin-dashboard');
-  else showPage('authority-dashboard');
+  if (user.type === 'student') {
+    showPage('dashboard');
+  } else if (user.type === 'admin') {
+    showPage('admin-dashboard');
+  } else if (user.type === 'authority') {
+    // If authority is already unlocked, land directly on authority-portal
+    if (STATE.authorityUnlocked && STATE.currentAuthorityId) {
+      showPage('authority-portal');
+    } else {
+      showPage('authority-dashboard');
+    }
+  } else {
+    showPage('dashboard');
+  }
 }
 
 function logout() {
