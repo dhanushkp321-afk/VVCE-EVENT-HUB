@@ -767,7 +767,7 @@ function clearAuthMsg() {
 }
 
 /* ── Login ── *//* ── ID Card Photo Scanner (OCR & Barcode) ── */
-window._scannedData = { student: null, admin: null, authority: null };
+window._scannedData = { student: { photoAttached: false }, admin: { photoAttached: false }, authority: { photoAttached: false } };
 
 function extractUSNFuzzy(text) {
   if (!text) return null;
@@ -1433,10 +1433,7 @@ async function handleStudentSignup() {
   const pass    = document.getElementById('s-pass').value;
   const interests = [...document.querySelectorAll('#s-interests .interest-chip.selected')].map(c => c.textContent.trim());
 
-  if (!window._scannedData.student) {
-    showAuthMsg('❌ You must scan your Student ID card first.', 'error');
-    return;
-  }
+  // ID card scanning requirement removed
 
   if (!name || !usn || !email || !pass) { showAuthMsg('Please fill all required fields.'); return; }
   if (!/^4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4}$/i.test(usn)) {
@@ -1532,10 +1529,7 @@ function handleAdminSignup() {
     return;
   }
 
-  if (!window._scannedData.admin) {
-    showAuthMsg('❌ You must scan your Student ID card first.', 'error');
-    return;
-  }
+  // ID card scanning requirement removed
 
   if (!name || !club || !email || !pass || !usn) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
@@ -1581,10 +1575,7 @@ function handleAuthoritySignup() {
   const email = document.getElementById('f-email').value.trim().toLowerCase();
   const pass  = document.getElementById('f-pass').value;
 
-  if (!window._scannedData.authority && desig !== 'principal') {
-    showAuthMsg('❌ You must scan your Faculty ID card first.', 'error');
-    return;
-  }
+  // ID card scanning requirement removed
 
   if (!name || !email || !pass) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 8) { showAuthMsg('Password must be at least 8 characters.'); return; }
