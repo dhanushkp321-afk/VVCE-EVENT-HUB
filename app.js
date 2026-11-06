@@ -1646,15 +1646,360 @@ function handleAuthoritySignup() {
   finalizeRegistration('authority', newUser);
 }
 
-/* ── Forgot Password ── */
+/* ── Forgot Password & Instant Verification / Reset Flow (Method B) ── */
+window._resetPasswordState = {
+  email: '',
+  targetType: '', // 'authority' | 'user'
+  targetId: '',
+  targetName: '',
+  code: '',
+  expiresAt: 0
+};
+
 function handleForgotPassword() {
-  const email = document.getElementById('login-email').value.trim();
-  if (!email) { showAuthMsg('Enter your email first, then click Forgot password.', 'info'); return; }
-  const users = getDB('vvce_users');
-  const user  = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (!user) { showAuthMsg('No account found with that email.', 'error'); return; }
-  showAuthMsg(`Demo mode: Your password is "${user.pass}". In production, a reset link would be emailed.`, 'info');
+  const currentLoginEmail = (document.getElementById('login-email')?.value || '').trim();
+  const emailInp = document.getElementById('reset-email-input');
+  if (emailInp) {
+    emailInp.value = currentLoginEmail;
+  }
+
+  // Reset UI elements to step 1
+  const step1 = document.getElementById('reset-step-1');
+  const step2 = document.getElementById('reset-step-2');
+  if (step1) step1.style.display = 'block';
+  if (step2) step2.style.display = 'none';
+
+  const msg1 = document.getElementById('reset-step1-msg');
+  if (msg1) { msg1.style.display = 'none'; msg1.textContent = ''; }
+  const msg2 = document.getElementById('reset-step2-msg');
+  if (msg2) { msg2.style.display = 'none'; msg2.textContent = ''; }
+
+  const otpInp = document.getElementById('reset-otp-input');
+  if (otpInp) otpInp.value = '';
+  const newPassInp = document.getElementById('reset-new-pass');
+  if (newPassInp) newPassInp.value = '';
+  const confirmPassInp = document.getElementById('reset-confirm-pass');
+  if (confirmPassInp) confirmPassInp.value = '';
+
+  openModal('modal-forgot-password');
+  if (emailInp) setTimeout(() => emailInp.focus(), 150);
 }
+window.handleForgotPassword = handleForgotPassword;
+
+function backToResetStep1() {
+  const step1 = document.getElementById('reset-step-1');
+  const step2 = document.getElementById('reset-step-2');
+  if (step1) step1.style.display = 'block';
+  if (step2) step2.style.display = 'none';
+}
+window.backToResetStep1 = backToResetStep1;
+
+async function sendResetVerificationCode() {
+  const msgEl = document.getElementById('reset-step1-msg');
+  if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+
+  const email = (document.getElementById('reset-email-input')?.value || '').trim().toLowerCase();
+  if (!email) {
+    if (msgEl) {
+      msgEl.textContent = 'Please enter your VVCE email address.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+  if (!email.endsWith('@vvce.ac.in')) {
+    if (msgEl) {
+      msgEl.textContent = '❌ Only @vvce.ac.in institutional email addresses are permitted.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+
+  const btn = document.getElementById('btn-send-reset-code');
+  if (btn) { btn.disabled = true; btn.textContent = 'Verifying Account...'; }
+
+  try {
+    let matchedAccount = null;
+    let targetType = 'user';
+
+    // 1. Check Approving Authorities first (Supabase & local cache)
+    await syncApprovingAuthoritiesFromSupabase();
+    const activeAuthorities = getActiveApprovingAuthorities();
+    let authMatch = activeAuthorities.find(a => a.email && a.email.toLowerCase() === email);
+
+    if (!authMatch) {
+      const sb = getSupabaseClient();
+      if (sb && typeof sb.from === 'function') {
+        try {
+          const { data } = await sb.from('approving_authorities').select('*').ilike('email', email);
+          if (data && data.length > 0) authMatch = data[0];
+        } catch(e) { console.warn('Supabase approving_authorities check error:', e); }
+      }
+    }
+
+    if (authMatch) {
+      matchedAccount = authMatch;
+      targetType = 'authority';
+    } else {
+      // 2. Check regular users in local DB
+      let users = getDB('vvce_users');
+      let userMatch = users.find(u => u.email && u.email.toLowerCase() === email);
+
+      // Check Supabase users table fallback
+      if (!userMatch) {
+        const sb = getSupabaseClient();
+        if (sb && typeof sb.from === 'function') {
+          try {
+            const { data } = await sb.from('users').select('*').ilike('email', email);
+            if (data && data.length > 0) {
+              userMatch = mapUser(data[0]);
+              if (!users.some(u => u.id === userMatch.id)) {
+                users.push(userMatch);
+                SUPABASE_CACHE.vvce_users = users;
+                try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
+              }
+            }
+          } catch(e) { console.warn('Supabase users check error:', e); }
+        }
+      }
+
+      if (userMatch) {
+        matchedAccount = userMatch;
+        targetType = 'user';
+      }
+    }
+
+    if (!matchedAccount) {
+      if (msgEl) {
+        msgEl.textContent = '❌ No registered account found with that email. Please check your spelling or register.';
+        msgEl.className = 'auth-msg error';
+        msgEl.style.display = 'block';
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Verify Account & Send Code →'; }
+      return;
+    }
+
+    // Generate 6-digit verification code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    window._resetPasswordState = {
+      email,
+      targetType,
+      targetId: matchedAccount.id,
+      targetName: matchedAccount.name || (targetType === 'authority' ? 'Approving Authority' : 'Student/Staff'),
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000 // 10 minutes
+    };
+
+    // Attempt sending email via /api/send-otp
+    try {
+      fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          otp: code,
+          name: _resetPasswordState.targetName
+        })
+      }).catch(err => console.warn('OTP API warning (non-blocking):', err));
+    } catch(e) {}
+
+    // Update Step 2 UI
+    const targetNameEl = document.getElementById('reset-target-name');
+    if (targetNameEl) targetNameEl.textContent = _resetPasswordState.targetName;
+
+    const bannerEl = document.getElementById('reset-code-banner');
+    if (bannerEl) {
+      bannerEl.innerHTML = 
+        `Verification code sent to <strong>${email}</strong>.<br>` +
+        `<span style="display:inline-block; margin-top:4px; font-weight:700; color:#1e1b4b; background:#e0e7ff; padding:3px 8px; border-radius:6px; font-size:12px;">Instant Code: <strong style="letter-spacing:1px; color:#4338ca;">${code}</strong></span>`;
+    }
+
+    const step1 = document.getElementById('reset-step-1');
+    const step2 = document.getElementById('reset-step-2');
+    if (step1) step1.style.display = 'none';
+    if (step2) step2.style.display = 'block';
+
+    const otpInp = document.getElementById('reset-otp-input');
+    if (otpInp) {
+      otpInp.value = '';
+      setTimeout(() => otpInp.focus(), 150);
+    }
+    toast(`Verification code generated for ${email}`, 'info');
+  } catch(err) {
+    console.error('Password reset code error:', err);
+    if (msgEl) {
+      msgEl.textContent = 'Failed to initiate password reset: ' + (err.message || 'Unknown error');
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Verify Account & Send Code →'; }
+  }
+}
+window.sendResetVerificationCode = sendResetVerificationCode;
+
+async function executePasswordReset() {
+  const msgEl = document.getElementById('reset-step2-msg');
+  if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+
+  const otp = (document.getElementById('reset-otp-input')?.value || '').trim();
+  const newPass = document.getElementById('reset-new-pass')?.value || '';
+  const confirmPass = document.getElementById('reset-confirm-pass')?.value || '';
+
+  if (!otp) {
+    if (msgEl) {
+      msgEl.textContent = 'Please enter the 6-digit verification code.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (otp !== window._resetPasswordState.code) {
+    if (msgEl) {
+      msgEl.textContent = '❌ Invalid verification code. Please check and re-enter.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (Date.now() > window._resetPasswordState.expiresAt) {
+    if (msgEl) {
+      msgEl.textContent = '❌ Verification code has expired. Please go back and request a new code.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (!newPass || newPass.length < 6) {
+    if (msgEl) {
+      msgEl.textContent = '❌ Password must be at least 6 characters long.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    if (msgEl) {
+      msgEl.textContent = '❌ Passwords do not match. Please re-enter.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+
+  const submitBtn = document.getElementById('btn-submit-reset');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Updating Password...'; }
+
+  try {
+    const sb = getSupabaseClient();
+    const { email, targetType, targetId } = window._resetPasswordState;
+
+    if (targetType === 'authority') {
+      // 1. Authority password reset: Salt + PBKDF2 hash
+      const salt = 'salt_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+      const { hash } = await hashPasswordWithSalt(newPass, salt);
+
+      // Update in Supabase
+      if (sb && typeof sb.from === 'function') {
+        try {
+          await sb.from('approving_authorities').update({
+            password_hash: hash,
+            salt: salt,
+            pass: newPass,
+            updated_at: new Date().toISOString()
+          }).eq('id', targetId);
+        } catch(e) { console.warn('Supabase approving_authorities update warning:', e); }
+      }
+
+      // Update local authorities cache
+      if (Array.isArray(APPROVING_AUTHORITIES_CACHE)) {
+        const item = APPROVING_AUTHORITIES_CACHE.find(a => a.id === targetId || (a.email && a.email.toLowerCase() === email));
+        if (item) {
+          item.password_hash = hash;
+          item.salt = salt;
+          item.pass = newPass;
+          item.updated_at = new Date().toISOString();
+        }
+      }
+      let rawAuth = localStorage.getItem('vvce_approving_authorities');
+      if (rawAuth) {
+        try {
+          let list = JSON.parse(rawAuth);
+          let target = list.find(a => a.id === targetId || (a.email && a.email.toLowerCase() === email));
+          if (target) {
+            target.password_hash = hash;
+            target.salt = salt;
+            target.pass = newPass;
+            target.updated_at = new Date().toISOString();
+            localStorage.setItem('vvce_approving_authorities', JSON.stringify(list));
+          }
+        } catch(e) {}
+      }
+
+      // Also update in vvce_users if authority has an entry there
+      let users = getDB('vvce_users');
+      let uIdx = users.findIndex(u => u.id === targetId || (u.email && u.email.toLowerCase() === email));
+      if (uIdx > -1) {
+        users[uIdx].pass = newPass;
+        setDB('vvce_users', users);
+      }
+    } else {
+      // 2. Regular user password reset (Student, Club Admin, Faculty)
+      if (sb && typeof sb.from === 'function') {
+        try {
+          await sb.from('users').update({
+            pass: newPass
+          }).eq('id', targetId);
+        } catch(e) {
+          try {
+            await sb.from('users').update({ pass: newPass }).ilike('email', email);
+          } catch(e2) {
+            console.warn('Supabase users table update warning:', e2);
+          }
+        }
+      }
+
+      // Update local storage
+      let users = getDB('vvce_users');
+      let uIdx = users.findIndex(u => u.id === targetId || (u.email && u.email.toLowerCase() === email));
+      if (uIdx > -1) {
+        users[uIdx].pass = newPass;
+        setDB('vvce_users', users);
+      }
+      if (STATE.user && (STATE.user.id === targetId || STATE.user.email?.toLowerCase() === email)) {
+        STATE.user.pass = newPass;
+      }
+    }
+
+    // Set email into login input and clear password input
+    const loginEmail = document.getElementById('login-email');
+    if (loginEmail) loginEmail.value = email;
+    const loginPass = document.getElementById('login-pass');
+    if (loginPass) {
+      loginPass.value = '';
+      setTimeout(() => loginPass.focus(), 250);
+    }
+
+    closeModal('modal-forgot-password');
+    showAuthMsg(`✅ Password updated successfully for ${email}! You can now sign in with your new password.`, 'success');
+    toast('Password reset successfully! Please sign in.', 'success', 5000);
+  } catch(err) {
+    console.error('Password reset execution failed:', err);
+    if (msgEl) {
+      msgEl.textContent = '❌ Failed to reset password: ' + (err.message || 'Unknown error');
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save New Password ✓'; }
+  }
+}
+window.executePasswordReset = executePasswordReset;
 
 /* ── Password visibility toggle ── */
 function togglePass(inputId, btn) {
