@@ -918,6 +918,35 @@
 </div>
 
 
-  <script src="app.js?v=5.5"></script>
+  <!-- ═════════════════════════════════════════════════════════════════
+       MODULAR APPLICATION ARCHITECTURE (Separated Core & Page Controllers)
+       Each dashboard and portal is cleanly separated in /js/pages/
+       ═════════════════════════════════════════════════════════════════ -->
+
+  <!-- 1. Core Framework, State & Supabase Connectivity -->
+  <script src="js/core/config.js"></script>
+  <script src="js/core/database.js"></script>
+  <script src="js/core/utils.js"></script>
+  <script src="js/core/router.js"></script>
+
+  <!-- 2. Separated Dashboards, Portals & Page Controllers -->
+  <script src="js/pages/auth.js"></script>
+  <script src="js/pages/student-dashboard.js"></script>
+  <script src="js/pages/events.js"></script>
+  <script src="js/pages/clubs.js"></script>
+  <script src="js/pages/calendar.js"></script>
+  <script src="js/pages/registrations.js"></script>
+  <script src="js/pages/certificates.js"></script>
+  <script src="js/pages/profile.js"></script>
+  <script src="js/pages/faculty-dashboard.js"></script>
+  <script src="js/pages/create-event.js"></script>
+  <script src="js/pages/manage-events.js"></script>
+  <script src="js/pages/participants.js"></script>
+  <script src="js/pages/authority-portal.js"></script>
+  <script src="js/pages/authority-views.js"></script>
+  <script src="js/pages/cpm-theme.js"></script>
+
+  <!-- 3. Application Lifecycle Initializer -->
+  <script src="js/main.js"></script>
 </body>
 </html>

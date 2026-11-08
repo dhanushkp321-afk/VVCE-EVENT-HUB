@@ -1,4 +1,17 @@
 /* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Complete Application Logic (Bundled Distribution)
+   Generated from separated modular architecture:
+   - js/core/* (Configuration, Database layer, Utilities, Router)
+   - js/pages/* (Auth, Student, Faculty, Authority, Events, Clubs, etc.)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Module: js/core/config.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Configuration, State & Supabase Setup
+   Path: js/core/config.js
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
    VVCE Events Hub — Complete Application Logic
    Author: Antigravity AI
    Version: 3.0
@@ -64,6 +77,13 @@ const SUPABASE_CACHE = {
   vvce_certs: [],
   vvce_academic: []
 };
+
+
+/* ─── Module: js/core/database.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Database Layer, Supabase Sync & Cryptography
+   Path: js/core/database.js
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ============================================================================
    APPROVING AUTHORITIES & SECURITY HELPERS
@@ -621,6 +641,13 @@ async function bootApp() {
   }
 }
 
+
+/* ─── Module: js/core/utils.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Utility Functions, Modals, Toasts & Clash Detectors
+   Path: js/core/utils.js
+   ═══════════════════════════════════════════════════════════════ */
+
 /* ─────────────────────────────────────────────────────────────
    UTILITY FUNCTIONS
 ───────────────────────────────────────────────────────────────*/
@@ -709,6 +736,379 @@ function closeModal(id) {
     el.style.display = 'none';
   }
 }
+
+
+/* ─── Module: js/core/router.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — App Routing, Navigation, Sidebar & Topbar Notifications
+   Path: js/core/router.js
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────
+   APP LAUNCH & ROUTING
+───────────────────────────────────────────────────────────────*/
+function launchApp(user) {
+  STATE.user = user;
+  STATE.deanUnlocked = false;
+  STATE.principalUnlocked = false;
+
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.body.style.background = '#f1f5f9';
+
+  renderSidebar();
+  renderTopbarUser();
+  checkTeamInviteUrl();
+
+  if (user.type === 'student') {
+    showPage('dashboard');
+  } else if (user.type === 'admin') {
+    showPage('admin-dashboard');
+  } else if (user.type === 'authority') {
+    // If authority is already unlocked, land directly on authority-portal
+    if (STATE.authorityUnlocked && STATE.currentAuthorityId) {
+      showPage('authority-portal');
+    } else {
+      showPage('authority-dashboard');
+    }
+  } else {
+    showPage('dashboard');
+  }
+}
+
+function logout() {
+  if (!confirm('Sign out of VVCE Events Hub?')) return;
+  STATE.user = null;
+  STATE.deanUnlocked = false;
+  STATE.principalUnlocked = false;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  if (!window.currentTheme || !window.currentTheme.bannerUrl) {
+    document.body.style.backgroundColor = '#1a2235';
+  }
+  // Reset login fields
+  const le = document.getElementById('login-email'); if (le) le.value = '';
+  const lp = document.getElementById('login-pass');  if (lp) lp.value = '';
+  clearAuthMsg();
+}
+
+function showPage(pageId) {
+  const prev = STATE.page;
+  STATE.prevPage = prev;
+  STATE.page = pageId;
+
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + pageId);
+  if (el) { el.classList.add('active'); el.scrollTop = 0; }
+
+  // Auto-close sidebar on mobile when navigating
+  if (window.innerWidth <= 768) {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.classList.remove('open');
+  }
+
+  // Update topbar title
+  const titles = {
+    'dashboard': 'Dashboard',
+    'events': 'Events',
+    'clubs': 'VVCE Clubs Directory',
+    'calendar': 'Academic Calendar',
+    'registrations': 'My Registrations',
+    'certificates': 'Certificates',
+    'profile': 'My Profile',
+    'admin-dashboard': 'Admin Dashboard',
+    'create-event': 'Create New Event',
+    'manage-events': 'My Events',
+    'participants': 'Participants',
+    'authority-dashboard': 'Dashboard',
+    'authority-approvals': 'Event Approvals',
+    'authority-clubs': 'Club Monitor',
+    'authority-clash': 'Clash Detection',
+    'authority-attendance': 'Attendance',
+    'authority-portal': 'Approving Authority Portal',
+    'dean-portal': 'Approving Authority Portal',
+    'principal-portal': 'Principal Portal',
+  };
+  document.getElementById('topbar-title').textContent = titles[pageId] || pageId;
+
+  // Back button visibility
+  const mainPages = ['dashboard','admin-dashboard','authority-dashboard'];
+  document.getElementById('back-btn').style.display = mainPages.includes(pageId) ? 'none' : '';
+
+  // Update nav active state
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.page === pageId);
+  });
+
+  // Render page content
+  const renders = {
+    'dashboard':            renderStudentDashboard,
+    'events':               renderEventsPage,
+    'clubs':                () => renderClubsDirectoryPage(),
+    'calendar':             renderCalendarPage,
+    'registrations':        renderRegistrationsPage,
+    'certificates':         renderCertificatesPage,
+    'profile':              renderProfilePage,
+    'admin-dashboard':      renderAdminDashboard,
+    'create-event':         renderCreateEventPage,
+    'manage-events':        renderManageEventsPage,
+    'participants':         renderParticipantsPage,
+    'authority-dashboard':  renderAuthorityDashboard,
+    'authority-approvals':  renderApprovals,
+    'authority-clubs':      renderClubMonitor,
+    'authority-clash':      renderClashDetect,
+    'authority-attendance': renderAttendancePage,
+    'authority-portal':     () => renderAuthorityPortal(),
+    'dean-portal':          () => renderAuthorityPortal(),
+    'dean-portal':          () => renderDeanPortal(),
+    // 'principal-portal' removed as requested
+  };
+  if (renders[pageId]) renders[pageId]();
+}
+
+function goBack() {
+  if (STATE.prevPage) showPage(STATE.prevPage);
+  else {
+    const home = { student:'dashboard', admin:'admin-dashboard', authority:'authority-dashboard' };
+    showPage(home[STATE.user?.type] || 'dashboard');
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SIDEBAR RENDERING
+───────────────────────────────────────────────────────────────*/
+function renderSidebar() {
+  const user = STATE.user;
+
+  // Avatar
+  const sbAv = document.getElementById('sb-avatar');
+  if (sbAv) {
+    if (user.profilePhoto) {
+      sbAv.innerHTML = `<img src="${user.profilePhoto}" alt="avatar">`;
+    } else {
+      sbAv.textContent = avatar(user.name);
+    }
+    sbAv.style.cursor = 'pointer';
+    sbAv.onclick = () => showPage('profile');
+  }
+
+  // User info
+  const sbName = document.getElementById('sb-username'); if (sbName) sbName.textContent = titleCase(user.name);
+  const sbRole = document.getElementById('sb-userrole');
+  if (sbRole) sbRole.textContent = {
+    student: (() => { const cs = computeStudentYearSem(user); return `${user.branch || ''} • ${cs.sem}`; })(),
+    admin: user.clubName || 'Club Admin',
+    authority: STATE.authorityUnlocked && STATE.currentAuthorityName ? STATE.currentAuthorityName : (titleCase(user.designation) || 'Approving Authority'),
+  }[user.type] || '';
+
+  const sbBadge = document.getElementById('sb-rolebadge');
+  if (sbBadge) {
+    const labels = { student:'Student', admin:'Club Admin', authority:'Authority' };
+    const classes = { student:'badge-student', admin:'badge-admin', authority:'badge-authority' };
+    sbBadge.textContent = labels[user.type];
+    sbBadge.className = `sb-badge-pill ${classes[user.type]}`;
+  }
+
+  // Nav items by role
+  const nav = document.getElementById('sb-nav');
+  if (!nav) return;
+
+  let html = '';
+  if (user.type === 'student') {
+    html = `
+      <div class="sb-section-label">Overview</div>
+      ${navItem('dashboard','📊','Dashboard')}
+      ${navItem('events','🗓️','All Events')}
+      ${navItem('clubs','🏛️','Clubs')}
+      ${navItem('registrations','📋','My Registrations')}
+      ${navItem('certificates','🏆','Certificates')}
+      ${navItem('calendar','📅','Academic Calendar')}
+      <div class="sb-section-label">Account</div>
+      ${navItem('profile','👤','My Profile')}
+    `;
+  } else if (user.type === 'admin') {
+    html = `
+      <div class="sb-section-label">Management</div>
+      ${navItem('admin-dashboard','📊','Dashboard')}
+      ${navItem('events','🗓️','All Events')}
+      ${navItem('clubs','🏛️','Clubs')}
+      ${navItem('create-event','➕','Create Event')}
+      ${navItem('manage-events','📋','My Events')}
+      ${navItem('participants','👥','Participants')}
+      ${navItem('authority-clash','⚡','Clash Detect')}
+      <div class="sb-section-label">Account</div>
+      ${navItem('profile','👤','Profile')}
+    `;
+  
+  } else { // authority (Faculty / Approving Authority)
+    const activeAuthorities = getActiveApprovingAuthorities();
+    const isUnlocked = STATE.authorityUnlocked;
+    const currentAuthName = STATE.currentAuthorityName || 'Select Authority';
+
+    // Count pending events assigned to currently unlocked authority
+    const allPending = getDB('vvce_events').filter(e => e.status === 'pending');
+    const myPending = isUnlocked && STATE.currentAuthorityId
+      ? allPending.filter(e => !e.authorityId || e.authorityId === STATE.currentAuthorityId)
+      : allPending;
+    const pendingBadge = myPending.length > 0 ? String(myPending.length) : '';
+
+    html = `
+      <div class="sb-section-label">Faculty Navigation</div>
+      ${navItem('authority-dashboard','📊','Dashboard')}
+      ${navItem('events','📅','All Events')}
+      ${navItem('clubs','👥','Clubs Directory')}
+      ${navItem('authority-clubs','🏛️','Club Activity Monitor')}
+      ${navItem('authority-clash','⚡','Clash Detect')}
+      ${navItem('authority-attendance','📋','Attendance')}
+
+      <div class="sb-section-label">Approving Authority</div>
+      <div class="nav-item dean-item ${STATE.page==='authority-portal'?'active':''}" data-page="authority-portal" onclick="handleAuthoritySectionNav()">
+        <span class="nav-icon">🔐</span>
+        <div style="display:flex; flex-direction:column; line-height:1.2; overflow:hidden;">
+          <span class="nav-label" style="font-size:12.5px;">Approving Authority</span>
+          <span style="font-size:10px; color:${isUnlocked?'#86efac':'#cbd5e1'}; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
+            ${isUnlocked ? '✓ ' + currentAuthName : 'Login Required'}
+          </span>
+        </div>
+        ${isUnlocked && pendingBadge ? `<span class="portal-tab-badge" style="margin-left:auto;margin-right:6px;">${pendingBadge}</span>` : ''}
+        <span class="portal-pill portal-pill-dean">${isUnlocked ? 'ACTIVE' : 'LOCK'}</span>
+      </div>
+    `;
+  }
+
+  nav.innerHTML = html;
+}
+
+function navItem(page, icon, label, badge = '') {
+  const isActive = STATE.page === page ? 'active' : '';
+  const bdg = badge ? `<span class="nav-count">${badge}</span>` : '';
+  return `<div class="nav-item ${isActive}" data-page="${page}" onclick="showPage('${page}')">
+    <span class="nav-icon">${icon}</span>
+    <span class="nav-label">${label}</span>${bdg}
+  </div>`;
+}
+
+function renderTopbarUser() {
+  const user = STATE.user;
+  const av = document.getElementById('topbar-avatar');
+  if (!av) return;
+  if (user.profilePhoto) { av.innerHTML = `<img src="${user.profilePhoto}">`; }
+  else { av.textContent = avatar(user.name); }
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+/* ─────────────────────────────────────────────────────────────
+   NOTIFICATION PANEL
+───────────────────────────────────────────────────────────────*/
+function toggleNotifPanel() {
+  const panel = document.getElementById('notif-dropdown');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) renderNotifs();
+}
+
+function getRelativeTime(timestamp, fallback) {
+  if (!timestamp) return fallback || 'Just now';
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function renderNotifs() {
+  const user = STATE.user;
+  const notifs = user.notifs || [];
+  const list = document.getElementById('notif-list');
+  if (!list) return;
+
+  const unread = notifs.filter(n => !n.read).length;
+  const badge  = document.getElementById('notif-badge');
+  if (badge) { badge.style.display = unread > 0 ? '' : 'none'; badge.textContent = unread; }
+
+  if (!notifs.length) { list.innerHTML = `<div style="padding:2rem;text-align:center;color:#9ca3af;font-size:13px;">No notifications</div>`; return; }
+  list.innerHTML = notifs.slice().reverse().map(n => `
+    <div class="notif-item ${n.read?'':'unread'}" onclick="readNotif('${n.id}')">
+      <span class="notif-item-icon">${n.icon || '🔔'}</span>
+        <div style="flex:1">
+          <div class="notif-item-text">${n.msg}</div>
+          <div class="notif-item-time">${getRelativeTime(n.timestamp, n.time)}</div>
+        </div>
+      ${!n.read ? '<span class="notif-item-dot"></span>' : ''}
+    </div>
+  `).join('');
+}
+
+function readNotif(id) {
+  const users = getDB('vvce_users');
+  const u = users.find(x => x.id === STATE.user.id);
+  if (u) {
+    const n = (u.notifs||[]).find(x => x.id === id);
+    if (n) n.read = true;
+    setDB('vvce_users', users);
+    STATE.user = u;
+    renderNotifs();
+  }
+}
+
+function markAllRead() {
+  const users = getDB('vvce_users');
+  const u = users.find(x => x.id === STATE.user.id);
+  if (u) { (u.notifs||[]).forEach(n => n.read = true); setDB('vvce_users', users); STATE.user = u; renderNotifs(); }
+}
+
+function addNotif(msg, icon = '🔔') {
+  addNotifToUser(STATE.user.id, msg, icon);
+}
+
+function addNotifToUser(userId, msg, icon = '🔔') {
+  const users = getDB('vvce_users');
+  const u = users.find(x => x.id === userId);
+  if (u) {
+    if (!u.notifs) u.notifs = [];
+    u.notifs.push({ id: genId('n'), msg, icon, time: 'Just now', timestamp: Date.now(), read: false });
+    setDB('vvce_users', users);
+    
+    // If the notified user is currently logged in, update their state and UI
+    if (STATE.user && STATE.user.id === userId) {
+      STATE.user = u;
+      const badge = document.getElementById('notif-badge');
+      if (badge) { badge.style.display = ''; }
+    }
+  }
+}
+
+// Close notif panel and sidebar on outside click
+document.addEventListener('click', (e) => {
+  const notifPanel = document.getElementById('notif-dropdown');
+  const notifBtn   = document.getElementById('notif-btn');
+  if (notifPanel && notifBtn && !notifPanel.contains(e.target) && !notifBtn.contains(e.target)) {
+    notifPanel.classList.remove('open');
+  }
+
+  const sidebar = document.getElementById('sidebar');
+  const hamBtn = document.querySelector('.hamburger-btn');
+  // If clicking outside sidebar AND not clicking the hamburger button, close it
+  if (sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target)) {
+    if (!hamBtn || !hamBtn.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  }
+});
+
+
+
+/* ─── Module: js/pages/auth.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Authentication, Login, Registration & Password Reset
+   Path: js/pages/auth.js
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────
    AUTH — LOGIN / SIGNUP
@@ -2117,364 +2517,12 @@ function googleLoginByEmail(email, name, photo) {
 }
 
 
-/* ─────────────────────────────────────────────────────────────
-   APP LAUNCH & ROUTING
-───────────────────────────────────────────────────────────────*/
-function launchApp(user) {
-  STATE.user = user;
-  STATE.deanUnlocked = false;
-  STATE.principalUnlocked = false;
 
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
-  document.body.style.background = '#f1f5f9';
-
-  renderSidebar();
-  renderTopbarUser();
-  checkTeamInviteUrl();
-
-  if (user.type === 'student') {
-    showPage('dashboard');
-  } else if (user.type === 'admin') {
-    showPage('admin-dashboard');
-  } else if (user.type === 'authority') {
-    // If authority is already unlocked, land directly on authority-portal
-    if (STATE.authorityUnlocked && STATE.currentAuthorityId) {
-      showPage('authority-portal');
-    } else {
-      showPage('authority-dashboard');
-    }
-  } else {
-    showPage('dashboard');
-  }
-}
-
-function logout() {
-  if (!confirm('Sign out of VVCE Events Hub?')) return;
-  STATE.user = null;
-  STATE.deanUnlocked = false;
-  STATE.principalUnlocked = false;
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('auth-screen').style.display = 'flex';
-  if (!window.currentTheme || !window.currentTheme.bannerUrl) {
-    document.body.style.backgroundColor = '#1a2235';
-  }
-  // Reset login fields
-  const le = document.getElementById('login-email'); if (le) le.value = '';
-  const lp = document.getElementById('login-pass');  if (lp) lp.value = '';
-  clearAuthMsg();
-}
-
-function showPage(pageId) {
-  const prev = STATE.page;
-  STATE.prevPage = prev;
-  STATE.page = pageId;
-
-  // Hide all pages
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const el = document.getElementById('page-' + pageId);
-  if (el) { el.classList.add('active'); el.scrollTop = 0; }
-
-  // Auto-close sidebar on mobile when navigating
-  if (window.innerWidth <= 768) {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) sidebar.classList.remove('open');
-  }
-
-  // Update topbar title
-  const titles = {
-    'dashboard': 'Dashboard',
-    'events': 'Events',
-    'clubs': 'VVCE Clubs Directory',
-    'calendar': 'Academic Calendar',
-    'registrations': 'My Registrations',
-    'certificates': 'Certificates',
-    'profile': 'My Profile',
-    'admin-dashboard': 'Admin Dashboard',
-    'create-event': 'Create New Event',
-    'manage-events': 'My Events',
-    'participants': 'Participants',
-    'authority-dashboard': 'Dashboard',
-    'authority-approvals': 'Event Approvals',
-    'authority-clubs': 'Club Monitor',
-    'authority-clash': 'Clash Detection',
-    'authority-attendance': 'Attendance',
-    'authority-portal': 'Approving Authority Portal',
-    'dean-portal': 'Approving Authority Portal',
-    'principal-portal': 'Principal Portal',
-  };
-  document.getElementById('topbar-title').textContent = titles[pageId] || pageId;
-
-  // Back button visibility
-  const mainPages = ['dashboard','admin-dashboard','authority-dashboard'];
-  document.getElementById('back-btn').style.display = mainPages.includes(pageId) ? 'none' : '';
-
-  // Update nav active state
-  document.querySelectorAll('.nav-item').forEach(n => {
-    n.classList.toggle('active', n.dataset.page === pageId);
-  });
-
-  // Render page content
-  const renders = {
-    'dashboard':            renderStudentDashboard,
-    'events':               renderEventsPage,
-    'clubs':                () => renderClubsDirectoryPage(),
-    'calendar':             renderCalendarPage,
-    'registrations':        renderRegistrationsPage,
-    'certificates':         renderCertificatesPage,
-    'profile':              renderProfilePage,
-    'admin-dashboard':      renderAdminDashboard,
-    'create-event':         renderCreateEventPage,
-    'manage-events':        renderManageEventsPage,
-    'participants':         renderParticipantsPage,
-    'authority-dashboard':  renderAuthorityDashboard,
-    'authority-approvals':  renderApprovals,
-    'authority-clubs':      renderClubMonitor,
-    'authority-clash':      renderClashDetect,
-    'authority-attendance': renderAttendancePage,
-    'authority-portal':     () => renderAuthorityPortal(),
-    'dean-portal':          () => renderAuthorityPortal(),
-    'dean-portal':          () => renderDeanPortal(),
-    // 'principal-portal' removed as requested
-  };
-  if (renders[pageId]) renders[pageId]();
-}
-
-function goBack() {
-  if (STATE.prevPage) showPage(STATE.prevPage);
-  else {
-    const home = { student:'dashboard', admin:'admin-dashboard', authority:'authority-dashboard' };
-    showPage(home[STATE.user?.type] || 'dashboard');
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────
-   SIDEBAR RENDERING
-───────────────────────────────────────────────────────────────*/
-function renderSidebar() {
-  const user = STATE.user;
-
-  // Avatar
-  const sbAv = document.getElementById('sb-avatar');
-  if (sbAv) {
-    if (user.profilePhoto) {
-      sbAv.innerHTML = `<img src="${user.profilePhoto}" alt="avatar">`;
-    } else {
-      sbAv.textContent = avatar(user.name);
-    }
-    sbAv.style.cursor = 'pointer';
-    sbAv.onclick = () => showPage('profile');
-  }
-
-  // User info
-  const sbName = document.getElementById('sb-username'); if (sbName) sbName.textContent = titleCase(user.name);
-  const sbRole = document.getElementById('sb-userrole');
-  if (sbRole) sbRole.textContent = {
-    student: (() => { const cs = computeStudentYearSem(user); return `${user.branch || ''} • ${cs.sem}`; })(),
-    admin: user.clubName || 'Club Admin',
-    authority: STATE.authorityUnlocked && STATE.currentAuthorityName ? STATE.currentAuthorityName : (titleCase(user.designation) || 'Approving Authority'),
-  }[user.type] || '';
-
-  const sbBadge = document.getElementById('sb-rolebadge');
-  if (sbBadge) {
-    const labels = { student:'Student', admin:'Club Admin', authority:'Authority' };
-    const classes = { student:'badge-student', admin:'badge-admin', authority:'badge-authority' };
-    sbBadge.textContent = labels[user.type];
-    sbBadge.className = `sb-badge-pill ${classes[user.type]}`;
-  }
-
-  // Nav items by role
-  const nav = document.getElementById('sb-nav');
-  if (!nav) return;
-
-  let html = '';
-  if (user.type === 'student') {
-    html = `
-      <div class="sb-section-label">Overview</div>
-      ${navItem('dashboard','📊','Dashboard')}
-      ${navItem('events','🗓️','All Events')}
-      ${navItem('clubs','🏛️','Clubs')}
-      ${navItem('registrations','📋','My Registrations')}
-      ${navItem('certificates','🏆','Certificates')}
-      ${navItem('calendar','📅','Academic Calendar')}
-      <div class="sb-section-label">Account</div>
-      ${navItem('profile','👤','My Profile')}
-    `;
-  } else if (user.type === 'admin') {
-    html = `
-      <div class="sb-section-label">Management</div>
-      ${navItem('admin-dashboard','📊','Dashboard')}
-      ${navItem('events','🗓️','All Events')}
-      ${navItem('clubs','🏛️','Clubs')}
-      ${navItem('create-event','➕','Create Event')}
-      ${navItem('manage-events','📋','My Events')}
-      ${navItem('participants','👥','Participants')}
-      ${navItem('authority-clash','⚡','Clash Detect')}
-      <div class="sb-section-label">Account</div>
-      ${navItem('profile','👤','Profile')}
-    `;
-  
-  } else { // authority (Faculty / Approving Authority)
-    const activeAuthorities = getActiveApprovingAuthorities();
-    const isUnlocked = STATE.authorityUnlocked;
-    const currentAuthName = STATE.currentAuthorityName || 'Select Authority';
-
-    // Count pending events assigned to currently unlocked authority
-    const allPending = getDB('vvce_events').filter(e => e.status === 'pending');
-    const myPending = isUnlocked && STATE.currentAuthorityId
-      ? allPending.filter(e => !e.authorityId || e.authorityId === STATE.currentAuthorityId)
-      : allPending;
-    const pendingBadge = myPending.length > 0 ? String(myPending.length) : '';
-
-    html = `
-      <div class="sb-section-label">Faculty Navigation</div>
-      ${navItem('authority-dashboard','📊','Dashboard')}
-      ${navItem('events','📅','All Events')}
-      ${navItem('clubs','👥','Clubs Directory')}
-      ${navItem('authority-clubs','🏛️','Club Activity Monitor')}
-      ${navItem('authority-clash','⚡','Clash Detect')}
-      ${navItem('authority-attendance','📋','Attendance')}
-
-      <div class="sb-section-label">Approving Authority</div>
-      <div class="nav-item dean-item ${STATE.page==='authority-portal'?'active':''}" data-page="authority-portal" onclick="handleAuthoritySectionNav()">
-        <span class="nav-icon">🔐</span>
-        <div style="display:flex; flex-direction:column; line-height:1.2; overflow:hidden;">
-          <span class="nav-label" style="font-size:12.5px;">Approving Authority</span>
-          <span style="font-size:10px; color:${isUnlocked?'#86efac':'#cbd5e1'}; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
-            ${isUnlocked ? '✓ ' + currentAuthName : 'Login Required'}
-          </span>
-        </div>
-        ${isUnlocked && pendingBadge ? `<span class="portal-tab-badge" style="margin-left:auto;margin-right:6px;">${pendingBadge}</span>` : ''}
-        <span class="portal-pill portal-pill-dean">${isUnlocked ? 'ACTIVE' : 'LOCK'}</span>
-      </div>
-    `;
-  }
-
-  nav.innerHTML = html;
-}
-
-function navItem(page, icon, label, badge = '') {
-  const isActive = STATE.page === page ? 'active' : '';
-  const bdg = badge ? `<span class="nav-count">${badge}</span>` : '';
-  return `<div class="nav-item ${isActive}" data-page="${page}" onclick="showPage('${page}')">
-    <span class="nav-icon">${icon}</span>
-    <span class="nav-label">${label}</span>${bdg}
-  </div>`;
-}
-
-function renderTopbarUser() {
-  const user = STATE.user;
-  const av = document.getElementById('topbar-avatar');
-  if (!av) return;
-  if (user.profilePhoto) { av.innerHTML = `<img src="${user.profilePhoto}">`; }
-  else { av.textContent = avatar(user.name); }
-}
-
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-}
-
-/* ─────────────────────────────────────────────────────────────
-   NOTIFICATION PANEL
-───────────────────────────────────────────────────────────────*/
-function toggleNotifPanel() {
-  const panel = document.getElementById('notif-dropdown');
-  panel.classList.toggle('open');
-  if (panel.classList.contains('open')) renderNotifs();
-}
-
-function getRelativeTime(timestamp, fallback) {
-  if (!timestamp) return fallback || 'Just now';
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return 'Just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function renderNotifs() {
-  const user = STATE.user;
-  const notifs = user.notifs || [];
-  const list = document.getElementById('notif-list');
-  if (!list) return;
-
-  const unread = notifs.filter(n => !n.read).length;
-  const badge  = document.getElementById('notif-badge');
-  if (badge) { badge.style.display = unread > 0 ? '' : 'none'; badge.textContent = unread; }
-
-  if (!notifs.length) { list.innerHTML = `<div style="padding:2rem;text-align:center;color:#9ca3af;font-size:13px;">No notifications</div>`; return; }
-  list.innerHTML = notifs.slice().reverse().map(n => `
-    <div class="notif-item ${n.read?'':'unread'}" onclick="readNotif('${n.id}')">
-      <span class="notif-item-icon">${n.icon || '🔔'}</span>
-        <div style="flex:1">
-          <div class="notif-item-text">${n.msg}</div>
-          <div class="notif-item-time">${getRelativeTime(n.timestamp, n.time)}</div>
-        </div>
-      ${!n.read ? '<span class="notif-item-dot"></span>' : ''}
-    </div>
-  `).join('');
-}
-
-function readNotif(id) {
-  const users = getDB('vvce_users');
-  const u = users.find(x => x.id === STATE.user.id);
-  if (u) {
-    const n = (u.notifs||[]).find(x => x.id === id);
-    if (n) n.read = true;
-    setDB('vvce_users', users);
-    STATE.user = u;
-    renderNotifs();
-  }
-}
-
-function markAllRead() {
-  const users = getDB('vvce_users');
-  const u = users.find(x => x.id === STATE.user.id);
-  if (u) { (u.notifs||[]).forEach(n => n.read = true); setDB('vvce_users', users); STATE.user = u; renderNotifs(); }
-}
-
-function addNotif(msg, icon = '🔔') {
-  addNotifToUser(STATE.user.id, msg, icon);
-}
-
-function addNotifToUser(userId, msg, icon = '🔔') {
-  const users = getDB('vvce_users');
-  const u = users.find(x => x.id === userId);
-  if (u) {
-    if (!u.notifs) u.notifs = [];
-    u.notifs.push({ id: genId('n'), msg, icon, time: 'Just now', timestamp: Date.now(), read: false });
-    setDB('vvce_users', users);
-    
-    // If the notified user is currently logged in, update their state and UI
-    if (STATE.user && STATE.user.id === userId) {
-      STATE.user = u;
-      const badge = document.getElementById('notif-badge');
-      if (badge) { badge.style.display = ''; }
-    }
-  }
-}
-
-// Close notif panel and sidebar on outside click
-document.addEventListener('click', (e) => {
-  const notifPanel = document.getElementById('notif-dropdown');
-  const notifBtn   = document.getElementById('notif-btn');
-  if (notifPanel && notifBtn && !notifPanel.contains(e.target) && !notifBtn.contains(e.target)) {
-    notifPanel.classList.remove('open');
-  }
-
-  const sidebar = document.getElementById('sidebar');
-  const hamBtn = document.querySelector('.hamburger-btn');
-  // If clicking outside sidebar AND not clicking the hamburger button, close it
-  if (sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target)) {
-    if (!hamBtn || !hamBtn.contains(e.target)) {
-      sidebar.classList.remove('open');
-    }
-  }
-});
-
+/* ─── Module: js/pages/student-dashboard.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Student Dashboard
+   Path: js/pages/student-dashboard.js
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────
    STUDENT DASHBOARD
@@ -2633,6 +2681,13 @@ function statCard(icon, label, val, sub, cls='') {
     </div>`;
 }
 
+
+/* ─── Module: js/pages/events.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Events Feed, Search, Filters & Team Registration
+   Path: js/pages/events.js
+   ═══════════════════════════════════════════════════════════════ */
+
 /* ─────────────────────────────────────────────────────────────
    EVENTS PAGE
 ───────────────────────────────────────────────────────────────*/
@@ -2754,171 +2809,6 @@ function eventCard(ev) {
         </div>
       </div>
     </div>`;
-}
-
-/* ─────────────────────────────────────────────────────────────
-   CLUBS DIRECTORY & CLUB-SPECIFIC EVENTS
-───────────────────────────────────────────────────────────────*/
-function renderClubsDirectoryPage(selectedClubName = null) {
-  const el = document.getElementById('page-clubs');
-  if (!el) return;
-
-  const users = getDB('vvce_users');
-  const allEvents = getDB('vvce_events').filter(e => e.status !== 'archived');
-
-  // If a specific club is selected, render club-exclusive events view
-  if (selectedClubName) {
-    const clubUser = users.find(u => u.type === 'admin' && (u.clubName || '').toLowerCase() === selectedClubName.toLowerCase());
-    const clubEvents = allEvents.filter(e => (e.club || '').toLowerCase() === selectedClubName.toLowerCase());
-    const upcoming = clubEvents.filter(e => e.date >= new Date().toISOString().split('T')[0] && e.status !== 'completed');
-    const past = clubEvents.filter(e => e.date < new Date().toISOString().split('T')[0] || e.status === 'completed');
-
-    el.innerHTML = `
-      <div style="margin-bottom:1.5rem;">
-        <button class="btn" style="background:#1e293b; color:#fff; display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; font-weight:600; font-size:13px; margin-bottom:1rem; cursor:pointer;" onclick="renderClubsDirectoryPage()">
-          ← Back to All Clubs
-        </button>
-        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.5rem; display:flex; gap:1.5rem; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex-wrap:wrap;">
-          <div style="width:64px; height:64px; border-radius:12px; background:linear-gradient(135deg, #4f46e5, #7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700;">
-            ${clubUser?.clubLogo ? `<img src="${clubUser.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '🏛️'}
-          </div>
-          <div style="flex:1;">
-            <h2 style="font-family:'Outfit',sans-serif; font-size:1.5rem; color:#1e293b; margin-bottom:4px;">${selectedClubName}</h2>
-            <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:#64748b;">
-              <span><strong>Domain:</strong> ${clubUser?.domain || 'Multi-disciplinary'}</span>
-              <span>•</span>
-              <span><strong>Faculty Coordinator:</strong> ${clubUser?.faculty || 'Faculty in Charge'}</span>
-              <span>•</span>
-              <span><strong>Total Events:</strong> ${clubEvents.length}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style="display:flex; gap:10px; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
-        <button id="tab-club-up" class="btn" style="background:#4f46e5; color:#fff; padding:6px 14px; font-size:13px;" onclick="switchClubTab('upcoming', '${selectedClubName}')">Upcoming Events (${upcoming.length})</button>
-        <button id="tab-club-past" class="btn" style="background:#f1f5f9; color:#475569; padding:6px 14px; font-size:13px;" onclick="switchClubTab('past', '${selectedClubName}')">Past & Completed (${past.length})</button>
-      </div>
-
-      <div class="event-grid" id="club-events-grid">
-        ${upcoming.length > 0 ? upcoming.map(e => eventCard(e)).join('') : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><div style="font-size:32px;">🗓️</div><p style="color:#64748b; margin-top:8px;">No upcoming events scheduled for ${selectedClubName}.</p></div>`}
-      </div>
-    `;
-    return;
-  }
-
-  // Otherwise, render full Clubs Directory grid
-  // Gather registered clubs
-  const clubAdmins = users.filter(u => u.type === 'admin' && u.clubName);
-  const knownClubNames = new Set(clubAdmins.map(u => u.clubName.toLowerCase()));
-  
-  // Include clubs from events that might not have an admin account
-  allEvents.forEach(e => {
-    if (e.club && !knownClubNames.has(e.club.toLowerCase())) {
-      knownClubNames.add(e.club.toLowerCase());
-      clubAdmins.push({ clubName: e.club, domain: e.category || 'General', faculty: 'Club Lead' });
-    }
-  });
-
-  el.innerHTML = `
-    <div style="margin-bottom:1.5rem;">
-      <h2 style="font-family:'Outfit',sans-serif; font-size:1.6rem; color:#1e293b;">🏛️ VVCE Clubs & Student Chapters</h2>
-      <p style="color:#64748b; font-size:14px; margin-top:4px;">Explore official college clubs, student associations, and browse their exclusive events.</p>
-      <div style="margin-top:1rem;">
-        <input type="text" class="search-inp" placeholder="🔍 Search clubs by name or domain..." oninput="filterClubsView(this.value)">
-      </div>
-    </div>
-
-    <div class="event-grid" id="clubs-directory-grid">
-      ${clubAdmins.map(c => {
-        const cEvents = allEvents.filter(e => (e.club || '').toLowerCase() === c.clubName.toLowerCase());
-        return `
-          <div class="event-card" style="cursor:pointer;" onclick="renderClubsDirectoryPage('${c.clubName.replace(/'/g, "\\'")}')">
-            <div style="padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; height:100%;">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-                  <div style="width:48px; height:48px; border-radius:10px; background:linear-gradient(135deg,#e0e7ff,#c7d2fe); color:#4338ca; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700;">
-                    ${c.clubLogo ? `<img src="${c.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">` : '🏛️'}
-                  </div>
-                  <span class="badge" style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; font-size:11px; padding:3px 8px; border-radius:6px; font-weight:600;">${c.domain || 'Club'}</span>
-                </div>
-                <h3 style="font-family:'Outfit',sans-serif; font-size:1.15rem; color:#0f172a; margin-bottom:6px;">${c.clubName}</h3>
-                <p style="font-size:12px; color:#64748b; margin-bottom:12px;">${c.desc ? c.desc.slice(0, 95) + '...' : 'Official student chapter at Vidyavardhaka College of Engineering.'}</p>
-                <div style="font-size:12px; color:#475569; display:flex; flex-direction:column; gap:4px; margin-bottom:14px;">
-                  <span>👤 <strong>Coordinator:</strong> ${c.faculty || 'Faculty in Charge'}</span>
-                  <span>📅 <strong>Events Hosted:</strong> ${cEvents.length} events</span>
-                </div>
-              </div>
-              <button class="btn" style="background:#4f46e5; color:#fff; width:100%; padding:10px; border-radius:8px; font-weight:600; font-size:13px; text-align:center;">
-                View Club Events ➔
-              </button>
-            </div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-  `;
-}
-
-function switchClubTab(type, clubName) {
-  const allEvents = getDB('vvce_events').filter(e => (e.club || '').toLowerCase() === clubName.toLowerCase() && e.status !== 'archived');
-  const now = new Date().toISOString().split('T')[0];
-  const events = type === 'upcoming'
-    ? allEvents.filter(e => e.date >= now && e.status !== 'completed')
-    : allEvents.filter(e => e.date < now || e.status === 'completed');
-
-  document.getElementById('tab-club-up').style.background = type === 'upcoming' ? '#4f46e5' : '#f1f5f9';
-  document.getElementById('tab-club-up').style.color = type === 'upcoming' ? '#fff' : '#475569';
-  document.getElementById('tab-club-past').style.background = type === 'past' ? '#4f46e5' : '#f1f5f9';
-  document.getElementById('tab-club-past').style.color = type === 'past' ? '#fff' : '#475569';
-
-  const grid = document.getElementById('club-events-grid');
-  grid.innerHTML = events.length > 0
-    ? events.map(e => eventCard(e)).join('')
-    : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><p style="color:#64748b;">No ${type} events for this club.</p></div>`;
-}
-
-function filterClubsView(term) {
-  const t = term.toLowerCase().trim();
-  const cards = document.querySelectorAll('#clubs-directory-grid .event-card');
-  cards.forEach(card => {
-    const text = card.textContent.toLowerCase();
-    card.style.display = text.includes(t) ? '' : 'none';
-  });
-}
-
-function registerEv(id) {
-  if (STATE.registrationLocked) {
-    toast('Event registrations are temporarily paused by administration.', 'warning');
-    return;
-  }
-  const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === id);
-  if (!ev) return;
-  if ((ev.registrations||[]).includes(STATE.user.id)) { toast('Already registered!','info'); return; }
-
-  const currentRegCount = (ev.registrations || []).length;
-  const maxCap = ev.max_participants || ev.maxParticipants || 100;
-  if (currentRegCount >= maxCap) {
-    if (ev.waitlist_enabled) {
-      joinWaitlist(id);
-    } else {
-      toast('Event capacity is full.', 'warning');
-    }
-    return;
-  }
-
-  // Team event → open team registration modal
-  if (ev.isTeamEvent) {
-    openTeamRegisterModal(ev);
-    return;
-  }
-
-  if (ev.fee > 0) {
-    openPaymentModal(ev);
-  } else {
-    completeRegistration(ev);
-  }
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -4230,6 +4120,185 @@ function detailChip(icon,label,val) {
 }
 
 
+
+/* ─── Module: js/pages/clubs.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Clubs Directory & Club Profiles
+   Path: js/pages/clubs.js
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────
+   CLUBS DIRECTORY & CLUB-SPECIFIC EVENTS
+───────────────────────────────────────────────────────────────*/
+function renderClubsDirectoryPage(selectedClubName = null) {
+  const el = document.getElementById('page-clubs');
+  if (!el) return;
+
+  const users = getDB('vvce_users');
+  const allEvents = getDB('vvce_events').filter(e => e.status !== 'archived');
+
+  // If a specific club is selected, render club-exclusive events view
+  if (selectedClubName) {
+    const clubUser = users.find(u => u.type === 'admin' && (u.clubName || '').toLowerCase() === selectedClubName.toLowerCase());
+    const clubEvents = allEvents.filter(e => (e.club || '').toLowerCase() === selectedClubName.toLowerCase());
+    const upcoming = clubEvents.filter(e => e.date >= new Date().toISOString().split('T')[0] && e.status !== 'completed');
+    const past = clubEvents.filter(e => e.date < new Date().toISOString().split('T')[0] || e.status === 'completed');
+
+    el.innerHTML = `
+      <div style="margin-bottom:1.5rem;">
+        <button class="btn" style="background:#1e293b; color:#fff; display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; font-weight:600; font-size:13px; margin-bottom:1rem; cursor:pointer;" onclick="renderClubsDirectoryPage()">
+          ← Back to All Clubs
+        </button>
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.5rem; display:flex; gap:1.5rem; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex-wrap:wrap;">
+          <div style="width:64px; height:64px; border-radius:12px; background:linear-gradient(135deg, #4f46e5, #7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700;">
+            ${clubUser?.clubLogo ? `<img src="${clubUser.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '🏛️'}
+          </div>
+          <div style="flex:1;">
+            <h2 style="font-family:'Outfit',sans-serif; font-size:1.5rem; color:#1e293b; margin-bottom:4px;">${selectedClubName}</h2>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:#64748b;">
+              <span><strong>Domain:</strong> ${clubUser?.domain || 'Multi-disciplinary'}</span>
+              <span>•</span>
+              <span><strong>Faculty Coordinator:</strong> ${clubUser?.faculty || 'Faculty in Charge'}</span>
+              <span>•</span>
+              <span><strong>Total Events:</strong> ${clubEvents.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
+        <button id="tab-club-up" class="btn" style="background:#4f46e5; color:#fff; padding:6px 14px; font-size:13px;" onclick="switchClubTab('upcoming', '${selectedClubName}')">Upcoming Events (${upcoming.length})</button>
+        <button id="tab-club-past" class="btn" style="background:#f1f5f9; color:#475569; padding:6px 14px; font-size:13px;" onclick="switchClubTab('past', '${selectedClubName}')">Past & Completed (${past.length})</button>
+      </div>
+
+      <div class="event-grid" id="club-events-grid">
+        ${upcoming.length > 0 ? upcoming.map(e => eventCard(e)).join('') : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><div style="font-size:32px;">🗓️</div><p style="color:#64748b; margin-top:8px;">No upcoming events scheduled for ${selectedClubName}.</p></div>`}
+      </div>
+    `;
+    return;
+  }
+
+  // Otherwise, render full Clubs Directory grid
+  // Gather registered clubs
+  const clubAdmins = users.filter(u => u.type === 'admin' && u.clubName);
+  const knownClubNames = new Set(clubAdmins.map(u => u.clubName.toLowerCase()));
+  
+  // Include clubs from events that might not have an admin account
+  allEvents.forEach(e => {
+    if (e.club && !knownClubNames.has(e.club.toLowerCase())) {
+      knownClubNames.add(e.club.toLowerCase());
+      clubAdmins.push({ clubName: e.club, domain: e.category || 'General', faculty: 'Club Lead' });
+    }
+  });
+
+  el.innerHTML = `
+    <div style="margin-bottom:1.5rem;">
+      <h2 style="font-family:'Outfit',sans-serif; font-size:1.6rem; color:#1e293b;">🏛️ VVCE Clubs & Student Chapters</h2>
+      <p style="color:#64748b; font-size:14px; margin-top:4px;">Explore official college clubs, student associations, and browse their exclusive events.</p>
+      <div style="margin-top:1rem;">
+        <input type="text" class="search-inp" placeholder="🔍 Search clubs by name or domain..." oninput="filterClubsView(this.value)">
+      </div>
+    </div>
+
+    <div class="event-grid" id="clubs-directory-grid">
+      ${clubAdmins.map(c => {
+        const cEvents = allEvents.filter(e => (e.club || '').toLowerCase() === c.clubName.toLowerCase());
+        return `
+          <div class="event-card" style="cursor:pointer;" onclick="renderClubsDirectoryPage('${c.clubName.replace(/'/g, "\\'")}')">
+            <div style="padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+                  <div style="width:48px; height:48px; border-radius:10px; background:linear-gradient(135deg,#e0e7ff,#c7d2fe); color:#4338ca; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700;">
+                    ${c.clubLogo ? `<img src="${c.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">` : '🏛️'}
+                  </div>
+                  <span class="badge" style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; font-size:11px; padding:3px 8px; border-radius:6px; font-weight:600;">${c.domain || 'Club'}</span>
+                </div>
+                <h3 style="font-family:'Outfit',sans-serif; font-size:1.15rem; color:#0f172a; margin-bottom:6px;">${c.clubName}</h3>
+                <p style="font-size:12px; color:#64748b; margin-bottom:12px;">${c.desc ? c.desc.slice(0, 95) + '...' : 'Official student chapter at Vidyavardhaka College of Engineering.'}</p>
+                <div style="font-size:12px; color:#475569; display:flex; flex-direction:column; gap:4px; margin-bottom:14px;">
+                  <span>👤 <strong>Coordinator:</strong> ${c.faculty || 'Faculty in Charge'}</span>
+                  <span>📅 <strong>Events Hosted:</strong> ${cEvents.length} events</span>
+                </div>
+              </div>
+              <button class="btn" style="background:#4f46e5; color:#fff; width:100%; padding:10px; border-radius:8px; font-weight:600; font-size:13px; text-align:center;">
+                View Club Events ➔
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function switchClubTab(type, clubName) {
+  const allEvents = getDB('vvce_events').filter(e => (e.club || '').toLowerCase() === clubName.toLowerCase() && e.status !== 'archived');
+  const now = new Date().toISOString().split('T')[0];
+  const events = type === 'upcoming'
+    ? allEvents.filter(e => e.date >= now && e.status !== 'completed')
+    : allEvents.filter(e => e.date < now || e.status === 'completed');
+
+  document.getElementById('tab-club-up').style.background = type === 'upcoming' ? '#4f46e5' : '#f1f5f9';
+  document.getElementById('tab-club-up').style.color = type === 'upcoming' ? '#fff' : '#475569';
+  document.getElementById('tab-club-past').style.background = type === 'past' ? '#4f46e5' : '#f1f5f9';
+  document.getElementById('tab-club-past').style.color = type === 'past' ? '#fff' : '#475569';
+
+  const grid = document.getElementById('club-events-grid');
+  grid.innerHTML = events.length > 0
+    ? events.map(e => eventCard(e)).join('')
+    : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><p style="color:#64748b;">No ${type} events for this club.</p></div>`;
+}
+
+function filterClubsView(term) {
+  const t = term.toLowerCase().trim();
+  const cards = document.querySelectorAll('#clubs-directory-grid .event-card');
+  cards.forEach(card => {
+    const text = card.textContent.toLowerCase();
+    card.style.display = text.includes(t) ? '' : 'none';
+  });
+}
+
+function registerEv(id) {
+  if (STATE.registrationLocked) {
+    toast('Event registrations are temporarily paused by administration.', 'warning');
+    return;
+  }
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  if ((ev.registrations||[]).includes(STATE.user.id)) { toast('Already registered!','info'); return; }
+
+  const currentRegCount = (ev.registrations || []).length;
+  const maxCap = ev.max_participants || ev.maxParticipants || 100;
+  if (currentRegCount >= maxCap) {
+    if (ev.waitlist_enabled) {
+      joinWaitlist(id);
+    } else {
+      toast('Event capacity is full.', 'warning');
+    }
+    return;
+  }
+
+  // Team event → open team registration modal
+  if (ev.isTeamEvent) {
+    openTeamRegisterModal(ev);
+    return;
+  }
+
+  if (ev.fee > 0) {
+    openPaymentModal(ev);
+  } else {
+    completeRegistration(ev);
+  }
+}
+
+
+/* ─── Module: js/pages/calendar.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Calendar Page & Academic Timetable
+   Path: js/pages/calendar.js
+   ═══════════════════════════════════════════════════════════════ */
+
 /* ─────────────────────────────────────────────────────────────
    CALENDAR PAGE
 ───────────────────────────────────────────────────────────────*/
@@ -4415,6 +4484,13 @@ function renderAcadSchedule() {
     </div>`).join('');
 }
 
+
+
+/* ─── Module: js/pages/registrations.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Student Event Registrations & Passes
+   Path: js/pages/registrations.js
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────
    REGISTRATIONS PAGE
@@ -4610,6 +4686,13 @@ function regList(evs, past, isPendingTab = false) {
 }
 
 
+
+/* ─── Module: js/pages/certificates.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Certificates & PDF Generation
+   Path: js/pages/certificates.js
+   ═══════════════════════════════════════════════════════════════ */
+
 /* ─────────────────────────────────────────────────────────────
    CERTIFICATES PAGE
 ───────────────────────────────────────────────────────────────*/
@@ -4757,6 +4840,13 @@ window.downloadCertPDF = function(certId) {
   setTimeout(() => win.print(), 800);
 };
 
+
+
+/* ─── Module: js/pages/profile.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — User Profile & Academic Credentials
+   Path: js/pages/profile.js
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────
    PROFILE PAGE
@@ -5076,6 +5166,13 @@ function updateUser(updates) {
 }
 
 
+
+/* ─── Module: js/pages/faculty-dashboard.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Faculty / Club Admin Dashboard
+   Path: js/pages/faculty-dashboard.js
+   ═══════════════════════════════════════════════════════════════ */
+
 /* ─────────────────────────────────────────────────────────────
    ADMIN DASHBOARD
 ───────────────────────────────────────────────────────────────*/
@@ -5164,6 +5261,13 @@ function renderAdminDashboard() {
   `;
 }
 
+
+
+/* ─── Module: js/pages/create-event.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Create & Edit Event Form
+   Path: js/pages/create-event.js
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────
    CREATE EVENT PAGE
@@ -5527,6 +5631,13 @@ async function submitEvent(status='pending') {
 }
 
 
+
+/* ─── Module: js/pages/manage-events.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Manage Organized Club Events
+   Path: js/pages/manage-events.js
+   ═══════════════════════════════════════════════════════════════ */
+
 /* ─────────────────────────────────────────────────────────────
    MANAGE EVENTS PAGE (Admin)
 ───────────────────────────────────────────────────────────────*/
@@ -5581,6 +5692,13 @@ function submitDraftEvent(id) {
     showPage('admin-dashboard');
   }
 }
+
+
+/* ─── Module: js/pages/participants.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Participants Management & QR Attendance Scanner
+   Path: js/pages/participants.js
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────
    PARTICIPANTS PAGE (Admin)
@@ -5917,6 +6035,704 @@ function isDeanUser(user = STATE.user) {
     (user.email && user.email.toLowerCase().startsWith('dean'))
   );
 }
+
+
+/* ─── Module: js/pages/authority-portal.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Approving Authority Portal (6-Tab Modern Architecture)
+   Path: js/pages/authority-portal.js
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ============================================================================
+   GENERALIZED APPROVING AUTHORITY PORTAL & AUTHENTICATION
+   ============================================================================ */
+
+window.handleAuthoritySectionNav = function() {
+  if (STATE.authorityUnlocked && STATE.currentAuthorityId) {
+    showPage('authority-portal');
+    return;
+  }
+  openAuthoritySelectionModal();
+};
+
+window.openAuthoritySelectionModal = function() {
+  const active = getActiveApprovingAuthorities();
+  const modal = document.getElementById('modal-authority-pass');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('authority-modal-title');
+  if (titleEl) titleEl.textContent = 'Approving Authority Portal';
+
+  // Inject authority selector dropdown above password input if not present
+  let selContainer = document.getElementById('auth-modal-select-container');
+  if (!selContainer) {
+    const passInput = document.getElementById('authority-pass-input');
+    selContainer = document.createElement('div');
+    selContainer.id = 'auth-modal-select-container';
+    selContainer.style.marginBottom = '12px';
+    selContainer.innerHTML = `
+      <label style="display:block; font-size:12px; font-weight:700; color:#cbd5e1; margin-bottom:5px; text-align:left;">
+        Select Approving Authority
+      </label>
+      <select id="modal-authority-select" class="auth-input" style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer;" onchange="onAuthorityModalSelectChange()">
+      </select>
+    `;
+    passInput.parentElement.parentElement.insertBefore(selContainer, passInput.parentElement);
+  }
+
+  const sel = document.getElementById('modal-authority-select');
+  if (sel) {
+    if (!active.length) {
+      sel.innerHTML = '<option value="">-- No Active Authorities Found --</option>';
+    } else {
+      sel.innerHTML = '<option value="">-- Select Authority to Access --</option>' +
+        active.map(a => `<option value="${a.id}">${a.name} (${a.designation || 'Approving Authority'})</option>`).join('');
+      if (STATE.currentAuthorityId && active.some(a => a.id === STATE.currentAuthorityId)) {
+        sel.value = STATE.currentAuthorityId;
+      }
+    }
+  }
+
+  const passInput = document.getElementById('authority-pass-input');
+  if (passInput) passInput.value = '';
+  const err = document.getElementById('authority-pass-error');
+  if (err) err.style.display = 'none';
+
+  openModal('modal-authority-pass');
+};
+
+window.onAuthorityModalSelectChange = function() {
+  const err = document.getElementById('authority-pass-error');
+  if (err) err.style.display = 'none';
+};
+
+window.verifyAuthorityPassword = async function() {
+  const sel = document.getElementById('modal-authority-select');
+  const authId = sel ? sel.value : null;
+  const pass = document.getElementById('authority-pass-input').value;
+  const err = document.getElementById('authority-pass-error');
+
+  if (!authId) {
+    err.textContent = 'Please select an approving authority from the list.';
+    err.style.display = 'block';
+    return;
+  }
+
+  const authorities = getActiveApprovingAuthorities();
+  const target = authorities.find(a => a.id === authId);
+  if (!target) {
+    err.textContent = 'Selected authority is not active or no longer exists.';
+    err.style.display = 'block';
+    return;
+  }
+
+  let isValid = false;
+  // If target has stored salt and password_hash
+  if (target.password_hash && target.salt) {
+    isValid = await verifyPasswordWithSalt(pass, target.password_hash, target.salt);
+  } else if (target.pass) {
+    // Backward compatibility for raw test records
+    isValid = (pass === target.pass);
+  } else if (target.id === 'auth_dean_sw' && pass === 'deanwellfair@vvce') {
+    isValid = true;
+  }
+
+  if (isValid) {
+    STATE.authorityUnlocked = true;
+    STATE.currentAuthorityId = target.id;
+    STATE.currentAuthorityName = target.name;
+    closeModal('modal-authority-pass');
+    toast(`Authenticated as ${target.name}! ✓`, 'success');
+    renderSidebar();
+    showPage('authority-portal');
+  } else {
+    err.textContent = 'Invalid credentials for ' + target.name + '. Please try again.';
+    err.style.display = 'block';
+  }
+};
+
+window.lockAuthorityPortal = function() {
+  STATE.authorityUnlocked = false;
+  STATE.currentAuthorityId = null;
+  STATE.currentAuthorityName = null;
+  toast('Approving Authority portal locked.', 'info');
+  renderSidebar();
+  showPage('authority-dashboard');
+};
+
+function renderAuthorityPortal(activeTab = 'dashboard') {
+  if (!STATE.authorityUnlocked || !STATE.currentAuthorityId) {
+    handleAuthoritySectionNav();
+    return;
+  }
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  // Background sync for freshness
+  syncEventsFromSupabase().then(() => {
+    // re-render if still active
+  });
+
+  const allClubs = getDB('vvce_users').filter(u => u.type === 'admin');
+  // Filter clubs assigned to this authority (or unassigned/legacy clubs)
+  const assignedClubs = allClubs.filter(c => !c.authorityId || c.authorityId === currentAuthId);
+
+  const allEvents = getDB('vvce_events').filter(e => e.status !== 'archived');
+  // Filter events assigned to this authority (or unassigned legacy events)
+  const assignedEvents = allEvents.filter(e => !e.authorityId || e.authorityId === currentAuthId);
+
+  const pendingEvents = assignedEvents.filter(e => e.status === 'pending');
+  const approvedEvents = assignedEvents.filter(e => e.status === 'approved');
+  const rejectedEvents = assignedEvents.filter(e => e.status === 'rejected');
+  const today = new Date().toISOString().split('T')[0];
+
+  const pendingClubs = assignedClubs.filter(c => !c.approved);
+  const approvedClubs = assignedClubs.filter(c => c.approved);
+
+  const el = document.getElementById('page-authority-portal');
+  if (!el) return;
+
+  el.innerHTML = `
+    <!-- Authenticated Authority Header -->
+    <div class="dean-portal-hdr" style="background:linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%); border:1px solid rgba(199,210,254,0.3);">
+      <div class="dpicon dpicon-gold" style="background:#4338ca;">🏛️</div>
+      <div class="dp-info">
+        <div class="dp-title" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          ${currentAuthName}
+          <span class="dp-authed" style="background:rgba(34,197,94,0.2); color:#4ade80; border-color:rgba(34,197,94,0.3);">✓ AUTHORIZED</span>
+        </div>
+        <div class="dp-sub">Official Approving Authority Review & Decision Queue</div>
+      </div>
+      <button class="dp-lock-btn" onclick="lockAuthorityPortal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2);">🔒 Lock Portal</button>
+    </div>
+
+    <!-- Portal Navigation Tabs -->
+    <div class="portal-tabs" style="gap:8px;">
+      <button class="portal-tab ${activeTab==='dashboard'?'active':''}" onclick="renderAuthorityPortal('dashboard')">📊 Overview</button>
+      <button class="portal-tab ${activeTab==='club-approvals'?'active':''}" onclick="renderAuthorityPortal('club-approvals')">
+        👥 Club Registrations ${pendingClubs.length>0 ? `<span class="portal-tab-badge">${pendingClubs.length}</span>` : ''}
+      </button>
+      <button class="portal-tab ${activeTab==='event-approvals'?'active':''}" onclick="renderAuthorityPortal('event-approvals')">
+        📋 Event Approvals ${pendingEvents.length>0 ? `<span class="portal-tab-badge">${pendingEvents.length}</span>` : ''}
+      </button>
+      <button class="portal-tab ${activeTab==='events'?'active':''}" onclick="renderAuthorityPortal('events')">📅 Event Records</button>
+      <button class="portal-tab ${activeTab==='clubs'?'active':''}" onclick="renderAuthorityPortal('clubs')">🏛️ Assigned Clubs</button>
+      <button class="portal-tab ${activeTab==='clash'?'active':''}" onclick="renderAuthorityPortal('clash')">⚡ Global Clash Detection</button>
+    </div>
+
+    <div id="authority-tab-content">
+      ${activeTab==='dashboard' ? renderAuthorityDashboardTab(assignedClubs, assignedEvents, pendingClubs, pendingEvents, approvedEvents, today) : ''}
+      ${activeTab==='club-approvals' ? renderAuthorityClubApprovalsTab(pendingClubs, approvedClubs) : ''}
+      ${activeTab==='event-approvals' ? renderAuthorityEventApprovalsTab(pendingEvents) : ''}
+      ${activeTab==='events' ? renderAuthorityEventRecordsTab(assignedEvents, today) : ''}
+      ${activeTab==='clubs' ? renderAuthorityClubRecordsTab(assignedClubs, allEvents) : ''}
+      ${activeTab==='clash' ? renderAuthorityClashTab() : ''}
+    </div>
+  `;
+}
+
+function renderAuthorityDashboardTab(clubs, events, pendingClubs, pendingEvents, approvedEvents, today) {
+  const globalClashCount = checkClashCount();
+  const upcomingEvents = approvedEvents.filter(e => e.date >= today);
+
+  return `
+    <div class="stats-row" style="margin-bottom:1.5rem;">
+      ${statCard('🏛️', 'Assigned Clubs', clubs.length, `${clubs.filter(c=>c.approved).length} approved, ${pendingClubs.length} pending`, 'stat-mint')}
+      ${statCard('👥', 'Club Reg Requests', pendingClubs.length, 'Needs verification', pendingClubs.length ? 'stat-amber' : 'stat-mint')}
+      ${statCard('⏳', 'Pending Events', pendingEvents.length, 'Awaiting approval', pendingEvents.length ? 'stat-amber' : 'stat-mint')}
+      ${statCard('📅', 'Upcoming Events', upcomingEvents.length, 'Scheduled & live', 'stat-blue')}
+      ${statCard('⚡', 'Global Clashes', globalClashCount, 'Across campus', globalClashCount ? 'stat-pink' : 'stat-mint')}
+    </div>
+
+    <div class="white-card" style="margin-top:1rem;">
+      <div class="sec-title" style="margin-bottom:1rem;">Quick Authority Actions</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+        <div class="auth-qa-card" onclick="renderAuthorityPortal('club-approvals')">
+          <span class="auth-qa-icon">👥</span>
+          <div class="auth-qa-label">Review Club Registrations</div>
+          ${pendingClubs.length ? `<div style="font-size:11px;color:#b45309;font-weight:600;">${pendingClubs.length} pending approval</div>` : '<div style="font-size:11px;color:#10b981;">Up to date</div>'}
+        </div>
+        <div class="auth-qa-card" onclick="renderAuthorityPortal('event-approvals')">
+          <span class="auth-qa-icon">📋</span>
+          <div class="auth-qa-label">Approve Event Proposals</div>
+          ${pendingEvents.length ? `<div style="font-size:11px;color:#b45309;font-weight:600;">${pendingEvents.length} events pending</div>` : '<div style="font-size:11px;color:#10b981;">No pending proposals</div>'}
+        </div>
+        <div class="auth-qa-card" onclick="renderAuthorityPortal('clash')">
+          <span class="auth-qa-icon">⚡</span>
+          <div class="auth-qa-label">Global Clash Detection</div>
+          <div style="font-size:11px;color:#64748b;">Cross-department verification</div>
+        </div>
+        <div class="auth-qa-card" onclick="renderAuthorityPortal('clubs')">
+          <span class="auth-qa-icon">🏛️</span>
+          <div class="auth-qa-label">Track Club Activities</div>
+          <div style="font-size:11px;color:#64748b;">${clubs.length} assigned clubs</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAuthorityClubApprovalsTab(pending, approved) {
+  return `
+    <div class="sec-head">
+      <span class="sec-title">Pending Club Registrations (${pending.length})</span>
+    </div>
+    ${pending.length ? pending.map(c => `
+      <div class="white-card" style="margin-bottom:12px; border-left:4px solid #f59e0b;">
+        <div class="cpcard-head">
+          <div>
+            <div class="cpcard-name" style="font-size:18px;">${c.clubName || c.name}</div>
+            <div class="cpcard-domain">${c.domain || 'General'} • ${c.branch || 'VVCE'} • ${c.email}</div>
+          </div>
+          <span class="badge badge-amber">Pending Registration</span>
+        </div>
+        <div class="cpcard-info" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:8px; font-size:13px; color:#374151; margin:12px 0;">
+          <span>👤 <strong>Lead Rep:</strong> ${titleCase(c.name)} (${c.usn || '-'})</span>
+          <span>👩‍🏫 <strong>Faculty Coord:</strong> ${c.faculty || '-'}</span>
+          <span>📧 <strong>Club Email:</strong> ${c.clubEmail || '-'}</span>
+          <span>📞 <strong>Contact Phone:</strong> ${c.phone || '-'}</span>
+        </div>
+        ${c.desc ? `<div style="font-size:13px; color:#334155; background:#f8fafc; padding:10px 14px; border-radius:8px; margin-bottom:12px; border:1px solid #e2e8f0;">${c.desc}</div>` : ''}
+        
+        <!-- Decision Actions -->
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button class="btn btn-green" onclick="authorityApproveClub('${c.id}')">✓ Approve Club Registration</button>
+          <button class="btn btn-red" onclick="authorityRejectClubPrompt('${c.id}')">✕ Reject with Reason</button>
+          <button class="btn btn-outline" onclick="viewClubDetail('${c.id}')">View Full Dossier</button>
+        </div>
+      </div>
+    `).join('') : `
+      <div class="empty-state" style="padding:40px 20px;">
+        <div class="ei">✓</div>
+        <div class="et">No Pending Club Registrations</div>
+        <div class="es">All club registration requests for this authority have been processed.</div>
+      </div>
+    `}
+
+    ${approved.length ? `
+      <div style="margin-top:2rem;">
+        <div class="sec-title" style="margin-bottom:12px;">Active Approved Clubs (${approved.length})</div>
+        ${approved.map(c => `
+          <div class="ev-row" style="margin-bottom:8px;">
+            <span class="ev-row-emoji">🏛️</span>
+            <div class="ev-row-info">
+              <div class="ev-row-name">${c.clubName || c.name}</div>
+              <div class="ev-row-meta">${c.domain || 'General'} • Rep: ${titleCase(c.name)} • Coord: ${c.faculty || '-'}</div>
+            </div>
+            <span class="badge badge-green">Active</span>
+            <button class="btn btn-outline btn-sm" onclick="viewClubDetail('${c.id}')">Dossier</button>
+            <button class="btn btn-red btn-sm" onclick="authorityRevokeClub('${c.id}')">Revoke Access</button>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+  `;
+}
+
+function renderAuthorityEventApprovalsTab(pending) {
+  const allActiveEvents = getDB('vvce_events').filter(e => e.status === 'approved' || e.status === 'pending');
+
+  return `
+    <div class="sec-head">
+      <span class="sec-title">Event Proposals Awaiting Your Approval (${pending.length})</span>
+    </div>
+    ${pending.length ? pending.map(e => {
+      // Check for venue clash against ANY approved event
+      const conflict = allActiveEvents.find(other => 
+        other.id !== e.id &&
+        other.status === 'approved' &&
+        other.date === e.date &&
+        (other.venue || '').trim().toLowerCase() === (e.venue || '').trim().toLowerCase()
+      );
+
+      return `
+        <div class="white-card" style="margin-bottom:14px; border: ${conflict ? '2px solid #ef4444' : '1px solid #e2e8f0'}; background:${conflict ? '#fff5f5' : '#fff'};">
+          ${conflict ? `
+            <div style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:10px 14px; border-radius:8px; margin-bottom:12px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:18px;">⚠️</span>
+              <div>
+                GLOBAL VENUE CLASH WARNING: Conflicting approved event "${conflict.name}" (${conflict.club}) is already booked for ${e.venue} on ${formatDate(e.date)} (${formatTime(conflict.time)}). Approval is blocked.
+              </div>
+            </div>
+          ` : ''}
+
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+            <div style="display:flex; gap:14px; align-items:flex-start;">
+              <span style="font-size:40px;">${e.emoji || '🎓'}</span>
+              <div>
+                <div style="font-weight:800; font-size:18px; color:#0f172a;">${e.name}</div>
+                <div style="font-size:13px; color:#64748b; margin-top:2px;">Organized by <strong>${e.club}</strong></div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:6px 16px; margin-top:10px; font-size:12.5px; color:#334155;">
+                  <span>📅 <strong>Date:</strong> ${formatDate(e.date)}</span>
+                  <span>🕐 <strong>Time:</strong> ${formatTime(e.time)}</span>
+                  <span>📍 <strong>Venue:</strong> ${e.venue}</span>
+                  <span>👥 <strong>Max Part:</strong> ${e.maxParticipants}</span>
+                  <span>⭐ <strong>Points:</strong> ${e.points} pts</span>
+                  <span>💰 <strong>Fee:</strong> ${e.fee > 0 ? '₹' + e.fee : 'Free'}</span>
+                </div>
+                ${e.desc ? `<div style="font-size:13px; color:#475569; margin-top:10px; line-height:1.5; background:#f8fafc; padding:10px 12px; border-radius:8px;">${e.desc}</div>` : ''}
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end; flex-shrink:0;">
+              ${conflict ? `
+                <button class="btn" style="background:#cbd5e1; color:#64748b; cursor:not-allowed;" title="Resolve venue conflict before approving" disabled>
+                  ⚠️ Clash Blocked
+                </button>
+              ` : `
+                <button class="btn btn-green" onclick="authorityApproveEvent('${e.id}')">
+                  ✓ Approve Event
+                </button>
+              `}
+              <button class="btn btn-red" onclick="authorityRejectEventPrompt('${e.id}')">
+                ✕ Reject with Reason
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('') : `
+      <div class="empty-state" style="padding:40px 20px;">
+        <div class="ei">✓</div>
+        <div class="et">All Caught Up!</div>
+        <div class="es">No event proposals pending review for this authority.</div>
+      </div>
+    `}
+  `;
+}
+
+function renderAuthorityEventRecordsTab(events, today) {
+  const sorted = events.slice().sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+
+  return `
+    <div class="filter-row" style="margin-bottom:1rem;">
+      <input class="search-inp" id="auth-ev-search" placeholder="🔍 Search event records by name or club..." oninput="authorityFilterEventRecords()">
+      <select class="filter-sel" id="auth-ev-status" onchange="authorityFilterEventRecords()">
+        <option value="">All Statuses</option>
+        <option value="approved">Approved</option>
+        <option value="pending">Pending</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+    <div id="auth-ev-records-list">
+      ${renderAuthorityEventRows(sorted)}
+    </div>
+  `;
+}
+
+function renderAuthorityEventRows(evList) {
+  if (!evList.length) return '<div class="empty-state"><div class="ei">📅</div><div class="et">No events found</div></div>';
+
+  return evList.map(e => `
+    <div class="ev-row" style="margin-bottom:8px;">
+      <span class="ev-row-emoji">${e.emoji || '🎓'}</span>
+      <div class="ev-row-info">
+        <div class="ev-row-name" style="font-weight:700;">${e.name}</div>
+        <div class="ev-row-meta">${e.club} • ${formatDate(e.date)} • 📍 ${e.venue}</div>
+        ${e.rejReason ? `<div style="font-size:11px; color:#dc2626; margin-top:2px;">Rejection Note: ${e.rejReason}</div>` : ''}
+      </div>
+      <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">
+        ${e.status.toUpperCase()}
+      </span>
+      ${e.status==='pending' ? `
+        <button class="btn btn-green btn-sm" onclick="authorityApproveEvent('${e.id}')">Approve</button>
+        <button class="btn btn-red btn-sm" onclick="authorityRejectEventPrompt('${e.id}')">Reject</button>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function authorityFilterEventRecords() {
+  const q = (document.getElementById('auth-ev-search')?.value || '').toLowerCase();
+  const status = document.getElementById('auth-ev-status')?.value || '';
+  const currentAuthId = STATE.currentAuthorityId;
+  let evs = getDB('vvce_events').filter(e => !e.authorityId || e.authorityId === currentAuthId);
+
+  if (q) evs = evs.filter(e => e.name.toLowerCase().includes(q) || (e.club && e.club.toLowerCase().includes(q)));
+  if (status) evs = evs.filter(e => e.status === status);
+
+  const container = document.getElementById('auth-ev-records-list');
+  if (container) container.innerHTML = renderAuthorityEventRows(evs);
+}
+
+function renderAuthorityClubRecordsTab(clubs, allEvents) {
+  return `
+    <div class="sec-head">
+      <span class="sec-title">Clubs Assigned to This Authority (${clubs.length})</span>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;">
+      ${clubs.map(c => {
+        const clubEvents = allEvents.filter(e => e.adminId === c.id || e.club === c.clubName);
+        const appCount = clubEvents.filter(e => e.status === 'approved').length;
+        const pendCount = clubEvents.filter(e => e.status === 'pending').length;
+        const rejCount = clubEvents.filter(e => e.status === 'rejected').length;
+
+        return `
+          <div class="white-card" style="box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+              <div>
+                <h4 style="font-size:16px; font-weight:800; margin:0; color:#0f172a;">${c.clubName || c.name}</h4>
+                <div style="font-size:12px; color:#64748b;">${c.domain || 'Technical'} • Coord: ${c.faculty || '-'}</div>
+              </div>
+              <span class="badge ${c.approved ? 'badge-green' : 'badge-amber'}">${c.approved ? 'Approved' : 'Pending'}</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; background:#f8fafc; padding:8px 10px; border-radius:8px; margin:10px 0; text-align:center; font-size:11px;">
+              <div><strong style="color:#10b981; font-size:14px;">${appCount}</strong><br>Approved</div>
+              <div><strong style="color:#f59e0b; font-size:14px;">${pendCount}</strong><br>Pending</div>
+              <div><strong style="color:#ef4444; font-size:14px;">${rejCount}</strong><br>Rejected</div>
+            </div>
+            <div style="font-size:12px; color:#475569; margin-bottom:10px;">
+              <div>👤 <strong>Representative:</strong> ${titleCase(c.name)} (${c.usn || '-'})</div>
+              <div>📧 <strong>Contact:</strong> ${c.clubEmail || c.email}</div>
+            </div>
+            <button class="btn btn-outline btn-sm" style="width:100%;" onclick="viewClubDetail('${c.id}')">View Club Details & History</button>
+          </div>
+        `;
+      }).join('') || '<div class="empty-state"><div class="ei">🏛️</div><div class="et">No assigned clubs</div></div>'}
+    </div>
+  `;
+}
+
+function renderAuthorityClashTab() {
+  const events = getDB('vvce_events');
+  return deanClashContent(events);
+}
+
+// -----------------------------------------------------------------------------
+// Authority Approval & Rejection Handlers with Global Clash Enforcement
+// -----------------------------------------------------------------------------
+window.authorityApproveEvent = async function(id) {
+  if (!STATE.authorityUnlocked || !STATE.currentAuthorityId) {
+    toast('⚠️ You must authenticate as an Approving Authority first.', 'error');
+    return;
+  }
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) {
+    toast('Event not found.', 'error');
+    return;
+  }
+
+  // 1. Client-Side Global Clash Verification across ALL clubs/departments
+  const allEvents = events.filter(e => e.status === 'approved' && e.id !== id);
+  const clash = allEvents.find(other => 
+    other.date === ev.date &&
+    (other.venue || '').trim().toLowerCase() === (ev.venue || '').trim().toLowerCase()
+  );
+
+  if (clash) {
+    toast(`⚠️ Cannot approve! Global clash detected with approved event "${clash.name}" (${clash.club}) at ${ev.venue} on ${ev.date}.`, 'error', 6000);
+    return;
+  }
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  // 2. Server/Database Atomic Concurrency Check (via RPC if configured in Supabase)
+  const sb = getSupabaseClient();
+  let serverHandled = false;
+
+  if (sb) {
+    try {
+      const { data, error } = await sb.rpc('approve_event_with_clash_check', {
+        p_event_id: id,
+        p_authority_id: currentAuthId,
+        p_authority_name: currentAuthName
+      });
+
+      if (!error && data) {
+        if (!data.success) {
+          toast(`⚠️ Approval Rejected by Server: ${data.error}`, 'error', 6000);
+          return;
+        }
+        serverHandled = true;
+      }
+    } catch (rpcErr) {
+      console.warn('RPC approve_event_with_clash_check fallback to direct update:', rpcErr);
+    }
+  }
+
+  // Local state update & audit history
+  const decisionEntry = {
+    action: 'approved',
+    authorityId: currentAuthId,
+    authorityName: currentAuthName,
+    timestamp: new Date().toISOString()
+  };
+
+  ev.status = 'approved';
+  ev.rejReason = null;
+  ev.approvedByAuthorityId = currentAuthId;
+  ev.approvedByAuthorityName = currentAuthName;
+  ev.approvedAt = new Date().toISOString();
+  if (!ev.decisionHistory) ev.decisionHistory = [];
+  ev.decisionHistory.push(decisionEntry);
+
+  await setDB('vvce_events', events);
+
+  if (!serverHandled && sb) {
+    try {
+      await sb.from('events').update({
+        status: 'approved',
+        rej_reason: null,
+        approved_by_authority_id: currentAuthId,
+        approved_by_authority_name: currentAuthName,
+        approved_at: new Date().toISOString(),
+        decision_history: ev.decisionHistory
+      }).eq('id', id);
+    } catch(e) {
+      console.warn('Supabase direct update:', e);
+    }
+  }
+
+  // Notify Club Admin
+  const users = getDB('vvce_users');
+  const admin = users.find(u => u.id === ev.adminId);
+  if (admin) {
+    if (!admin.notifs) admin.notifs = [];
+    admin.notifs.push({
+      id: genId('n'),
+      msg: `Your event proposal "${ev.name}" was APPROVED by ${currentAuthName}! 🎉`,
+      icon: '✓',
+      time: 'Just now',
+      timestamp: Date.now(),
+      read: false
+    });
+    setDB('vvce_users', users);
+  }
+
+  toast(`Event "${ev.name}" approved successfully by ${currentAuthName}! ✓`, 'success');
+  renderAuthorityPortal('event-approvals');
+};
+
+window.authorityRejectEventPrompt = async function(id) {
+  const reason = prompt('Please enter a rejection reason (optional):');
+  if (reason === null) return; // user cancelled prompt
+
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  const decisionEntry = {
+    action: 'rejected',
+    reason: reason.trim() || 'Not specified',
+    authorityId: currentAuthId,
+    authorityName: currentAuthName,
+    timestamp: new Date().toISOString()
+  };
+
+  ev.status = 'rejected';
+  ev.rejReason = reason.trim() || 'Rejected by Approving Authority';
+  if (!ev.decisionHistory) ev.decisionHistory = [];
+  ev.decisionHistory.push(decisionEntry);
+
+  await setDB('vvce_events', events);
+
+  const sb = getSupabaseClient();
+  if (sb) {
+    try {
+      await sb.from('events').update({
+        status: 'rejected',
+        rej_reason: ev.rejReason,
+        decision_history: ev.decisionHistory
+      }).eq('id', id);
+    } catch(e) {}
+  }
+
+  // Notify Club Admin
+  const users = getDB('vvce_users');
+  const admin = users.find(u => u.id === ev.adminId);
+  if (admin) {
+    if (!admin.notifs) admin.notifs = [];
+    admin.notifs.push({
+      id: genId('n'),
+      msg: `Your event proposal "${ev.name}" was REJECTED by ${currentAuthName}. Reason: ${ev.rejReason}`,
+      icon: '✕',
+      time: 'Just now',
+      timestamp: Date.now(),
+      read: false
+    });
+    setDB('vvce_users', users);
+  }
+
+  toast(`Event proposal rejected.`, 'warning');
+  renderAuthorityPortal('event-approvals');
+};
+
+window.authorityApproveClub = async function(id) {
+  const users = getDB('vvce_users');
+  const club = users.find(u => u.id === id);
+  if (!club) return;
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  club.approved = true;
+  if (!club.approvalHistory) club.approvalHistory = [];
+  club.approvalHistory.push({
+    action: 'approved',
+    authorityId: currentAuthId,
+    authorityName: currentAuthName,
+    timestamp: new Date().toISOString()
+  });
+
+  await setDB('vvce_users', users);
+
+  if (club.id === STATE.user.id) STATE.user = club;
+  toast(`Club "${club.clubName || club.name}" approved successfully! ✓`, 'success');
+  renderAuthorityPortal('club-approvals');
+};
+
+window.authorityRejectClubPrompt = async function(id) {
+  const reason = prompt('Please enter the reason for rejecting this club registration:');
+  if (reason === null) return;
+
+  const users = getDB('vvce_users');
+  const club = users.find(u => u.id === id);
+  if (!club) return;
+
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+
+  club.approved = false;
+  club.rejectionReason = reason.trim() || 'Registration rejected by Approving Authority';
+  if (!club.approvalHistory) club.approvalHistory = [];
+  club.approvalHistory.push({
+    action: 'rejected',
+    reason: club.rejectionReason,
+    authorityId: currentAuthId,
+    authorityName: currentAuthName,
+    timestamp: new Date().toISOString()
+  });
+
+  await setDB('vvce_users', users);
+  toast('Club registration rejected.', 'warning');
+  renderAuthorityPortal('club-approvals');
+};
+
+window.authorityRevokeClub = async function(id) {
+  if (!confirm('Are you sure you want to revoke this club\'s active status?')) return;
+  const users = getDB('vvce_users');
+  const club = users.find(u => u.id === id);
+  if (!club) return;
+
+  club.approved = false;
+  await setDB('vvce_users', users);
+  toast('Club access revoked.', 'warning');
+  renderAuthorityPortal('club-approvals');
+};
+
+
+/* ─── Module: js/pages/authority-views.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Authority Dashboard & Monitor Views (Dean / Principal)
+   Path: js/pages/authority-views.js
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────
    AUTHORITY DASHBOARD
@@ -6824,36 +7640,13 @@ const PRINCIPAL_PASS = 'principal@vvce2025';
 })();
 
 
-/* ─────────────────────────────────────────────────────────────
-   BOOT
-───────────────────────────────────────────────────────────────*/
-document.addEventListener('DOMContentLoaded', function() {
-  bootApp();
-  // Set default register role (student form visible)
-  selectRegRole('student');
-  // Init Google Sign-In after GIS script finishes loading
-  if (typeof google !== 'undefined') {
-    initGoogleAuth();
-  } else {
-    window.addEventListener('load', initGoogleAuth);
-  }
-  // Init live CPM config sync (banners, themes, maintenance)
-  // Small delay to ensure Supabase client is ready after bootApp
-  setTimeout(initDynamicSiteConfig, 500);
-});
 
-// Auto-sync when navigating back via browser Back button (bfcache) or switching tabs
-window.addEventListener('pageshow', function(e) {
-  bootApp();
-});
+/* ─── Module: js/pages/cpm-theme.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Dynamic CPM Configuration & Festival Themes
+   Path: js/pages/cpm-theme.js
+   ═══════════════════════════════════════════════════════════════ */
 
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'visible') {
-    bootApp();
-  }
-});
-
-// Expose all functions to window for inline onclick handlers in HTML
 /* ─────────────────────────────────────────────────────────────
    DYNAMIC CPM CONFIGURATION (Realtime Banners, Themes, Maintenance)
 ───────────────────────────────────────────────────────────────*/
@@ -7124,686 +7917,40 @@ function applyFestiveParticles(effect) {
 }
 
 
-/* ============================================================================
-   GENERALIZED APPROVING AUTHORITY PORTAL & AUTHENTICATION
-   ============================================================================ */
 
-window.handleAuthoritySectionNav = function() {
-  if (STATE.authorityUnlocked && STATE.currentAuthorityId) {
-    showPage('authority-portal');
-    return;
-  }
-  openAuthoritySelectionModal();
-};
+/* ─── Module: js/main.js ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VVCE Events Hub — Application Bootstrap & Life Cycle Listeners
+   Path: js/main.js
+   ═══════════════════════════════════════════════════════════════ */
 
-window.openAuthoritySelectionModal = function() {
-  const active = getActiveApprovingAuthorities();
-  const modal = document.getElementById('modal-authority-pass');
-  if (!modal) return;
-
-  const titleEl = document.getElementById('authority-modal-title');
-  if (titleEl) titleEl.textContent = 'Approving Authority Portal';
-
-  // Inject authority selector dropdown above password input if not present
-  let selContainer = document.getElementById('auth-modal-select-container');
-  if (!selContainer) {
-    const passInput = document.getElementById('authority-pass-input');
-    selContainer = document.createElement('div');
-    selContainer.id = 'auth-modal-select-container';
-    selContainer.style.marginBottom = '12px';
-    selContainer.innerHTML = `
-      <label style="display:block; font-size:12px; font-weight:700; color:#cbd5e1; margin-bottom:5px; text-align:left;">
-        Select Approving Authority
-      </label>
-      <select id="modal-authority-select" class="auth-input" style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer;" onchange="onAuthorityModalSelectChange()">
-      </select>
-    `;
-    passInput.parentElement.parentElement.insertBefore(selContainer, passInput.parentElement);
-  }
-
-  const sel = document.getElementById('modal-authority-select');
-  if (sel) {
-    if (!active.length) {
-      sel.innerHTML = '<option value="">-- No Active Authorities Found --</option>';
-    } else {
-      sel.innerHTML = '<option value="">-- Select Authority to Access --</option>' +
-        active.map(a => `<option value="${a.id}">${a.name} (${a.designation || 'Approving Authority'})</option>`).join('');
-      if (STATE.currentAuthorityId && active.some(a => a.id === STATE.currentAuthorityId)) {
-        sel.value = STATE.currentAuthorityId;
-      }
-    }
-  }
-
-  const passInput = document.getElementById('authority-pass-input');
-  if (passInput) passInput.value = '';
-  const err = document.getElementById('authority-pass-error');
-  if (err) err.style.display = 'none';
-
-  openModal('modal-authority-pass');
-};
-
-window.onAuthorityModalSelectChange = function() {
-  const err = document.getElementById('authority-pass-error');
-  if (err) err.style.display = 'none';
-};
-
-window.verifyAuthorityPassword = async function() {
-  const sel = document.getElementById('modal-authority-select');
-  const authId = sel ? sel.value : null;
-  const pass = document.getElementById('authority-pass-input').value;
-  const err = document.getElementById('authority-pass-error');
-
-  if (!authId) {
-    err.textContent = 'Please select an approving authority from the list.';
-    err.style.display = 'block';
-    return;
-  }
-
-  const authorities = getActiveApprovingAuthorities();
-  const target = authorities.find(a => a.id === authId);
-  if (!target) {
-    err.textContent = 'Selected authority is not active or no longer exists.';
-    err.style.display = 'block';
-    return;
-  }
-
-  let isValid = false;
-  // If target has stored salt and password_hash
-  if (target.password_hash && target.salt) {
-    isValid = await verifyPasswordWithSalt(pass, target.password_hash, target.salt);
-  } else if (target.pass) {
-    // Backward compatibility for raw test records
-    isValid = (pass === target.pass);
-  } else if (target.id === 'auth_dean_sw' && pass === 'deanwellfair@vvce') {
-    isValid = true;
-  }
-
-  if (isValid) {
-    STATE.authorityUnlocked = true;
-    STATE.currentAuthorityId = target.id;
-    STATE.currentAuthorityName = target.name;
-    closeModal('modal-authority-pass');
-    toast(`Authenticated as ${target.name}! ✓`, 'success');
-    renderSidebar();
-    showPage('authority-portal');
+/* ─────────────────────────────────────────────────────────────
+   BOOT
+───────────────────────────────────────────────────────────────*/
+document.addEventListener('DOMContentLoaded', function() {
+  bootApp();
+  // Set default register role (student form visible)
+  selectRegRole('student');
+  // Init Google Sign-In after GIS script finishes loading
+  if (typeof google !== 'undefined') {
+    initGoogleAuth();
   } else {
-    err.textContent = 'Invalid credentials for ' + target.name + '. Please try again.';
-    err.style.display = 'block';
+    window.addEventListener('load', initGoogleAuth);
   }
-};
+  // Init live CPM config sync (banners, themes, maintenance)
+  // Small delay to ensure Supabase client is ready after bootApp
+  setTimeout(initDynamicSiteConfig, 500);
+});
 
-window.lockAuthorityPortal = function() {
-  STATE.authorityUnlocked = false;
-  STATE.currentAuthorityId = null;
-  STATE.currentAuthorityName = null;
-  toast('Approving Authority portal locked.', 'info');
-  renderSidebar();
-  showPage('authority-dashboard');
-};
+// Auto-sync when navigating back via browser Back button (bfcache) or switching tabs
+window.addEventListener('pageshow', function(e) {
+  bootApp();
+});
 
-function renderAuthorityPortal(activeTab = 'dashboard') {
-  if (!STATE.authorityUnlocked || !STATE.currentAuthorityId) {
-    handleAuthoritySectionNav();
-    return;
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    bootApp();
   }
+});
 
-  const currentAuthId = STATE.currentAuthorityId;
-  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
-
-  // Background sync for freshness
-  syncEventsFromSupabase().then(() => {
-    // re-render if still active
-  });
-
-  const allClubs = getDB('vvce_users').filter(u => u.type === 'admin');
-  // Filter clubs assigned to this authority (or unassigned/legacy clubs)
-  const assignedClubs = allClubs.filter(c => !c.authorityId || c.authorityId === currentAuthId);
-
-  const allEvents = getDB('vvce_events').filter(e => e.status !== 'archived');
-  // Filter events assigned to this authority (or unassigned legacy events)
-  const assignedEvents = allEvents.filter(e => !e.authorityId || e.authorityId === currentAuthId);
-
-  const pendingEvents = assignedEvents.filter(e => e.status === 'pending');
-  const approvedEvents = assignedEvents.filter(e => e.status === 'approved');
-  const rejectedEvents = assignedEvents.filter(e => e.status === 'rejected');
-  const today = new Date().toISOString().split('T')[0];
-
-  const pendingClubs = assignedClubs.filter(c => !c.approved);
-  const approvedClubs = assignedClubs.filter(c => c.approved);
-
-  const el = document.getElementById('page-authority-portal');
-  if (!el) return;
-
-  el.innerHTML = `
-    <!-- Authenticated Authority Header -->
-    <div class="dean-portal-hdr" style="background:linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%); border:1px solid rgba(199,210,254,0.3);">
-      <div class="dpicon dpicon-gold" style="background:#4338ca;">🏛️</div>
-      <div class="dp-info">
-        <div class="dp-title" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          ${currentAuthName}
-          <span class="dp-authed" style="background:rgba(34,197,94,0.2); color:#4ade80; border-color:rgba(34,197,94,0.3);">✓ AUTHORIZED</span>
-        </div>
-        <div class="dp-sub">Official Approving Authority Review & Decision Queue</div>
-      </div>
-      <button class="dp-lock-btn" onclick="lockAuthorityPortal()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2);">🔒 Lock Portal</button>
-    </div>
-
-    <!-- Portal Navigation Tabs -->
-    <div class="portal-tabs" style="gap:8px;">
-      <button class="portal-tab ${activeTab==='dashboard'?'active':''}" onclick="renderAuthorityPortal('dashboard')">📊 Overview</button>
-      <button class="portal-tab ${activeTab==='club-approvals'?'active':''}" onclick="renderAuthorityPortal('club-approvals')">
-        👥 Club Registrations ${pendingClubs.length>0 ? `<span class="portal-tab-badge">${pendingClubs.length}</span>` : ''}
-      </button>
-      <button class="portal-tab ${activeTab==='event-approvals'?'active':''}" onclick="renderAuthorityPortal('event-approvals')">
-        📋 Event Approvals ${pendingEvents.length>0 ? `<span class="portal-tab-badge">${pendingEvents.length}</span>` : ''}
-      </button>
-      <button class="portal-tab ${activeTab==='events'?'active':''}" onclick="renderAuthorityPortal('events')">📅 Event Records</button>
-      <button class="portal-tab ${activeTab==='clubs'?'active':''}" onclick="renderAuthorityPortal('clubs')">🏛️ Assigned Clubs</button>
-      <button class="portal-tab ${activeTab==='clash'?'active':''}" onclick="renderAuthorityPortal('clash')">⚡ Global Clash Detection</button>
-    </div>
-
-    <div id="authority-tab-content">
-      ${activeTab==='dashboard' ? renderAuthorityDashboardTab(assignedClubs, assignedEvents, pendingClubs, pendingEvents, approvedEvents, today) : ''}
-      ${activeTab==='club-approvals' ? renderAuthorityClubApprovalsTab(pendingClubs, approvedClubs) : ''}
-      ${activeTab==='event-approvals' ? renderAuthorityEventApprovalsTab(pendingEvents) : ''}
-      ${activeTab==='events' ? renderAuthorityEventRecordsTab(assignedEvents, today) : ''}
-      ${activeTab==='clubs' ? renderAuthorityClubRecordsTab(assignedClubs, allEvents) : ''}
-      ${activeTab==='clash' ? renderAuthorityClashTab() : ''}
-    </div>
-  `;
-}
-
-function renderAuthorityDashboardTab(clubs, events, pendingClubs, pendingEvents, approvedEvents, today) {
-  const globalClashCount = checkClashCount();
-  const upcomingEvents = approvedEvents.filter(e => e.date >= today);
-
-  return `
-    <div class="stats-row" style="margin-bottom:1.5rem;">
-      ${statCard('🏛️', 'Assigned Clubs', clubs.length, `${clubs.filter(c=>c.approved).length} approved, ${pendingClubs.length} pending`, 'stat-mint')}
-      ${statCard('👥', 'Club Reg Requests', pendingClubs.length, 'Needs verification', pendingClubs.length ? 'stat-amber' : 'stat-mint')}
-      ${statCard('⏳', 'Pending Events', pendingEvents.length, 'Awaiting approval', pendingEvents.length ? 'stat-amber' : 'stat-mint')}
-      ${statCard('📅', 'Upcoming Events', upcomingEvents.length, 'Scheduled & live', 'stat-blue')}
-      ${statCard('⚡', 'Global Clashes', globalClashCount, 'Across campus', globalClashCount ? 'stat-pink' : 'stat-mint')}
-    </div>
-
-    <div class="white-card" style="margin-top:1rem;">
-      <div class="sec-title" style="margin-bottom:1rem;">Quick Authority Actions</div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
-        <div class="auth-qa-card" onclick="renderAuthorityPortal('club-approvals')">
-          <span class="auth-qa-icon">👥</span>
-          <div class="auth-qa-label">Review Club Registrations</div>
-          ${pendingClubs.length ? `<div style="font-size:11px;color:#b45309;font-weight:600;">${pendingClubs.length} pending approval</div>` : '<div style="font-size:11px;color:#10b981;">Up to date</div>'}
-        </div>
-        <div class="auth-qa-card" onclick="renderAuthorityPortal('event-approvals')">
-          <span class="auth-qa-icon">📋</span>
-          <div class="auth-qa-label">Approve Event Proposals</div>
-          ${pendingEvents.length ? `<div style="font-size:11px;color:#b45309;font-weight:600;">${pendingEvents.length} events pending</div>` : '<div style="font-size:11px;color:#10b981;">No pending proposals</div>'}
-        </div>
-        <div class="auth-qa-card" onclick="renderAuthorityPortal('clash')">
-          <span class="auth-qa-icon">⚡</span>
-          <div class="auth-qa-label">Global Clash Detection</div>
-          <div style="font-size:11px;color:#64748b;">Cross-department verification</div>
-        </div>
-        <div class="auth-qa-card" onclick="renderAuthorityPortal('clubs')">
-          <span class="auth-qa-icon">🏛️</span>
-          <div class="auth-qa-label">Track Club Activities</div>
-          <div style="font-size:11px;color:#64748b;">${clubs.length} assigned clubs</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderAuthorityClubApprovalsTab(pending, approved) {
-  return `
-    <div class="sec-head">
-      <span class="sec-title">Pending Club Registrations (${pending.length})</span>
-    </div>
-    ${pending.length ? pending.map(c => `
-      <div class="white-card" style="margin-bottom:12px; border-left:4px solid #f59e0b;">
-        <div class="cpcard-head">
-          <div>
-            <div class="cpcard-name" style="font-size:18px;">${c.clubName || c.name}</div>
-            <div class="cpcard-domain">${c.domain || 'General'} • ${c.branch || 'VVCE'} • ${c.email}</div>
-          </div>
-          <span class="badge badge-amber">Pending Registration</span>
-        </div>
-        <div class="cpcard-info" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:8px; font-size:13px; color:#374151; margin:12px 0;">
-          <span>👤 <strong>Lead Rep:</strong> ${titleCase(c.name)} (${c.usn || '-'})</span>
-          <span>👩‍🏫 <strong>Faculty Coord:</strong> ${c.faculty || '-'}</span>
-          <span>📧 <strong>Club Email:</strong> ${c.clubEmail || '-'}</span>
-          <span>📞 <strong>Contact Phone:</strong> ${c.phone || '-'}</span>
-        </div>
-        ${c.desc ? `<div style="font-size:13px; color:#334155; background:#f8fafc; padding:10px 14px; border-radius:8px; margin-bottom:12px; border:1px solid #e2e8f0;">${c.desc}</div>` : ''}
-        
-        <!-- Decision Actions -->
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <button class="btn btn-green" onclick="authorityApproveClub('${c.id}')">✓ Approve Club Registration</button>
-          <button class="btn btn-red" onclick="authorityRejectClubPrompt('${c.id}')">✕ Reject with Reason</button>
-          <button class="btn btn-outline" onclick="viewClubDetail('${c.id}')">View Full Dossier</button>
-        </div>
-      </div>
-    `).join('') : `
-      <div class="empty-state" style="padding:40px 20px;">
-        <div class="ei">✓</div>
-        <div class="et">No Pending Club Registrations</div>
-        <div class="es">All club registration requests for this authority have been processed.</div>
-      </div>
-    `}
-
-    ${approved.length ? `
-      <div style="margin-top:2rem;">
-        <div class="sec-title" style="margin-bottom:12px;">Active Approved Clubs (${approved.length})</div>
-        ${approved.map(c => `
-          <div class="ev-row" style="margin-bottom:8px;">
-            <span class="ev-row-emoji">🏛️</span>
-            <div class="ev-row-info">
-              <div class="ev-row-name">${c.clubName || c.name}</div>
-              <div class="ev-row-meta">${c.domain || 'General'} • Rep: ${titleCase(c.name)} • Coord: ${c.faculty || '-'}</div>
-            </div>
-            <span class="badge badge-green">Active</span>
-            <button class="btn btn-outline btn-sm" onclick="viewClubDetail('${c.id}')">Dossier</button>
-            <button class="btn btn-red btn-sm" onclick="authorityRevokeClub('${c.id}')">Revoke Access</button>
-          </div>
-        `).join('')}
-      </div>
-    ` : ''}
-  `;
-}
-
-function renderAuthorityEventApprovalsTab(pending) {
-  const allActiveEvents = getDB('vvce_events').filter(e => e.status === 'approved' || e.status === 'pending');
-
-  return `
-    <div class="sec-head">
-      <span class="sec-title">Event Proposals Awaiting Your Approval (${pending.length})</span>
-    </div>
-    ${pending.length ? pending.map(e => {
-      // Check for venue clash against ANY approved event
-      const conflict = allActiveEvents.find(other => 
-        other.id !== e.id &&
-        other.status === 'approved' &&
-        other.date === e.date &&
-        (other.venue || '').trim().toLowerCase() === (e.venue || '').trim().toLowerCase()
-      );
-
-      return `
-        <div class="white-card" style="margin-bottom:14px; border: ${conflict ? '2px solid #ef4444' : '1px solid #e2e8f0'}; background:${conflict ? '#fff5f5' : '#fff'};">
-          ${conflict ? `
-            <div style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:10px 14px; border-radius:8px; margin-bottom:12px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
-              <span style="font-size:18px;">⚠️</span>
-              <div>
-                GLOBAL VENUE CLASH WARNING: Conflicting approved event "${conflict.name}" (${conflict.club}) is already booked for ${e.venue} on ${formatDate(e.date)} (${formatTime(conflict.time)}). Approval is blocked.
-              </div>
-            </div>
-          ` : ''}
-
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
-            <div style="display:flex; gap:14px; align-items:flex-start;">
-              <span style="font-size:40px;">${e.emoji || '🎓'}</span>
-              <div>
-                <div style="font-weight:800; font-size:18px; color:#0f172a;">${e.name}</div>
-                <div style="font-size:13px; color:#64748b; margin-top:2px;">Organized by <strong>${e.club}</strong></div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:6px 16px; margin-top:10px; font-size:12.5px; color:#334155;">
-                  <span>📅 <strong>Date:</strong> ${formatDate(e.date)}</span>
-                  <span>🕐 <strong>Time:</strong> ${formatTime(e.time)}</span>
-                  <span>📍 <strong>Venue:</strong> ${e.venue}</span>
-                  <span>👥 <strong>Max Part:</strong> ${e.maxParticipants}</span>
-                  <span>⭐ <strong>Points:</strong> ${e.points} pts</span>
-                  <span>💰 <strong>Fee:</strong> ${e.fee > 0 ? '₹' + e.fee : 'Free'}</span>
-                </div>
-                ${e.desc ? `<div style="font-size:13px; color:#475569; margin-top:10px; line-height:1.5; background:#f8fafc; padding:10px 12px; border-radius:8px;">${e.desc}</div>` : ''}
-              </div>
-            </div>
-
-            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end; flex-shrink:0;">
-              ${conflict ? `
-                <button class="btn" style="background:#cbd5e1; color:#64748b; cursor:not-allowed;" title="Resolve venue conflict before approving" disabled>
-                  ⚠️ Clash Blocked
-                </button>
-              ` : `
-                <button class="btn btn-green" onclick="authorityApproveEvent('${e.id}')">
-                  ✓ Approve Event
-                </button>
-              `}
-              <button class="btn btn-red" onclick="authorityRejectEventPrompt('${e.id}')">
-                ✕ Reject with Reason
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('') : `
-      <div class="empty-state" style="padding:40px 20px;">
-        <div class="ei">✓</div>
-        <div class="et">All Caught Up!</div>
-        <div class="es">No event proposals pending review for this authority.</div>
-      </div>
-    `}
-  `;
-}
-
-function renderAuthorityEventRecordsTab(events, today) {
-  const sorted = events.slice().sort((a,b) => (b.date || '').localeCompare(a.date || ''));
-
-  return `
-    <div class="filter-row" style="margin-bottom:1rem;">
-      <input class="search-inp" id="auth-ev-search" placeholder="🔍 Search event records by name or club..." oninput="authorityFilterEventRecords()">
-      <select class="filter-sel" id="auth-ev-status" onchange="authorityFilterEventRecords()">
-        <option value="">All Statuses</option>
-        <option value="approved">Approved</option>
-        <option value="pending">Pending</option>
-        <option value="rejected">Rejected</option>
-      </select>
-    </div>
-    <div id="auth-ev-records-list">
-      ${renderAuthorityEventRows(sorted)}
-    </div>
-  `;
-}
-
-function renderAuthorityEventRows(evList) {
-  if (!evList.length) return '<div class="empty-state"><div class="ei">📅</div><div class="et">No events found</div></div>';
-
-  return evList.map(e => `
-    <div class="ev-row" style="margin-bottom:8px;">
-      <span class="ev-row-emoji">${e.emoji || '🎓'}</span>
-      <div class="ev-row-info">
-        <div class="ev-row-name" style="font-weight:700;">${e.name}</div>
-        <div class="ev-row-meta">${e.club} • ${formatDate(e.date)} • 📍 ${e.venue}</div>
-        ${e.rejReason ? `<div style="font-size:11px; color:#dc2626; margin-top:2px;">Rejection Note: ${e.rejReason}</div>` : ''}
-      </div>
-      <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">
-        ${e.status.toUpperCase()}
-      </span>
-      ${e.status==='pending' ? `
-        <button class="btn btn-green btn-sm" onclick="authorityApproveEvent('${e.id}')">Approve</button>
-        <button class="btn btn-red btn-sm" onclick="authorityRejectEventPrompt('${e.id}')">Reject</button>
-      ` : ''}
-    </div>
-  `).join('');
-}
-
-function authorityFilterEventRecords() {
-  const q = (document.getElementById('auth-ev-search')?.value || '').toLowerCase();
-  const status = document.getElementById('auth-ev-status')?.value || '';
-  const currentAuthId = STATE.currentAuthorityId;
-  let evs = getDB('vvce_events').filter(e => !e.authorityId || e.authorityId === currentAuthId);
-
-  if (q) evs = evs.filter(e => e.name.toLowerCase().includes(q) || (e.club && e.club.toLowerCase().includes(q)));
-  if (status) evs = evs.filter(e => e.status === status);
-
-  const container = document.getElementById('auth-ev-records-list');
-  if (container) container.innerHTML = renderAuthorityEventRows(evs);
-}
-
-function renderAuthorityClubRecordsTab(clubs, allEvents) {
-  return `
-    <div class="sec-head">
-      <span class="sec-title">Clubs Assigned to This Authority (${clubs.length})</span>
-    </div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;">
-      ${clubs.map(c => {
-        const clubEvents = allEvents.filter(e => e.adminId === c.id || e.club === c.clubName);
-        const appCount = clubEvents.filter(e => e.status === 'approved').length;
-        const pendCount = clubEvents.filter(e => e.status === 'pending').length;
-        const rejCount = clubEvents.filter(e => e.status === 'rejected').length;
-
-        return `
-          <div class="white-card" style="box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
-              <div>
-                <h4 style="font-size:16px; font-weight:800; margin:0; color:#0f172a;">${c.clubName || c.name}</h4>
-                <div style="font-size:12px; color:#64748b;">${c.domain || 'Technical'} • Coord: ${c.faculty || '-'}</div>
-              </div>
-              <span class="badge ${c.approved ? 'badge-green' : 'badge-amber'}">${c.approved ? 'Approved' : 'Pending'}</span>
-            </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; background:#f8fafc; padding:8px 10px; border-radius:8px; margin:10px 0; text-align:center; font-size:11px;">
-              <div><strong style="color:#10b981; font-size:14px;">${appCount}</strong><br>Approved</div>
-              <div><strong style="color:#f59e0b; font-size:14px;">${pendCount}</strong><br>Pending</div>
-              <div><strong style="color:#ef4444; font-size:14px;">${rejCount}</strong><br>Rejected</div>
-            </div>
-            <div style="font-size:12px; color:#475569; margin-bottom:10px;">
-              <div>👤 <strong>Representative:</strong> ${titleCase(c.name)} (${c.usn || '-'})</div>
-              <div>📧 <strong>Contact:</strong> ${c.clubEmail || c.email}</div>
-            </div>
-            <button class="btn btn-outline btn-sm" style="width:100%;" onclick="viewClubDetail('${c.id}')">View Club Details & History</button>
-          </div>
-        `;
-      }).join('') || '<div class="empty-state"><div class="ei">🏛️</div><div class="et">No assigned clubs</div></div>'}
-    </div>
-  `;
-}
-
-function renderAuthorityClashTab() {
-  const events = getDB('vvce_events');
-  return deanClashContent(events);
-}
-
-// -----------------------------------------------------------------------------
-// Authority Approval & Rejection Handlers with Global Clash Enforcement
-// -----------------------------------------------------------------------------
-window.authorityApproveEvent = async function(id) {
-  if (!STATE.authorityUnlocked || !STATE.currentAuthorityId) {
-    toast('⚠️ You must authenticate as an Approving Authority first.', 'error');
-    return;
-  }
-
-  const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === id);
-  if (!ev) {
-    toast('Event not found.', 'error');
-    return;
-  }
-
-  // 1. Client-Side Global Clash Verification across ALL clubs/departments
-  const allEvents = events.filter(e => e.status === 'approved' && e.id !== id);
-  const clash = allEvents.find(other => 
-    other.date === ev.date &&
-    (other.venue || '').trim().toLowerCase() === (ev.venue || '').trim().toLowerCase()
-  );
-
-  if (clash) {
-    toast(`⚠️ Cannot approve! Global clash detected with approved event "${clash.name}" (${clash.club}) at ${ev.venue} on ${ev.date}.`, 'error', 6000);
-    return;
-  }
-
-  const currentAuthId = STATE.currentAuthorityId;
-  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
-
-  // 2. Server/Database Atomic Concurrency Check (via RPC if configured in Supabase)
-  const sb = getSupabaseClient();
-  let serverHandled = false;
-
-  if (sb) {
-    try {
-      const { data, error } = await sb.rpc('approve_event_with_clash_check', {
-        p_event_id: id,
-        p_authority_id: currentAuthId,
-        p_authority_name: currentAuthName
-      });
-
-      if (!error && data) {
-        if (!data.success) {
-          toast(`⚠️ Approval Rejected by Server: ${data.error}`, 'error', 6000);
-          return;
-        }
-        serverHandled = true;
-      }
-    } catch (rpcErr) {
-      console.warn('RPC approve_event_with_clash_check fallback to direct update:', rpcErr);
-    }
-  }
-
-  // Local state update & audit history
-  const decisionEntry = {
-    action: 'approved',
-    authorityId: currentAuthId,
-    authorityName: currentAuthName,
-    timestamp: new Date().toISOString()
-  };
-
-  ev.status = 'approved';
-  ev.rejReason = null;
-  ev.approvedByAuthorityId = currentAuthId;
-  ev.approvedByAuthorityName = currentAuthName;
-  ev.approvedAt = new Date().toISOString();
-  if (!ev.decisionHistory) ev.decisionHistory = [];
-  ev.decisionHistory.push(decisionEntry);
-
-  await setDB('vvce_events', events);
-
-  if (!serverHandled && sb) {
-    try {
-      await sb.from('events').update({
-        status: 'approved',
-        rej_reason: null,
-        approved_by_authority_id: currentAuthId,
-        approved_by_authority_name: currentAuthName,
-        approved_at: new Date().toISOString(),
-        decision_history: ev.decisionHistory
-      }).eq('id', id);
-    } catch(e) {
-      console.warn('Supabase direct update:', e);
-    }
-  }
-
-  // Notify Club Admin
-  const users = getDB('vvce_users');
-  const admin = users.find(u => u.id === ev.adminId);
-  if (admin) {
-    if (!admin.notifs) admin.notifs = [];
-    admin.notifs.push({
-      id: genId('n'),
-      msg: `Your event proposal "${ev.name}" was APPROVED by ${currentAuthName}! 🎉`,
-      icon: '✓',
-      time: 'Just now',
-      timestamp: Date.now(),
-      read: false
-    });
-    setDB('vvce_users', users);
-  }
-
-  toast(`Event "${ev.name}" approved successfully by ${currentAuthName}! ✓`, 'success');
-  renderAuthorityPortal('event-approvals');
-};
-
-window.authorityRejectEventPrompt = async function(id) {
-  const reason = prompt('Please enter a rejection reason (optional):');
-  if (reason === null) return; // user cancelled prompt
-
-  const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === id);
-  if (!ev) return;
-
-  const currentAuthId = STATE.currentAuthorityId;
-  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
-
-  const decisionEntry = {
-    action: 'rejected',
-    reason: reason.trim() || 'Not specified',
-    authorityId: currentAuthId,
-    authorityName: currentAuthName,
-    timestamp: new Date().toISOString()
-  };
-
-  ev.status = 'rejected';
-  ev.rejReason = reason.trim() || 'Rejected by Approving Authority';
-  if (!ev.decisionHistory) ev.decisionHistory = [];
-  ev.decisionHistory.push(decisionEntry);
-
-  await setDB('vvce_events', events);
-
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      await sb.from('events').update({
-        status: 'rejected',
-        rej_reason: ev.rejReason,
-        decision_history: ev.decisionHistory
-      }).eq('id', id);
-    } catch(e) {}
-  }
-
-  // Notify Club Admin
-  const users = getDB('vvce_users');
-  const admin = users.find(u => u.id === ev.adminId);
-  if (admin) {
-    if (!admin.notifs) admin.notifs = [];
-    admin.notifs.push({
-      id: genId('n'),
-      msg: `Your event proposal "${ev.name}" was REJECTED by ${currentAuthName}. Reason: ${ev.rejReason}`,
-      icon: '✕',
-      time: 'Just now',
-      timestamp: Date.now(),
-      read: false
-    });
-    setDB('vvce_users', users);
-  }
-
-  toast(`Event proposal rejected.`, 'warning');
-  renderAuthorityPortal('event-approvals');
-};
-
-window.authorityApproveClub = async function(id) {
-  const users = getDB('vvce_users');
-  const club = users.find(u => u.id === id);
-  if (!club) return;
-
-  const currentAuthId = STATE.currentAuthorityId;
-  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
-
-  club.approved = true;
-  if (!club.approvalHistory) club.approvalHistory = [];
-  club.approvalHistory.push({
-    action: 'approved',
-    authorityId: currentAuthId,
-    authorityName: currentAuthName,
-    timestamp: new Date().toISOString()
-  });
-
-  await setDB('vvce_users', users);
-
-  if (club.id === STATE.user.id) STATE.user = club;
-  toast(`Club "${club.clubName || club.name}" approved successfully! ✓`, 'success');
-  renderAuthorityPortal('club-approvals');
-};
-
-window.authorityRejectClubPrompt = async function(id) {
-  const reason = prompt('Please enter the reason for rejecting this club registration:');
-  if (reason === null) return;
-
-  const users = getDB('vvce_users');
-  const club = users.find(u => u.id === id);
-  if (!club) return;
-
-  const currentAuthId = STATE.currentAuthorityId;
-  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
-
-  club.approved = false;
-  club.rejectionReason = reason.trim() || 'Registration rejected by Approving Authority';
-  if (!club.approvalHistory) club.approvalHistory = [];
-  club.approvalHistory.push({
-    action: 'rejected',
-    reason: club.rejectionReason,
-    authorityId: currentAuthId,
-    authorityName: currentAuthName,
-    timestamp: new Date().toISOString()
-  });
-
-  await setDB('vvce_users', users);
-  toast('Club registration rejected.', 'warning');
-  renderAuthorityPortal('club-approvals');
-};
-
-window.authorityRevokeClub = async function(id) {
-  if (!confirm('Are you sure you want to revoke this club\'s active status?')) return;
-  const users = getDB('vvce_users');
-  const club = users.find(u => u.id === id);
-  if (!club) return;
-
-  club.approved = false;
-  await setDB('vvce_users', users);
-  toast('Club access revoked.', 'warning');
-  renderAuthorityPortal('club-approvals');
-};
+// Expose all functions to window for inline onclick handlers in HTML

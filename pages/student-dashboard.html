@@ -1,0 +1,82 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Student Dashboard Page
+     File: pages/student-dashboard.html
+     Associated Controller: js/pages/student-dashboard.js
+     Page Container: <div class="page active" id="page-dashboard"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page active" id="page-dashboard">
+
+  <!-- 1. Hero Welcome Banner -->
+  <div class="dash-hero">
+    <div class="dash-hero-content">
+      <span class="hero-badge">🎓 VVCE Student Portal</span>
+      <h2 id="dash-greeting">Welcome back, Student! 👋</h2>
+      <p id="dash-usn-branch">USN: 4VV21CS001 | Computer Science & Engineering</p>
+    </div>
+  </div>
+
+  <!-- 2. Academic Stats & Activity Points Grid -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">⭐</div>
+      <div class="stat-val" id="stat-points">120</div>
+      <div class="stat-lbl">Activity Points</div>
+      <div class="stat-sub">Required: 100 for VTU Degree</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🎟️</div>
+      <div class="stat-val" id="stat-registered">4</div>
+      <div class="stat-lbl">Registered Events</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🏆</div>
+      <div class="stat-val" id="stat-certificates">3</div>
+      <div class="stat-lbl">Earned Certificates</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🏛️</div>
+      <div class="stat-val" id="stat-clubs">14</div>
+      <div class="stat-lbl">Active Campus Clubs</div>
+    </div>
+  </div>
+
+  <!-- 3. VTU Activity Points by Semester Progress Breakdown -->
+  <div class="card mb-4">
+    <div class="card-head">
+      <h3>📈 Activity Points by Semester</h3>
+      <span class="badge badge-purple">VTU AICTE Activity Points</span>
+    </div>
+    <div class="sem-progress-grid" id="dash-sem-breakdown">
+      <!-- Dynamically filled with Sem 1 - Sem 8 progress meters -->
+    </div>
+  </div>
+
+  <!-- 4. Registered Events Feed & Quick Ticket Access -->
+  <div class="two-col-dash">
+    <div class="col-main">
+      <div class="card">
+        <div class="card-head">
+          <h3>🎟️ Upcoming Registered Events</h3>
+          <button class="btn btn-sm btn-outline" onclick="showPage('registrations')">View All →</button>
+        </div>
+        <div id="dash-registered-feed">
+          <!-- Live list of registered events with QR pass launch -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Campus Notices & Quick Actions -->
+    <div class="col-side">
+      <div class="card">
+        <div class="card-head">
+          <h3>📢 Campus Announcements</h3>
+        </div>
+        <div id="dash-announcements">
+          <!-- Announcements list -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -3,9 +3,16 @@
   "version": "1.0.0",
   "description": "VVCE Events Hub - College event management for students, clubs, and faculty.",
   "scripts": {
-    "build": "echo 'Build successful'"
+    "build": "node scripts/build.js",
+    "test": "node scripts/test_suite.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "vvce",
+    "events",
+    "college",
+    "management",
+    "portal"
+  ],
+  "author": "VVCE",
   "license": "ISC"
 }

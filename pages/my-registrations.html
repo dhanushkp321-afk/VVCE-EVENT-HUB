@@ -1,0 +1,32 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — My Registrations & QR Passes Page
+     File: pages/my-registrations.html
+     Associated Controller: js/pages/registrations.js
+     Page Container: <div class="page" id="page-registrations"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-registrations">
+
+  <div class="page-title-row">
+    <h2>🎟️ My Event Registrations &amp; Passes</h2>
+    <p>View your registered events, QR entry passes, and attendance status</p>
+  </div>
+
+  <!-- Registration Filter Tabs -->
+  <div class="reg-tabs-row">
+    <button class="reg-tab active" onclick="switchRegTab('upcoming', this)">Upcoming Events</button>
+    <button class="reg-tab" onclick="switchRegTab('attended', this)">Attended / Past</button>
+    <button class="reg-tab" onclick="switchRegTab('cancelled', this)">Cancelled</button>
+  </div>
+
+  <!-- Registrations List -->
+  <div id="registrations-list-container">
+    <!-- Renders registered cards with:
+         - Event Title, Date, Time, Venue
+         - Payment Status (Verified / Pending Approval)
+         - Attendance Status (Not Checked In / Checked In ✓)
+         - QR Ticket Modal trigger button
+         - Cancel Registration button -->
+  </div>
+
+</div>

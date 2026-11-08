@@ -1,0 +1,46 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Manage Events Page (Club Admin)
+     File: pages/manage-events.html
+     Associated Controller: js/pages/manage-events.js
+     Page Container: <div class="page" id="page-manage-events"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-manage-events">
+
+  <div class="page-title-row">
+    <div>
+      <h2>📋 Manage Organized Events</h2>
+      <p>Monitor approvals, edit scheduled events, and review participant counts</p>
+    </div>
+    <button class="btn btn-primary" onclick="showPage('create-event')">➕ Create Event</button>
+  </div>
+
+  <!-- Events Status Filter Tabs -->
+  <div class="admin-event-tabs">
+    <button class="filter-chip active" onclick="filterManageEvents('all', this)">All Events</button>
+    <button class="filter-chip" onclick="filterManageEvents('approved', this)">Approved ✓</button>
+    <button class="filter-chip" onclick="filterManageEvents('pending', this)">Pending Review ⏳</button>
+    <button class="filter-chip" onclick="filterManageEvents('rejected', this)">Rejected ✕</button>
+  </div>
+
+  <!-- Managed Events Table / Grid -->
+  <div class="table-responsive card mt-3">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Date &amp; Time</th>
+          <th>Venue</th>
+          <th>Authority</th>
+          <th>Status</th>
+          <th>Attendees</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="manage-events-table-body">
+        <!-- Renders event rows with status badges and action buttons (Edit, Delete, Participants) -->
+      </tbody>
+    </table>
+  </div>
+
+</div>

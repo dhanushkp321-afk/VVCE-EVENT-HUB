@@ -1,0 +1,50 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Calendar & Academic Timetable Page
+     File: pages/calendar-schedule.html
+     Associated Controller: js/pages/calendar.js
+     Page Container: <div class="page" id="page-calendar"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-calendar">
+
+  <div class="cal-layout">
+    <!-- Main Interactive Calendar Box -->
+    <div class="cal-main-box">
+      <div class="cal-header">
+        <button class="cal-nav-btn" onclick="changeMonth(-1)">‹ Prev</button>
+        <h3 id="cal-month-year">November 2026</h3>
+        <button class="cal-nav-btn" onclick="changeMonth(1)">Next ›</button>
+      </div>
+
+      <!-- 7 Days Grid -->
+      <div class="cal-weekdays">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      </div>
+      <div class="cal-grid" id="cal-days-grid">
+        <!-- Rendered by drawCalendar() -->
+      </div>
+    </div>
+
+    <!-- Selected Date Event Details & Academic Schedule -->
+    <div class="cal-side-box">
+      <div class="card mb-3">
+        <div class="card-head">
+          <h4 id="cal-selected-date-title">Events on Selected Date</h4>
+        </div>
+        <div id="cal-selected-events-list">
+          <!-- Day's events with venue, time, and club -->
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h4>📅 Academic Timetable Schedule</h4>
+        </div>
+        <div id="cal-academic-schedule">
+          <!-- Semester class schedule & exams -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,126 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Authentication & Registration Page
+     File: pages/auth-login-registration.html
+     Associated Controller: js/pages/auth.js
+     Styles: style.css (.auth-screen, .auth-card, .btn-signin, etc.)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div id="auth-screen">
+  <div class="auth-outer">
+
+    <!-- Festive Greeting Ribbon (Dynamic from CPM Theme Engine) -->
+    <div id="auth-festive-ribbon" style="display:none; width:100%; padding:11px 18px; text-align:center; font-weight:800; font-size:14px; color:#ffffff; border-radius:12px; margin-bottom:18px;"></div>
+
+    <!-- Header Logo -->
+    <div class="auth-logo-header">
+      <img src="vvce-logo-header.png" alt="VVCE Logo" style="width:48px;height:48px;object-fit:contain;border-radius:50%;background:#fff;">
+      <div class="auth-logo-text">
+        <h1>VVCE Events Hub</h1>
+        <p>Vidyavardhaka College of Engineering</p>
+      </div>
+    </div>
+
+    <!-- White Auth Card Container -->
+    <div class="auth-card" id="auth-card">
+
+      <!-- Tab Switcher: Sign In / Register -->
+      <div class="auth-tab-row">
+        <button type="button" class="auth-main-tab active" id="tab-signin" onclick="switchMainTab('signin')">Sign In</button>
+        <button type="button" class="auth-main-tab" id="tab-register" onclick="switchMainTab('register')">Register</button>
+      </div>
+
+      <!-- Feedback / Error Notice -->
+      <div id="auth-msg" class="auth-msg" style="display:none;"></div>
+
+      <!-- ─── 1. SIGN IN PANEL ─── -->
+      <div id="panel-signin">
+        <!-- Google OAuth 2.0 Sign-In Button -->
+        <div style="margin-bottom:14px;">
+          <button onclick="triggerGoogleSignIn()" id="google-signin-btn" class="google-btn">
+            <svg width="20" height="20" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            Continue with Google
+            <span class="badge-vvce">@vvce.ac.in only</span>
+          </button>
+        </div>
+
+        <!-- Institutional Email & Password Input -->
+        <div class="auth-field-group">
+          <label class="auth-label">VVCE Email</label>
+          <input class="auth-input" type="email" id="login-email" placeholder="yourname@vvce.ac.in" autocomplete="email" onkeydown="if(event.key==='Enter') handleLogin()">
+        </div>
+        <div class="auth-field-group">
+          <label class="auth-label">Password</label>
+          <div class="auth-pass-wrap">
+            <input class="auth-input" type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()">
+            <button type="button" class="pass-toggle" onclick="togglePass('login-pass', this)">👁️</button>
+          </div>
+        </div>
+
+        <button class="btn-signin" onclick="handleLogin()">Sign In →</button>
+        <div style="text-align:center; margin-top:12px;">
+          <span class="forgot-link" onclick="handleForgotPassword()">Forgot password?</span>
+        </div>
+
+        <div class="auth-notice-blue">
+          ⚠️ Club Admin accounts require approval from Approving Authority before login.
+        </div>
+
+        <!-- Quick Demo Switcher -->
+        <div class="quick-demo-row">
+          <span class="demo-label">Quick Demo:</span>
+          <button class="demo-btn" onclick="quickLogin('student')">Student</button>
+          <button class="demo-btn" onclick="quickLogin('admin')">Club Admin</button>
+          <button class="demo-btn" onclick="quickLogin('authority')">Approving Authority</button>
+        </div>
+      </div>
+
+      <!-- ─── 2. REGISTER PANEL ─── -->
+      <div id="panel-register" style="display:none;">
+        <div class="role-select-label">I AM REGISTERING AS</div>
+
+        <!-- Role Selectors -->
+        <div class="role-cards-row">
+          <div class="role-card active" id="rcard-student" onclick="selectRegRole('student')">
+            <div class="role-card-icon">🎓</div>
+            <div class="role-card-name">Student</div>
+            <div class="role-card-sub">Attend events</div>
+          </div>
+          <div class="role-card" id="rcard-admin" onclick="selectRegRole('admin')">
+            <div class="role-card-icon">🏛️</div>
+            <div class="role-card-name">Club Admin</div>
+            <div class="role-card-sub">Organize events</div>
+          </div>
+          <div class="role-card" id="rcard-authority" onclick="selectRegRole('authority')">
+            <div class="role-card-icon">👔</div>
+            <div class="role-card-name">Authority</div>
+            <div class="role-card-sub">Dean / Faculty</div>
+          </div>
+        </div>
+
+        <!-- Student Form (#form-student) -->
+        <div id="form-student">
+          <!-- Manual detail fields: USN, Full Name, Email, Dept, Phone, Password -->
+          <button class="btn-signin" onclick="handleStudentSignup()">Complete Registration →</button>
+        </div>
+
+        <!-- Club Admin Form (#form-admin) -->
+        <div id="form-admin" style="display:none;">
+          <!-- Club Name, Club Email, Faculty Lead, Department, Domain, Approving Authority selector -->
+          <button class="btn-signin" onclick="handleAdminSignup()">Submit Club for Approval →</button>
+        </div>
+
+        <!-- Authority Form (#form-authority) -->
+        <div id="form-authority" style="display:none;">
+          <!-- Authority Name, Designation, Department, Phone, Password -->
+          <button class="btn-signin" onclick="handleAuthoritySignup()">Create Authority Account →</button>
+        </div>
+      </div>
+
+    </div><!-- /auth-card -->
+  </div><!-- /auth-outer -->
+</div><!-- /auth-screen -->

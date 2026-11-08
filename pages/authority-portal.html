@@ -1,0 +1,81 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Approving Authority Portal
+     File: pages/authority-portal.html
+     Associated Controller: js/pages/authority-portal.js
+     Page Container: <div class="page" id="page-authority-portal"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-authority-portal">
+
+  <!-- Authority Header & Lock / Switch Authority Banner -->
+  <div class="authority-portal-header">
+    <div>
+      <span class="auth-role-pill">🏛️ Approving Authority Portal</span>
+      <h2 id="auth-portal-authority-name">Dean Student Welfare</h2>
+      <p id="auth-portal-sub">Assigned clubs governance, event approvals, and campus-wide clash detection</p>
+    </div>
+    <div class="authority-header-actions">
+      <button class="btn btn-outline btn-sm" onclick="openAuthoritySelectionModal()">🔄 Switch Authority</button>
+      <button class="btn btn-red btn-sm" onclick="lockAuthorityPortal()">🔒 Lock Portal</button>
+    </div>
+  </div>
+
+  <!-- Modern 6-Tab Navigation System -->
+  <div class="portal-tabs-nav">
+    <button class="portal-tab active" id="auth-tab-dashboard" onclick="renderAuthorityPortal('dashboard')">
+      📊 Overview
+    </button>
+    <button class="portal-tab" id="auth-tab-club-approvals" onclick="renderAuthorityPortal('club-approvals')">
+      👥 Club Registrations <span class="tab-badge" id="auth-badge-pending-clubs">0</span>
+    </button>
+    <button class="portal-tab" id="auth-tab-event-approvals" onclick="renderAuthorityPortal('event-approvals')">
+      📋 Event Approvals <span class="tab-badge" id="auth-badge-pending-events">0</span>
+    </button>
+    <button class="portal-tab" id="auth-tab-events" onclick="renderAuthorityPortal('events')">
+      📅 Event Records
+    </button>
+    <button class="portal-tab" id="auth-tab-clubs" onclick="renderAuthorityPortal('clubs')">
+      🏛️ Assigned Clubs
+    </button>
+    <button class="portal-tab" id="auth-tab-clash" onclick="renderAuthorityPortal('clash')">
+      ⚡ Global Clash Detection
+    </button>
+  </div>
+
+  <!-- ─── TAB 1: OVERVIEW & METRICS ─── -->
+  <div class="portal-content-pane" id="auth-pane-dashboard">
+    <!-- Key statistics: Assigned Clubs, Pending Clubs, Pending Events, Approved Events, Campus Clashes -->
+    <!-- Quick action cards to jump directly to approvals or clash detection -->
+  </div>
+
+  <!-- ─── TAB 2: CLUB REGISTRATIONS / APPROVALS ─── -->
+  <div class="portal-content-pane" id="auth-pane-club-approvals" style="display:none;">
+    <!-- Roster of clubs requesting approval with lead USN, faculty advisor, domain, description -->
+    <!-- "Approve Club" & "Reject Club" action buttons with audit trail -->
+  </div>
+
+  <!-- ─── TAB 3: EVENT APPROVALS & CLASH VERIFICATION ─── -->
+  <div class="portal-content-pane" id="auth-pane-event-approvals" style="display:none;">
+    <!-- Pending event cards with automated venue conflict banner -->
+    <!-- "Approve Event" (atomic RPC with clash check) & "Reject Event" (reason dialog) -->
+  </div>
+
+  <!-- ─── TAB 4: EVENT RECORDS REPOSITORY ─── -->
+  <div class="portal-content-pane" id="auth-pane-events" style="display:none;">
+    <!-- Complete filterable history of all approved, pending, and past events under this authority -->
+  </div>
+
+  <!-- ─── TAB 5: ASSIGNED CLUBS ROSTER ─── -->
+  <div class="portal-content-pane" id="auth-pane-clubs" style="display:none;">
+    <!-- Roster of all approved clubs assigned to this authority with faculty details and past events -->
+  </div>
+
+  <!-- ─── TAB 6: GLOBAL CLASH DETECTION ─── -->
+  <div class="portal-content-pane" id="auth-pane-clash" style="display:none;">
+    <!-- Cross-department venue clash checker analyzing all concurrent bookings across campus -->
+  </div>
+
+</div>
+
+<!-- Authority Password Authentication Modal (#modal-authority-pass) -->
+<!-- Reject Event Reason Modal (#modal-reject) -->

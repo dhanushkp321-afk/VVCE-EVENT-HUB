@@ -1,0 +1,42 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Clubs Directory & Club Detail Page
+     File: pages/clubs-directory.html
+     Associated Controller: js/pages/clubs.js
+     Page Container: <div class="page" id="page-clubs"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-clubs">
+
+  <!-- Clubs Directory View -->
+  <div id="clubs-directory-view">
+    <div class="clubs-header-row">
+      <div>
+        <h2>🏛️ Campus Clubs & Societies</h2>
+        <p>Explore official student clubs, technical bodies, and cultural chapters of VVCE</p>
+      </div>
+      <div class="search-wrap">
+        <input type="text" id="clubs-search" placeholder="Search clubs..." oninput="filterClubsView()">
+      </div>
+    </div>
+
+    <!-- Domain Filter Tabs -->
+    <div class="club-domain-tabs" id="club-domain-tabs">
+      <button class="domain-tab active" onclick="filterClubDomain('All', this)">All Clubs</button>
+      <button class="domain-tab" onclick="filterClubDomain('Technical', this)">Technical</button>
+      <button class="domain-tab" onclick="filterClubDomain('Cultural', this)">Cultural</button>
+      <button class="domain-tab" onclick="filterClubDomain('Sports', this)">Sports</button>
+      <button class="domain-tab" onclick="filterClubDomain('Social', this)">Social & Welfare</button>
+    </div>
+
+    <!-- Clubs Grid -->
+    <div class="clubs-grid" id="clubs-list-container">
+      <!-- Renders club cards with logos, leads, and event counts -->
+    </div>
+  </div>
+
+  <!-- Club Detail View (#club-detail-container) -->
+  <div id="club-detail-container" style="display:none;">
+    <!-- Renders club banner, description, upcoming club events, and team members list -->
+  </div>
+
+</div>

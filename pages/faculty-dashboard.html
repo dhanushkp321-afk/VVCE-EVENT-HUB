@@ -1,0 +1,65 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Faculty / Club Admin Dashboard
+     File: pages/faculty-dashboard.html
+     Associated Controller: js/pages/faculty-dashboard.js
+     Page Container: <div class="page" id="page-admin-dashboard"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-admin-dashboard">
+
+  <!-- Hero Banner -->
+  <div class="dash-hero admin-hero">
+    <div class="dash-hero-content">
+      <span class="hero-badge">🏛️ Club Administration &amp; Faculty Lead</span>
+      <h2 id="admin-dash-greeting">Welcome, Club Administrator! 👋</h2>
+      <p id="admin-club-title">Managing: CSE Club | Department of Computer Science &amp; Engineering</p>
+    </div>
+    <div class="hero-actions">
+      <button class="btn btn-primary" onclick="showPage('create-event')">➕ Create New Event</button>
+    </div>
+  </div>
+
+  <!-- Key Metrics Grid -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">📅</div>
+      <div class="stat-val" id="admin-stat-events">8</div>
+      <div class="stat-lbl">Events Hosted</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">👥</div>
+      <div class="stat-val" id="admin-stat-attendees">420</div>
+      <div class="stat-lbl">Total Registrations</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-val" id="admin-stat-pending">1</div>
+      <div class="stat-lbl">Pending Approvals</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">💳</div>
+      <div class="stat-val" id="admin-stat-revenue">₹12,400</div>
+      <div class="stat-lbl">Total Collection</div>
+    </div>
+  </div>
+
+  <!-- Quick Shortcut Cards -->
+  <div class="admin-shortcuts-grid">
+    <div class="shortcut-card" onclick="showPage('create-event')">
+      <span class="sc-icon">➕</span>
+      <h4>Create Event</h4>
+      <p>Propose new event with venue, date, fee, and authority assignment</p>
+    </div>
+    <div class="shortcut-card" onclick="showPage('manage-events')">
+      <span class="sc-icon">📋</span>
+      <h4>Manage Events</h4>
+      <p>Track approvals, edit descriptions, or cancel scheduled events</p>
+    </div>
+    <div class="shortcut-card" onclick="showPage('participants')">
+      <span class="sc-icon">📸</span>
+      <h4>Attendance &amp; Scanner</h4>
+      <p>Scan participant QR tickets at the gate or check in by USN</p>
+    </div>
+  </div>
+
+</div>

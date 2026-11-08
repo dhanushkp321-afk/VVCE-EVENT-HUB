@@ -1,0 +1,36 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Events Feed & Exploration Page
+     File: pages/events-feed.html
+     Associated Controller: js/pages/events.js
+     Page Container: <div class="page" id="page-events"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-events">
+
+  <!-- Top Search & Filter Bar -->
+  <div class="events-top-bar">
+    <div class="search-input-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="events-search" placeholder="Search events by title, venue, or club..." oninput="filterEvents()">
+    </div>
+    <div class="category-chips-row" id="events-category-filters">
+      <button class="filter-chip active" onclick="setEventCategory('All', this)">All Events</button>
+      <button class="filter-chip" onclick="setEventCategory('Technical', this)">Technical</button>
+      <button class="filter-chip" onclick="setEventCategory('Cultural', this)">Cultural</button>
+      <button class="filter-chip" onclick="setEventCategory('Sports', this)">Sports</button>
+      <button class="filter-chip" onclick="setEventCategory('Workshop', this)">Workshop</button>
+      <button class="filter-chip" onclick="setEventCategory('Hackathon', this)">Hackathon</button>
+      <button class="filter-chip" onclick="setEventCategory('Seminar', this)">Seminar</button>
+    </div>
+  </div>
+
+  <!-- Events Grid -->
+  <div class="events-grid" id="events-grid">
+    <!-- Dynamically populated with event cards -->
+  </div>
+
+  <!-- Event Detail Modal Template (#modal-event-detail) -->
+  <!-- Payment Verification & Screenshot Modal (#modal-screenshot) -->
+  <!-- Multi-Member Team Registration Modal (#modal-team-register) -->
+
+</div>

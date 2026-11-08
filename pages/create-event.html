@@ -1,0 +1,110 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Create & Edit Event Page
+     File: pages/create-event.html
+     Associated Controller: js/pages/create-event.js
+     Page Container: <div class="page" id="page-create-event"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-create-event">
+
+  <div class="card form-card">
+    <div class="card-head">
+      <h2 id="create-event-title">➕ Propose New Campus Event</h2>
+      <p>Submit your event proposal with automated venue clash detection and authority assignment</p>
+    </div>
+
+    <!-- Event Proposal Form -->
+    <form id="form-new-event" onsubmit="event.preventDefault(); submitDraftEvent();">
+      
+      <!-- Basic Event Info -->
+      <div class="form-row">
+        <div class="form-group flex-2">
+          <label class="form-label">Event Name / Title *</label>
+          <input type="text" id="ev-name" class="form-input" placeholder="e.g. National Hackathon 2026" required>
+        </div>
+        <div class="form-group flex-1">
+          <label class="form-label">Category *</label>
+          <select id="ev-category" class="form-input">
+            <option value="Technical">Technical</option>
+            <option value="Cultural">Cultural</option>
+            <option value="Sports">Sports</option>
+            <option value="Workshop">Workshop</option>
+            <option value="Hackathon">Hackathon</option>
+            <option value="Seminar">Seminar</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Date, Time & Venue -->
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Event Date *</label>
+          <input type="date" id="ev-date" class="form-input" required onchange="checkEventVenueClash()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Start Time *</label>
+          <input type="time" id="ev-time" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Venue *</label>
+          <select id="ev-venue" class="form-input" required onchange="checkEventVenueClash()">
+            <option value="Auditorium A">Auditorium A (Main Campus)</option>
+            <option value="Auditorium B">Auditorium B</option>
+            <option value="MBA Seminar Hall">MBA Seminar Hall</option>
+            <option value="Civil Seminar Hall">Civil Seminar Hall</option>
+            <option value="Open Air Theatre">Open Air Theatre</option>
+            <option value="CS Seminar Hall 1">CS Seminar Hall 1</option>
+            <option value="EC Seminar Hall">EC Seminar Hall</option>
+            <option value="Sports Ground">Sports Ground</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Realtime Venue Clash Warning Indicator -->
+      <div id="ev-clash-warning" style="display:none;" class="clash-alert"></div>
+
+      <!-- Approving Authority Assignment -->
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label">Approving Authority *</label>
+          <select id="ev-authority-select" class="form-input" required>
+            <!-- Filled dynamically with active authorities from Supabase -->
+          </select>
+          <span class="field-hint">The authority selected will review and approve this event.</span>
+        </div>
+        <div class="form-group flex-1">
+          <label class="form-label">Registration Fee (₹) [0 for Free]</label>
+          <input type="number" id="ev-fee" class="form-input" value="0" min="0">
+        </div>
+      </div>
+
+      <!-- Team Registration Settings -->
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Participation Type</label>
+          <select id="ev-type" class="form-input">
+            <option value="solo">Solo / Individual</option>
+            <option value="team">Team Based</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Team Members (if team-based)</label>
+          <input type="number" id="ev-max-team" class="form-input" value="4" min="1" max="10">
+        </div>
+      </div>
+
+      <!-- Event Description -->
+      <div class="form-group">
+        <label class="form-label">Event Description &amp; Schedule *</label>
+        <textarea id="ev-desc" class="form-textarea" rows="4" placeholder="Detail the event objectives, rounds, prerequisites, and prizes..." required></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" onclick="showPage('admin-dashboard')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit Event Proposal →</button>
+      </div>
+
+    </form>
+  </div>
+
+</div>

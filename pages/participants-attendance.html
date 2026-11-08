@@ -1,0 +1,65 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Participants & Attendance Scanner Page
+     File: pages/participants-attendance.html
+     Associated Controller: js/pages/participants.js
+     Page Container: <div class="page" id="page-participants"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-participants">
+
+  <div class="page-title-row">
+    <div>
+      <h2>👥 Event Participants &amp; Attendance Check-In</h2>
+      <p>Scan attendee QR entry passes with camera or manually mark attendance</p>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-outline" onclick="exportParticipantsCSV()">📥 Export CSV</button>
+      <button class="btn btn-primary" onclick="openQRScannerModal()">📷 Launch QR Scanner</button>
+    </div>
+  </div>
+
+  <!-- Event Selector & Search Bar -->
+  <div class="card p-3 mb-3">
+    <div class="form-row">
+      <div class="form-group flex-2">
+        <label class="form-label">Select Event</label>
+        <select id="part-event-select" class="form-input" onchange="renderParticipantTable()">
+          <!-- Populated with club's events -->
+        </select>
+      </div>
+      <div class="form-group flex-2">
+        <label class="form-label">Search Participant (Name or USN)</label>
+        <input type="text" id="part-search" class="form-input" placeholder="Search by name, USN, or email..." oninput="filterParticipants()">
+      </div>
+      <div class="form-group flex-1">
+        <label class="form-label">Quick Manual Check-in</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="manual-usn-input" class="form-input" placeholder="e.g. 4VV21CS047">
+          <button class="btn btn-green" onclick="handleManualCheckIn()">Check In</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Participants Table -->
+  <div class="table-responsive card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Student Name</th>
+          <th>USN</th>
+          <th>Branch</th>
+          <th>Reg Date</th>
+          <th>Payment</th>
+          <th>Attendance</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="participant-table-body">
+        <!-- Rendered participant rows -->
+      </tbody>
+    </table>
+  </div>
+
+</div>

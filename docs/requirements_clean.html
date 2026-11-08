@@ -1,0 +1,529 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VVCE Events Hub - Server & Infrastructure Requirements</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 10mm 12mm 12mm 12mm;
+    }
+    
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      color: #0f172a;
+      line-height: 1.35;
+      font-size: 8.5pt;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+
+    .page {
+      height: 275mm;
+      max-height: 275mm;
+      position: relative;
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page:last-child {
+      page-break-after: avoid;
+    }
+
+    .header-banner {
+      border-bottom: 2px solid #1e3a8a;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .college-info h1 {
+      font-size: 14pt;
+      font-weight: 900;
+      color: #1e3a8a;
+      margin: 0 0 1px 0;
+      letter-spacing: -0.3px;
+    }
+
+    .college-info h2 {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #d97706;
+      margin: 0 0 2px 0;
+    }
+
+    .college-info p {
+      font-size: 7.5pt;
+      color: #64748b;
+      margin: 0;
+    }
+
+    .doc-badge {
+      text-align: right;
+    }
+
+    .badge-pill {
+      display: inline-block;
+      background: #1e3a8a;
+      color: #ffffff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 7.5pt;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .doc-date {
+      font-size: 7.5pt;
+      color: #64748b;
+      margin-top: 2px;
+      font-weight: 600;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 2px 8px;
+      font-size: 8pt;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 6px 10px;
+      border-radius: 5px;
+      margin-bottom: 8px;
+    }
+
+    .meta-grid strong {
+      color: #334155;
+    }
+
+    .proposal-box {
+      background: #eff6ff;
+      border-left: 3.5px solid #2563eb;
+      padding: 6px 10px;
+      border-radius: 0 5px 5px 0;
+      margin-bottom: 8px;
+      font-size: 8pt;
+      color: #1e3a8a;
+    }
+
+    .section-title {
+      font-size: 9.5pt;
+      font-weight: 800;
+      color: #1e3a8a;
+      border-bottom: 1.5px solid #e2e8f0;
+      padding-bottom: 3px;
+      margin: 8px 0 5px 0;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .section-title span.num {
+      background: #1e3a8a;
+      color: #ffffff;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7pt;
+      font-weight: 800;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 4px 0 8px 0;
+      font-size: 8pt;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 4.5px 7px;
+      text-align: left;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #0f172a;
+      font-weight: 800;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+
+    .callout {
+      background: #fefce8;
+      border: 1px solid #fef08a;
+      border-radius: 5px;
+      padding: 6px 10px;
+      margin-top: 6px;
+      font-size: 7.8pt;
+      color: #854d0e;
+    }
+
+    .status-box {
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid #64748b;
+      border-radius: 2px;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 3px;
+    }
+
+    .code-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .code-card {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-family: Consolas, "Courier New", Courier, monospace;
+      font-size: 7.2pt;
+    }
+
+    .code-label {
+      font-size: 7.2pt;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-bottom: 2px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    .sign-section {
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1.5px dashed #94a3b8;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .sign-box {
+      text-align: center;
+      padding: 6px;
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      background: #f8fafc;
+    }
+
+    .sign-line {
+      height: 28px;
+      border-bottom: 1px solid #94a3b8;
+      margin-bottom: 5px;
+    }
+
+    .sign-title {
+      font-weight: 800;
+      font-size: 7.5pt;
+      color: #0f172a;
+    }
+
+    .sign-sub {
+      font-size: 6.8pt;
+      color: #64748b;
+    }
+
+    .page-footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 7pt;
+      color: #94a3b8;
+      margin-top: 4px;
+      padding-top: 3px;
+      border-top: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PAGE 1: REQUISITION & ARCHITECTURE ==================== -->
+  <div class="page">
+    <div class="header-banner">
+      <div class="college-info">
+        <h1>VIDYAVARDHAKA COLLEGE OF ENGINEERING</h1>
+        <h2>Autonomous Institute Affiliated to VTU, Belagavi | Approved by AICTE, New Delhi</h2>
+        <p>P.B. No. 206, Gokulam 3rd Stage, Mysuru - 570002, Karnataka, India | Web: www.vvce.ac.in</p>
+      </div>
+      <div class="doc-badge">
+        <div class="badge-pill">OFFICIAL REQUISITION</div>
+        <div class="doc-date">Academic Year 2026-27</div>
+      </div>
+    </div>
+
+    <div class="meta-grid">
+      <div><strong>To:</strong></div>
+      <div>The Principal & Heads of Departments (HODs), VVCE Mysuru</div>
+      <div><strong>Through:</strong></div>
+      <div>The Dean of Student Welfare (SW) & Faculty Project Coordinator</div>
+      <div><strong>Subject:</strong></div>
+      <div><strong>Requisition for Dedicated On-Premise Server & Domain Mapping for VVCE Events Hub</strong></div>
+    </div>
+
+    <div class="proposal-box">
+      <strong>Executive Summary:</strong> The <strong>VVCE Events Hub</strong> is an institutional campus web application developed to centralize event approvals, club schedules, registration capacities, venue clash detection, and student attendance across 5,000+ students and 30+ clubs. To ensure <strong>100% data sovereignty</strong> and eliminate all recurring third-party cloud costs, we request allocation of a dedicated on-premise server environment in the college data center.
+    </div>
+
+    <div class="section-title"><span class="num">1</span> Dedicated On-Premise Server Specifications</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 20%;">Component</th>
+          <th style="width: 38%;">Recommended Technical Specification</th>
+          <th style="width: 42%;">Operational Purpose & Rationale</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Host System</strong></td>
+          <td>1 Dedicated Machine / Virtual Machine (VM)</td>
+          <td>Housed in the VVCE Server Room / Central Data Center.</td>
+        </tr>
+        <tr>
+          <td><strong>Processor (CPU)</strong></td>
+          <td>4 to 8 Cores (Intel Xeon / Core i7 or equivalent)</td>
+          <td>Handles concurrent traffic spikes during college fest registrations.</td>
+        </tr>
+        <tr>
+          <td><strong>RAM (Memory)</strong></td>
+          <td>16 GB DDR4/DDR5 (Minimum: 8 GB)</td>
+          <td>Supports in-memory caching, PostgreSQL queries, and WebSocket feeds.</td>
+        </tr>
+        <tr>
+          <td><strong>Storage (Disk)</strong></td>
+          <td>256 GB to 512 GB SSD / NVMe</td>
+          <td>Stores event poster assets, certificates, and daily backup snapshots.</td>
+        </tr>
+        <tr>
+          <td><strong>Operating System</strong></td>
+          <td>Ubuntu Server 24.04 LTS (64-bit)</td>
+          <td>Enterprise-grade, virus-proof, open-source Linux environment.</td>
+        </tr>
+        <tr>
+          <td><strong>Power Continuity</strong></td>
+          <td>Server Room Central UPS + Generator line</td>
+          <td>Maintains continuous portal uptime during grid power interruptions.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-title"><span class="num">2</span> Network, Domain & Firewall Configuration</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 25%;">Configuration Item</th>
+          <th style="width: 35%;">Target Setting</th>
+          <th style="width: 40%;">IT Cell Action Required</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Subdomain Mapping</strong></td>
+          <td><code>events.vvce.ac.in</code> (or <code>hub.vvce.ac.in</code>)</td>
+          <td>Add DNS <strong>A Record</strong> pointing to the server's static public IP.</td>
+        </tr>
+        <tr>
+          <td><strong>Network IP</strong></td>
+          <td>1 Static Public IPv4 Address</td>
+          <td>Enables access both inside campus Wi-Fi and for students at home.</td>
+        </tr>
+        <tr>
+          <td><strong>Firewall: Port 80</strong></td>
+          <td>Inbound Port 80 (HTTP)</td>
+          <td>Enables standard web routing and Let's Encrypt automated SSL setup.</td>
+        </tr>
+        <tr>
+          <td><strong>Firewall: Port 443</strong></td>
+          <td>Inbound Port 443 (HTTPS)</td>
+          <td>Secures student logins and registration forms via SSL/TLS encryption.</td>
+        </tr>
+        <tr>
+          <td><strong>Maintenance: Port 22</strong></td>
+          <td>SSH Port 22 (Restricted)</td>
+          <td>Accessible strictly via campus LAN or authorized administrator IP.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Zero Cloud Expense:</strong> The entire software stack (Nginx, PostgreSQL database engine, Docker containerization, and SSL certificates) runs on open-source software on college hardware. <strong>No recurring monthly billing or subscription fee to external vendors is required.</strong>
+    </div>
+
+    <div class="page-footer">
+      <span>VVCE Events Hub - Official Requisition Document</span>
+      <span>Page 1 of 2</span>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE 2: VERIFICATION CHECKLIST & SIGN-OFF ==================== -->
+  <div class="page">
+    <div class="header-banner">
+      <div class="college-info">
+        <h1>VVCE EVENTS HUB - INFRASTRUCTURE HANDOVER CHECKLIST</h1>
+        <h2>Technical Acceptance and Quality Assurance Protocol for College Systems Administration</h2>
+      </div>
+      <div class="doc-badge">
+        <div class="badge-pill">QA PROTOCOL</div>
+      </div>
+    </div>
+
+    <div class="section-title"><span class="num">3</span> Handover Verification Checklist (Joint IT Sign-Off)</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 5%;">#</th>
+          <th style="width: 28%;">Parameter to Verify</th>
+          <th style="width: 27%;">Required Acceptance Standard</th>
+          <th style="width: 15%;">Verification</th>
+          <th style="width: 25%;">Administrator Verified Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>Operating System</strong></td>
+          <td>Ubuntu Server 22.04 or 24.04 LTS</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>Version: ____________________</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong>RAM Capacity</strong></td>
+          <td>&ge; 8 GB to 16 GB Total Memory</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>Allocated: ____________ GB</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>Processor Cores</strong></td>
+          <td>&ge; 4 to 8 CPU Cores</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>Cores: _____________________</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>SSD Disk Space</strong></td>
+          <td>&ge; 100 GB to 256 GB Free on <code>/</code></td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>Free Space: ___________ GB</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><strong>Administrative Rights</strong></td>
+          <td><code>sudo</code> privileges for deployment user</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>User: ______________________</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><strong>Static Public IP</strong></td>
+          <td>Externally reachable static IPv4</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>IP: ________________________</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td><strong>Firewall Port 80</strong></td>
+          <td>Inbound HTTP open (Router NAT configured)</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>Status: Open / Forwarded</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td><strong>Firewall Port 443</strong></td>
+          <td>Inbound HTTPS open (Router NAT configured)</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>Status: Open / Forwarded</td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td><strong>DNS Record</strong></td>
+          <td><code>events.vvce.ac.in</code> resolves to server IP</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>DNS Status: Active</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td><strong>Power Recovery</strong></td>
+          <td>BIOS set to 'Restore on AC Power Loss'</td>
+          <td><span class="status-box"></span> Passed</td>
+          <td>Auto-boot: Enabled</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-title"><span class="num">4</span> Quick Terminal Verification Commands</div>
+    <div class="code-grid">
+      <div class="code-card">
+        <div class="code-label">1. Check Memory (RAM):</div>
+        free -h
+      </div>
+      <div class="code-card">
+        <div class="code-label">2. Check CPU Cores:</div>
+        nproc
+      </div>
+      <div class="code-card">
+        <div class="code-label">3. Check Available Disk Space:</div>
+        df -h /
+      </div>
+      <div class="code-card">
+        <div class="code-label">4. Verify Sudo / Admin Access:</div>
+        sudo whoami  # Expected: root
+      </div>
+    </div>
+
+    <div class="section-title"><span class="num">5</span> Institutional Endorsements & Handover Sign-Off</div>
+    <p style="margin: 2px 0 6px 0; font-size: 7.5pt; color: #475569;">
+      By signing below, the server environment is verified and handed over for the official college-wide launch of the VVCE Events Hub.
+    </p>
+
+    <div class="sign-section">
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-title">Student Technical Lead</div>
+        <div class="sign-sub">Project Developer, VVCE Events Hub</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-title">Network / System Administrator</div>
+        <div class="sign-sub">IT & Infrastructure Cell, VVCE</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-title">Dean Student Welfare / HOD</div>
+        <div class="sign-sub">Vidyavardhaka College of Engineering</div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>VVCE Events Hub - Official Requisition Document</span>
+      <span>Page 2 of 2</span>
+    </div>
+  </div>
+
+</body>
+</html>
+

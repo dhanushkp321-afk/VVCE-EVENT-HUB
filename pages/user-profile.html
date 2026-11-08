@@ -1,0 +1,51 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — User Profile Page
+     File: pages/user-profile.html
+     Associated Controller: js/pages/profile.js
+     Page Container: <div class="page" id="page-profile"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-profile">
+
+  <div class="profile-card">
+    <!-- Header with Avatar & Identity -->
+    <div class="profile-header">
+      <div class="profile-avatar" id="prof-avatar">A</div>
+      <div class="profile-identity">
+        <h2 id="prof-name">Akash Sharma</h2>
+        <p id="prof-usn-role">USN: 4VV21CS001 | Student</p>
+        <span class="badge badge-blue" id="prof-dept-badge">Computer Science</span>
+      </div>
+      <button class="btn btn-outline" onclick="openModal('modal-profile-edit')">✏️ Edit Profile</button>
+    </div>
+
+    <!-- Profile Details Grid -->
+    <div class="profile-details-grid">
+      <div class="prof-item">
+        <label>Institutional Email</label>
+        <div id="prof-email">akash@vvce.ac.in</div>
+      </div>
+      <div class="prof-item">
+        <label>Academic Year &amp; Semester</label>
+        <div id="prof-year-sem">4th Year, Sem 8</div>
+      </div>
+      <div class="prof-item">
+        <label>Contact Phone</label>
+        <div id="prof-phone">+91 98765 43210</div>
+      </div>
+      <div class="prof-item">
+        <label>Total Activity Points</label>
+        <div id="prof-points" style="font-weight:800; color:#4f46e5;">120 Points</div>
+      </div>
+    </div>
+
+    <!-- Skills & Interests -->
+    <div class="prof-tags-section">
+      <h4>Skills &amp; Interests</h4>
+      <div class="tag-chips" id="prof-tags-container">
+        <!-- Rendered skills chips -->
+      </div>
+    </div>
+  </div>
+
+</div>

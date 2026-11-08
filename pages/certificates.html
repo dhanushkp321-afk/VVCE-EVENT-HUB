@@ -1,0 +1,26 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VVCE Events Hub — Certificates Page
+     File: pages/certificates.html
+     Associated Controller: js/pages/certificates.js
+     Page Container: <div class="page" id="page-certificates"></div>
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="page" id="page-certificates">
+
+  <div class="page-title-row">
+    <div>
+      <h2>🏆 Event Participation Certificates</h2>
+      <p>Verified credentials and activity certificates issued by VVCE clubs &amp; societies</p>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('modal-cert-upload')">➕ Upload External Certificate</button>
+  </div>
+
+  <!-- Certificates Grid -->
+  <div class="cert-grid" id="certificates-grid">
+    <!-- Populated with verified certificate cards:
+         - Event Title, Issuing Club, Date
+         - Credential ID & Verification Hash
+         - "View Certificate" & "Download PDF" buttons -->
+  </div>
+
+</div>
