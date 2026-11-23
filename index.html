@@ -16,8 +16,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -74,9 +72,6 @@
           </button>
         </div>
 
-        <!-- GIS hidden init element -->
-        <div id="g_id_onload" data-client_id="CONFIGURE_IN_APP_JS" data-callback="handleGoogleSignIn" data-auto_prompt="false" style="display:none;"></div>
-
         <!-- Divider -->
         <div style="display:flex;align-items:center;gap:10px;margin:8px 0 14px;">
           <div style="flex:1;height:1px;background:rgba(255,255,255,0.09);"></div>
@@ -104,13 +99,6 @@
         <div class="auth-notice-blue">
           ⚠️ Club Admin accounts require approval from Dean Student Welfare before you can log in.
         </div>
-        <!-- Quick demo logins -->
-        <div class="quick-demo-row">
-          <span class="demo-label">Quick Demo:</span>
-          <button class="demo-btn" onclick="quickLogin('student')">Student</button>
-          <button class="demo-btn" onclick="quickLogin('admin')">Club Admin</button>
-          <button class="demo-btn" onclick="quickLogin('authority')">Approving Authority</button>
-          </div>
       </div>
 
 
@@ -130,11 +118,6 @@
             <div class="role-card-icon">🏛️</div>
             <div class="role-card-name">Club Admin</div>
             <div class="role-card-sub">Organize events</div>
-          </div>
-          <div class="role-card" id="rcard-authority" onclick="selectRegRole('authority')">
-            <div class="role-card-icon">👔</div>
-            <div class="role-card-name">Authority</div>
-            <div class="role-card-sub">Dean / Faculty</div>
           </div>
         </div>
 
@@ -357,35 +340,6 @@
           </div> <!-- /admin-manual-fields -->
         </div>
 
-        <!-- ── Authority Registration Form ── -->
-        <div id="form-authority" style="display:none;">
-          <div id="auth-manual-fields">
-            <div class="auth-field-group">
-              <label class="auth-label">Full Name</label>
-              <input class="auth-input" type="text" id="f-name" placeholder="Dr. / Prof. Name">
-            </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Designation</label>
-            <select class="auth-input" id="f-designation">
-              <option value="faculty">Faculty</option>
-              <option value="hod">Head of Department (HOD)</option>
-              <option value="authority">Approving Authority</option>
-              <option value="dean-academics">Dean Academics</option>
-            </select>
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">VVCE Email</label>
-            <input class="auth-input" type="email" id="f-email" placeholder="yourname@vvce.ac.in">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Password (min 8 chars)</label>
-            <input class="auth-input" type="password" id="f-pass" placeholder="••••••••">
-          </div>
-          <button class="btn-dark-register" onclick="handleAuthoritySignup()">Create Authority Account →</button>
-          <p class="auth-verify-note">Check your VVCE email to verify your account.</p>
-          </div> <!-- /auth-manual-fields -->
-        </div>
-
       </div><!-- /panel-register -->
 
     </div><!-- /auth-card -->
@@ -511,28 +465,7 @@
   </div>
 </div>
 
-<!-- Dean Portal Password Modal -->
-<div class="modal-overlay" id="modal-authority-pass">
-  <div class="modal-box modal-narrow">
-    <div class="portal-lock-header authority-lock">
-      <div class="portal-lock-icon">📋</div>
-      <h3 id="authority-modal-title">Approving Authority</h3>
-      <p>This portal requires secondary authentication</p>
-    </div>
-    <div class="auth-field-group">
-      <div class="auth-pass-wrap">
-        <input class="auth-input" type="password" id="authority-pass-input" placeholder="Enter portal password" onkeydown="if(event.key==='Enter') verifyAuthorityPassword()">
-        <button type="button" class="pass-toggle" onclick="togglePass('authority-pass-input', this)" title="Show/Hide Password">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-      </div>
-    </div>
-    <div id="authority-pass-error" class="auth-msg error" style="display:none;"></div>
-    <button class="btn-signin" style="margin-top:6px;" onclick="verifyAuthorityPassword()">Access Portal 🔐</button>
-  </div>
-</div>
-
-<!-- Forgot / Reset Password Modal (Instant Verification Code / Reset Dialog) -->
+<!-- Secure Supabase Auth Password Recovery -->
 <div class="modal-overlay" id="modal-forgot-password" style="display:none;">
   <div class="modal-box modal-narrow" style="max-width: 440px;">
     <div class="modal-head">
@@ -546,7 +479,7 @@
     <!-- Step 1: Request Code -->
     <div id="reset-step-1">
       <p style="font-size:13px; color:#64748b; margin-top:0; margin-bottom:14px; line-height:1.5;">
-        Enter your institutional <strong>@vvce.ac.in</strong> email address. We will verify your account and provide a 6-digit verification code to reset your password.
+        Enter your institutional <strong>@vvce.ac.in</strong> email address. If an account exists, Supabase will send a secure password recovery link.
       </p>
 
       <div class="auth-field-group">
@@ -557,11 +490,11 @@
       <div id="reset-step1-msg" class="auth-msg" style="display:none; margin-bottom:12px;"></div>
 
       <button type="button" class="btn-signin" id="btn-send-reset-code" onclick="sendResetVerificationCode()">
-        Verify Account & Send Code →
+        Send Recovery Link →
       </button>
     </div>
 
-    <!-- Step 2: Enter Code & New Password -->
+    <!-- Step 2: Set a new password after following the recovery link -->
     <div id="reset-step-2" style="display:none;">
       <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:10px 14px; margin-bottom:14px;">
         <div style="font-size:12px; color:#166534; font-weight:600; display:flex; align-items:center; gap:6px;">
@@ -572,10 +505,6 @@
         </div>
       </div>
 
-      <div class="auth-field-group">
-        <label class="auth-label">6-Digit Verification Code</label>
-        <input class="auth-input" type="text" id="reset-otp-input" placeholder="e.g. 482910" maxlength="6" style="letter-spacing:4px; font-weight:700; text-align:center; font-size:18px;">
-      </div>
 
       <div class="auth-field-group">
         <label class="auth-label">New Password (min 6 characters)</label>

@@ -51,90 +51,37 @@ function getSupabaseClient() {
   return null;
 }
 
-const DEFAULT_USERS = [
-  { id: 'u1', type: 'student', name: 'Akash Sharma', email: 'akash@vvce.ac.in', pass: 'demo1234', usn: '4VV21CS001', branch: 'CS', section: 'A', year: '4th Year', sem: 'Sem 8', admissionYear: 2021, dept: 'Computer Science', phone: '+91 98765 43210', interests: ['Technical', 'Workshop'], skills: [], bio: '', linkedin: '', github: '', achievements: [], profilePhoto: null, resume: null, points: 120, pointsBySem: { 'Sem 1': 20, 'Sem 2': 20, 'Sem 3': 20, 'Sem 4': 20, 'Sem 5': 20, 'Sem 6': 20, 'Sem 7': 0, 'Sem 8': 0 }, notifs: [] },
-  { id: 'u2', type: 'admin', name: 'Harshill M Gowda', email: 'harshill@vvce.ac.in', pass: 'demo1234', clubName: 'CSE Club', clubEmail: 'cseclub@vvce.ac.in', domain: 'Technical', branch: 'CSE', usn: '4VV21CS045', faculty: 'Dr. Ramesh Kumar', phone: '+91 98765 43211', desc: 'Official Computer Science Club of VVCE', approved: true, notifs: [] },
-  { id: 'u3', type: 'authority', name: 'Dr. Priya Nair', email: 'dean.sw@vvce.ac.in', pass: 'demo1234', designation: 'dean', dept: 'Student Welfare', phone: '+91 98765 43212', notifs: [] },
-  { id: 'u4', type: 'authority', name: 'Prof. Vijay Rao', email: 'principal@vvce.ac.in', pass: 'demo1234', designation: 'principal', dept: 'Administration', phone: '+91 98765 43213', notifs: [] }
-];
-
 const SUPABASE_CACHE = {
   vvce_users: [],
   vvce_events: [],
   vvce_certs: [],
   vvce_academic: []
 };
+let USER_SYNC_SNAPSHOT = new Map();
 
 /* ============================================================================
    APPROVING AUTHORITIES & SECURITY HELPERS
    ============================================================================ */
 let APPROVING_AUTHORITIES_CACHE = [];
 
-async function hashPasswordWithSalt(password, saltStr) {
-  const enc = new TextEncoder();
-  const salt = enc.encode(saltStr || ('salt_' + Math.random().toString(36).substring(2, 10)));
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveBits']
-  );
-  const derivedBits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-    keyMaterial, 256
-  );
-  const hashArray = Array.from(new Uint8Array(derivedBits));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return { hash: hashHex, salt: new TextDecoder().decode(salt) };
-}
-
-async function verifyPasswordWithSalt(password, storedHash, saltStr) {
-  try {
-    const { hash } = await hashPasswordWithSalt(password, saltStr);
-    return hash === storedHash;
-  } catch (e) {
-    console.error('Password verification error:', e);
-    return false;
-  }
-}
-
 async function syncApprovingAuthoritiesFromSupabase() {
   const sb = getSupabaseClient();
-  try {
-    if (sb) {
-      const { data, error } = await sb.from('approving_authorities').select('*').order('created_at', { ascending: true });
-      if (!error && Array.isArray(data) && data.length > 0) {
-        APPROVING_AUTHORITIES_CACHE = data;
-        localStorage.setItem('vvce_approving_authorities', JSON.stringify(data));
-        populateClubRegistrationAuthoritiesDropdown();
-        return data;
-      }
-    }
-  } catch (err) {
-    console.warn('syncApprovingAuthoritiesFromSupabase warning:', err);
+  if (!sb) {
+    APPROVING_AUTHORITIES_CACHE = [];
+    populateClubRegistrationAuthoritiesDropdown();
+    return [];
   }
-
-  // Fallback to localStorage or default Dean authority
-  const raw = localStorage.getItem('vvce_approving_authorities');
-  if (raw) {
-    try {
-      APPROVING_AUTHORITIES_CACHE = JSON.parse(raw);
-    } catch (e) {
-      APPROVING_AUTHORITIES_CACHE = [];
-    }
-  }
-
-  if (!APPROVING_AUTHORITIES_CACHE.length) {
-    APPROVING_AUTHORITIES_CACHE = [
-      {
-        id: 'auth_dean_sw',
-        name: 'Dean Student Welfare',
-        email: 'dean.sw@vvce.ac.in',
-        designation: 'Dean Student Welfare',
-        password_hash: 'b6fdb537e29bb3ff3ce1b00e66eb139a039750bca80ca60d69611894d3ec8595',
-        salt: 'vvce_salt_dean_2026',
-        active: true,
-        created_at: new Date().toISOString()
-      }
-    ];
-    localStorage.setItem('vvce_approving_authorities', JSON.stringify(APPROVING_AUTHORITIES_CACHE));
+  const { data, error } = await sb.from('approving_authorities')
+    .select('id, name, email, designation, active, created_at, updated_at')
+    .order('created_at', { ascending: true });
+  if (error) {
+    APPROVING_AUTHORITIES_CACHE = [];
+    try { localStorage.removeItem('vvce_approving_authorities'); } catch (e) {}
+    console.error('Could not load approving authorities:', error);
+    showAuthMsg('Could not load approving authorities. Please try again later.', 'error');
+  } else {
+    APPROVING_AUTHORITIES_CACHE = Array.isArray(data) ? data : [];
+    try { localStorage.setItem('vvce_approving_authorities', JSON.stringify(data || [])); } catch (e) {}
   }
   populateClubRegistrationAuthoritiesDropdown();
   return APPROVING_AUTHORITIES_CACHE;
@@ -181,11 +128,6 @@ function getDB(key, def = []) {
       }
     }
   } catch (e) {}
-  if (key === 'vvce_users') {
-    SUPABASE_CACHE['vvce_users'] = DEFAULT_USERS.slice();
-    try { localStorage.setItem('vvce_users', JSON.stringify(SUPABASE_CACHE['vvce_users'])); } catch(e){}
-    return SUPABASE_CACHE['vvce_users'];
-  }
   return def;
 }
 
@@ -282,14 +224,26 @@ async function setDB(key, val) {
         console.warn('Events upsert warning:', error.message);
       }
     } else if (key === 'vvce_users') {
-      const mapped = val.map(u => ({
-        id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admission_year: u.admissionYear, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profile_photo: u.profilePhoto, resume: u.resume, points: u.points, points_by_sem: u.pointsBySem, notifs: u.notifs, club_name: u.clubName, club_email: u.clubEmail, domain: u.domain, faculty: u.faculty, approved: u.approved, "desc": u.desc, designation: u.designation, authority_id: u.authorityId || u.authority_id || null, authority_name: u.authorityName || u.authority_name || null, approval_history: u.approvalHistory || u.approval_history || []
-      }));
-      await sb.from('users').upsert(mapped);
-      // Also sync fresh/real student registrations to the dedicated registered_students table
-      const studentMapped = mapped.filter(u => u.type === 'student' && !['u1','u2','u3','u4'].includes(u.id));
-      if (studentMapped.length > 0) {
-        sb.from('registered_students').upsert(studentMapped).then(() => {}).catch(() => {});
+      const protectedColumns = new Set([
+        'auth_user_id', 'type', 'approved', 'authority_id',
+        'authority_name', 'rejection_reason', 'approval_history'
+      ]);
+      for (const user of val) {
+        const previous = USER_SYNC_SNAPSHOT.get(user.id);
+        if (!previous) continue;
+        const current = mapUserForSupabase(user);
+        const changes = {};
+        for (const [column, value] of Object.entries(current)) {
+          if (column === 'id' || protectedColumns.has(column)) continue;
+          if (JSON.stringify(value) !== JSON.stringify(previous[column])) {
+            changes[column] = value;
+          }
+        }
+        if (Object.keys(changes).length) {
+          const { error } = await sb.from('users').update(changes).eq('id', user.id);
+          if (error) throw error;
+        }
+        USER_SYNC_SNAPSHOT.set(user.id, current);
       }
     } else if (key === 'vvce_certs') {
       const mapped = val.map(c => ({
@@ -321,6 +275,11 @@ async function setDB(key, val) {
     }
   } catch (err) {
     console.error('Failed to sync to Supabase:', err);
+    if (key === 'vvce_users') {
+      SUPABASE_CACHE.vvce_users = [...USER_SYNC_SNAPSHOT.values()].map(row => mapUser(row));
+      try { localStorage.setItem('vvce_users', JSON.stringify(SUPABASE_CACHE.vvce_users)); } catch (e) {}
+      toast(`Profile update could not be saved: ${err.message || 'Database error'}`, 'error');
+    }
   }
 }
 
@@ -354,7 +313,27 @@ function isBranchMatch(eventBranches, userBranch) {
 /* Realtime Sync Helpers */
 function mapUser(u) {
   return {
-    id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points, pointsBySem: u.points_by_sem, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation, authorityId: u.authority_id || u.authorityId || null, authorityName: u.authority_name || u.authorityName || null, approvalHistory: u.approval_history || u.approvalHistory || []
+    id: u.id, authUserId: u.auth_user_id || null, type: u.type, name: u.name, email: u.email, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points, pointsBySem: u.points_by_sem, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation, authorityId: u.authority_id || u.authorityId || null, authorityName: u.authority_name || u.authorityName || null, approvalHistory: u.approval_history || u.approvalHistory || []
+  };
+}
+
+function mapUserForSupabase(u) {
+  return {
+    id: u.id, auth_user_id: u.authUserId || u.auth_user_id || null,
+    type: u.type, name: u.name, email: u.email, usn: u.usn,
+    branch: u.branch, section: u.section, year: u.year, sem: u.sem,
+    admission_year: u.admissionYear ?? u.admission_year, dept: u.dept,
+    phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio,
+    linkedin: u.linkedin, github: u.github, achievements: u.achievements,
+    profile_photo: u.profilePhoto ?? u.profile_photo, resume: u.resume,
+    points: u.points, points_by_sem: u.pointsBySem ?? u.points_by_sem,
+    notifs: u.notifs, club_name: u.clubName ?? u.club_name,
+    club_email: u.clubEmail ?? u.club_email, domain: u.domain,
+    faculty: u.faculty, approved: u.approved, desc: u.desc,
+    authority_id: u.authorityId || u.authority_id || null,
+    authority_name: u.authorityName || u.authority_name || null,
+    rejection_reason: u.rejectionReason ?? u.rejection_reason,
+    approval_history: u.approvalHistory ?? u.approval_history ?? []
   };
 }
 
@@ -433,11 +412,13 @@ function handleRealtimeUpdate(key, payload) {
 
     if (eventType === 'DELETE') {
       SUPABASE_CACHE[key] = cache.filter(item => item.id !== oldRecord.id);
+      if (key === 'vvce_users') USER_SYNC_SNAPSHOT.delete(oldRecord.id);
     } else if (eventType === 'INSERT') {
       const exists = cache.some(item => item.id === newRecord.id);
       if (!exists && mapper) {
         cache.push(mapper(newRecord));
       }
+      if (key === 'vvce_users') USER_SYNC_SNAPSHOT.set(newRecord.id, mapUserForSupabase(mapUser(newRecord)));
     } else if (eventType === 'UPDATE') {
       // If event was archived by CPM, remove it from visible cache entirely
       if (key === 'vvce_events' && newRecord.status === 'archived') {
@@ -450,6 +431,7 @@ function handleRealtimeUpdate(key, payload) {
           cache.push(mapper(newRecord));
         }
       }
+      if (key === 'vvce_users') USER_SYNC_SNAPSHOT.set(newRecord.id, mapUserForSupabase(mapUser(newRecord)));
     }
     // Always persist realtime changes to localStorage!
     try { localStorage.setItem(key, JSON.stringify(SUPABASE_CACHE[key])); } catch(e){}
@@ -525,12 +507,37 @@ function setupRealtimeSync() {
 
 async function bootApp() {
   const sb = getSupabaseClient();
-  if (!sb || typeof sb.from !== 'function') {
-    console.warn('Supabase client not ready yet, working in persistent local mode.');
+  if (!sb || typeof sb.from !== 'function' || !sb.auth) {
+    showAuthMsg('Secure sign-in is unavailable. Please try again later.', 'error');
     return;
   }
-  
+
+  try {
+    const storedUsers = JSON.parse(localStorage.getItem('vvce_users') || '[]');
+    if (Array.isArray(storedUsers)) {
+      localStorage.setItem('vvce_users', JSON.stringify(storedUsers.map(user => {
+        const profile = { ...user };
+        delete profile.pass;
+        delete profile.password_hash;
+        delete profile.salt;
+        return profile;
+      })));
+    }
+    localStorage.removeItem('vvce_approving_authorities');
+    sessionStorage.removeItem('vvce_session');
+  } catch (error) {
+    console.warn('Could not clear legacy browser authentication data:', error);
+  }
+
   await checkSupabaseEmailVerification();
+  const { data: { session }, error: sessionError } = await sb.auth.getSession();
+  if (sessionError) {
+    console.error('Could not restore Supabase Auth session:', sessionError);
+  } else if (session) {
+    await handleVerifiedSession(session, 'PAGE_LOAD');
+  } else {
+    try { sessionStorage.removeItem('vvce_session'); } catch (e) {}
+  }
   checkTeamInviteUrl();
 
   try {
@@ -555,22 +562,11 @@ async function bootApp() {
     }
 
     if (combinedRawUsers.length > 0 || (uRes && uRes.data)) {
-      // ── Supabase is the single source of truth ──
-      // Remote users completely replace local cache.
-      // Only the 4 built-in demo accounts (never stored in Supabase)
-      // are appended locally so demo login always works.
-      const DEMO_IDS = ['u1', 'u2', 'u3', 'u4'];
+      // Supabase is the single source of truth.
       const remoteUsers = combinedRawUsers.map(mapUser);
-      const remoteEmails = remoteUsers.map(u => u.email.toLowerCase());
-
-      // Keep demo accounts locally only (never push them to Supabase)
-      const demoUsers = DEFAULT_USERS.filter(
-        du => DEMO_IDS.includes(du.id) && !remoteEmails.includes(du.email.toLowerCase())
-      );
-
-      const finalUsers = [...remoteUsers, ...demoUsers];
-      SUPABASE_CACHE.vvce_users = finalUsers;
-      try { localStorage.setItem('vvce_users', JSON.stringify(finalUsers)); } catch(e){}
+      SUPABASE_CACHE.vvce_users = remoteUsers;
+      USER_SYNC_SNAPSHOT = new Map(remoteUsers.map(user => [user.id, mapUserForSupabase(user)]));
+      try { localStorage.setItem('vvce_users', JSON.stringify(remoteUsers)); } catch(e){}
     }
     if (eRes && eRes.data) {
       // Events: Supabase is always the source of truth (even if empty — clear means clear)
@@ -736,9 +732,19 @@ function switchMainTab(tab) {
 }
 window.switchMainTab = switchMainTab;
 
+// Backward-compatible alias used by the registration verification flow.
+function switchAuthTab(tab) {
+  switchMainTab(tab === 'login' ? 'signin' : tab);
+}
+window.switchAuthTab = switchAuthTab;
+
 function selectRegRole(role) {
+  if (!['student', 'admin'].includes(role)) {
+    showAuthMsg('Approving-authority accounts are provisioned by CPM administrators.', 'warning');
+    return;
+  }
   STATE.regRole = role;
-  ['student','admin','authority'].forEach(r => {
+  ['student','admin'].forEach(r => {
     const card = document.getElementById(`rcard-${r}`);
     const form = document.getElementById(`form-${r}`);
     if (card) card.classList.toggle('active', r === role);
@@ -1166,148 +1172,18 @@ async function handleLogin() {
     showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed to sign in.', 'error'); return;
   }
 
-  // 1. Check if an active Approving Authority is logging in directly with their email & password
-  await syncApprovingAuthoritiesFromSupabase();
-  const activeAuthorities = getActiveApprovingAuthorities();
-  const matchedAuthority = activeAuthorities.find(a => a.email && a.email.toLowerCase() === email);
-
-  if (matchedAuthority) {
-    let isValid = false;
-    if (matchedAuthority.password_hash && matchedAuthority.salt) {
-      isValid = await verifyPasswordWithSalt(pass, matchedAuthority.password_hash, matchedAuthority.salt);
-    } else if (matchedAuthority.pass) {
-      isValid = (pass === matchedAuthority.pass);
-    } else if (matchedAuthority.id === 'auth_dean_sw' && (pass === 'deanwellfair@vvce' || pass === 'demo1234')) {
-      isValid = true;
-    }
-
-    if (isValid) {
-      // Find or build an authority user object for state
-      let users = getDB('vvce_users');
-      let authUser = users.find(u => u.email.toLowerCase() === email && u.type === 'authority');
-      if (!authUser) {
-        authUser = {
-          id: matchedAuthority.id || genId('u'),
-          type: 'authority',
-          name: matchedAuthority.name,
-          email: matchedAuthority.email,
-          pass: pass,
-          designation: matchedAuthority.designation || 'Approving Authority',
-          dept: 'Administration',
-          phone: '',
-          notifs: []
-        };
-        users.push(authUser);
-        setDB('vvce_users', users);
-      }
-
-      // Unlock authority portal session directly
-      STATE.user = authUser;
-      STATE.authorityUnlocked = true;
-      STATE.currentAuthorityId = matchedAuthority.id;
-      STATE.currentAuthorityName = matchedAuthority.name;
-
-      document.getElementById('auth-screen').style.display = 'none';
-      document.getElementById('app').style.display = 'flex';
-      document.body.style.background = '#f1f5f9';
-
-      renderSidebar();
-      renderTopbarUser();
-      showPage('authority-portal');
-      toast(`Welcome, ${matchedAuthority.name}! Direct Authority Access Granted ✓`, 'success');
-      return;
-    }
-  }
-
-  // 2. Standard user login check (Students, Club Admins, Faculty)
-  let users = getDB('vvce_users');
-  let user = users.find(u => u.email.toLowerCase() === email && u.pass === pass);
-
-  // Fallback to direct Supabase lookup
-  if (!user) {
-    const sb = getSupabaseClient();
-    if (sb && typeof sb.from === 'function') {
-      try {
-        const { data } = await sb.from('users').select('*').ilike('email', email);
-        if (data && data.length > 0) {
-          const remoteUser = mapUser(data[0]);
-          if (remoteUser.pass === pass) {
-            user = remoteUser;
-            if (!users.some(u => u.id === user.id)) {
-              users.push(user);
-              SUPABASE_CACHE.vvce_users = users;
-              try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Supabase direct login check failed:', err);
-      }
-    }
-  }
-
-  if (!user) {
-    showAuthMsg('Invalid email or password. Please verify your credentials or register an account.');
+  const sb = getSupabaseClient();
+  if (!sb?.auth) {
+    showAuthMsg('Secure sign-in is unavailable. Please try again later.', 'error');
     return;
   }
-
-  if (user.type === 'admin' && !user.approved) {
-    showAuthMsg('Your club account is pending Dean Student Welfare approval. Please wait.', 'warning');
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    showAuthMsg('Invalid email or password, or your email has not been verified.', 'error');
     return;
   }
-
-  launchApp(user);
+  await handleVerifiedSession(data.session, 'SIGNED_IN');
 }
-
-/* Quick demo login */
-function quickLogin(role) {
-  const maps = {
-    student:   { email: 'akash@vvce.ac.in', pass: 'demo1234' },
-    admin:     { email: 'harshill@vvce.ac.in', pass: 'demo1234' },
-    authority: { email: 'dean.sw@vvce.ac.in', pass: 'demo1234' },
-    dean:      { email: 'dean.sw@vvce.ac.in', pass: 'demo1234' }
-  };
-
-  const target = maps[role] || maps.student;
-  const emailInput = document.getElementById('login-email');
-  const passInput  = document.getElementById('login-pass');
-  if (emailInput) emailInput.value = target.email;
-  if (passInput) passInput.value  = target.pass;
-
-  // If logging in as Approving Authority demo, directly authenticate & unlock authority portal
-  if (role === 'authority' || role === 'dean') {
-    let users = getDB('vvce_users');
-    let authUser = users.find(u => u.email.toLowerCase() === target.email.toLowerCase() && u.type === 'authority');
-    if (!authUser) {
-      authUser = {
-        id: 'u3',
-        type: 'authority',
-        name: 'Dr. Priya Nair',
-        email: 'dean.sw@vvce.ac.in',
-        pass: 'demo1234',
-        designation: 'Dean Student Welfare',
-        dept: 'Student Welfare',
-        phone: '+91 98765 43212',
-        notifs: []
-      };
-      users.push(authUser);
-      setDB('vvce_users', users);
-    }
-
-    // Auto-unlock demo authority credentials
-    STATE.authorityUnlocked = true;
-    STATE.currentAuthorityId = 'auth_dean_sw';
-    STATE.currentAuthorityName = 'Dean Student Welfare';
-
-    launchApp(authUser);
-    showPage('authority-portal');
-    toast('Logged in as Approving Authority (Dean Student Welfare) ✓', 'success');
-    return;
-  }
-
-  handleLogin();
-}
-
 
 /* ─────────────────────────────────────────────────────────────
    SUPABASE EMAIL VERIFICATION (MAGIC LINK SIGNUP)
@@ -1321,12 +1197,34 @@ async function finalizeRegistration(role, userPayload) {
 
   toast('Sending verification email...', 'info');
 
-  // Supabase Auth SignUp
+  const profileMetadata = {
+    profile_type: role,
+    name: userPayload.name,
+    usn: userPayload.usn,
+    branch: userPayload.branch,
+    section: userPayload.section,
+    year: userPayload.year,
+    sem: userPayload.sem,
+    admission_year: userPayload.admissionYear,
+    dept: userPayload.dept,
+    phone: userPayload.phone,
+    interests: userPayload.interests || [],
+    club_name: userPayload.clubName,
+    club_email: userPayload.clubEmail,
+    domain: userPayload.domain,
+    faculty: userPayload.faculty,
+    desc: userPayload.desc,
+    authority_id: userPayload.authorityId,
+    authority_name: userPayload.authorityName,
+    profile_photo: userPayload.profilePhoto || null,
+    notifs: userPayload.notifs || []
+  };
   const { data, error } = await sb.auth.signUp({
     email: userPayload.email,
     password: userPayload.pass,
     options: {
-      data: userPayload // Store all user details in metadata so we can access them after email verification
+      data: profileMetadata,
+      emailRedirectTo: window.location.origin + window.location.pathname
     }
   });
 
@@ -1346,28 +1244,13 @@ async function finalizeRegistration(role, userPayload) {
     return;
   }
 
-  // If the user already exists in Supabase Auth (but maybe didn't verify yet), Supabase returns success but DOES NOT send an email!
-  // We can detect this because data.user.identities will be empty.
-  if (data?.user?.identities?.length === 0) {
-    // Force Supabase to resend the verification email for this existing unverified account
-    const { error: resendErr } = await sb.auth.resend({ type: 'signup', email: userPayload.email });
-    if (resendErr) {
-      showAuthMsg(
-        `⚠️ Account already exists but re-sending verification email failed: ${resendErr.message}. ` +
-        'Please check your spam folder or try again later.',
-        'warning'
-      );
-      return;
-    }
-  }
-
   showAuthMsg(
     `🎉 Verification email sent to ${userPayload.email}! Please check your inbox (and spam folder) and click the "Verify" button. Once verified, you can sign in.`,
     'success'
   );
 
   // Clear password fields and switch to sign in
-  const passFields = ['s-pass', 'a-pass', 'f-pass'];
+  const passFields = ['s-pass', 'a-pass'];
   passFields.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -1380,96 +1263,97 @@ async function finalizeRegistration(role, userPayload) {
 async function checkSupabaseEmailVerification() {
   const sb = getSupabaseClient();
   if (!sb || !sb.auth) return;
-
-  // ── Listen for auth state changes (fires immediately when email link is clicked) ──
-  // This handles the case where the user is redirected back to the site after clicking
-  // the verification email link — Supabase fires SIGNED_IN with the verified session.
   if (!window._authListenerSetup) {
     window._authListenerSetup = true;
-    sb.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) {
-        await handleVerifiedSession(session, event);
+    sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        openPasswordRecoveryForm(session?.user?.email || '');
+      } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !STATE.user) {
+        setTimeout(() => handleVerifiedSession(session, event), 0);
       }
     });
-  }
-
-  try {
-    // Also check immediately on page load (handles page reload after email click)
-    const { data: { session } } = await sb.auth.getSession();
-    if (session && session.user) {
-      await handleVerifiedSession(session, 'PAGE_LOAD');
-    }
-  } catch(e) {
-    console.error('Email verification check failed:', e);
   }
 }
 
 async function handleVerifiedSession(session, trigger) {
   const sb = getSupabaseClient();
-  if (!sb) return;
-
+  if (!sb || !session?.user) return;
   const supaUser = session.user;
-  const meta = supaUser.user_metadata || {};
-
-  // Only process if the user has verified their email
-  if (!supaUser.email_confirmed_at && !supaUser.confirmed_at) return;
-
-  // If meta has our custom type/email (set during signUp), use it to build the profile
-  if (meta && meta.type && meta.email) {
-    let users = getDB('vvce_users');
-    let existing = users.find(u => u.email.toLowerCase() === supaUser.email.toLowerCase());
-
-    if (!existing) {
-      // Brand new verified user — save their full profile
-      const newUser = { ...meta };
-      users.push(newUser);
-      setDB('vvce_users', users);
-
-      const mapped = {
-        id: meta.id, type: meta.type, name: meta.name, email: meta.email, pass: meta.pass,
-        usn: meta.usn, branch: meta.branch, section: meta.section, year: meta.year,
-        sem: meta.sem, admission_year: meta.admissionYear, dept: meta.dept, phone: meta.phone,
-        interests: meta.interests, skills: meta.skills, bio: meta.bio, linkedin: meta.linkedin,
-        github: meta.github, achievements: meta.achievements, profile_photo: meta.profilePhoto,
-        resume: meta.resume, points: meta.points, points_by_sem: meta.pointsBySem,
-        notifs: meta.notifs, club_name: meta.clubName, club_email: meta.clubEmail,
-        domain: meta.domain, faculty: meta.faculty, approved: meta.approved, desc: meta.desc,
-        designation: meta.designation
-      };
-      await sb.from('users').upsert([mapped]);
-      if (newUser.type === 'student') {
-        await sb.from('registered_students').upsert([mapped]).catch(() => {});
-      }
-
-      // Clean URL hash so it doesn't re-trigger on refresh
-      if (window.location.hash) {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      }
-
-      if (newUser.type === 'admin') {
-        showAuthMsg('🎉 Email verified! Club registration submitted. Awaiting Dean Student Welfare approval.', 'success');
-        toast('✅ Email verified! Club account submitted for approval.', 'success');
-      } else {
-        toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
-        // Open the app immediately — no delay needed
-        launchApp(newUser);
-      }
-    } else if (existing && trigger !== 'PAGE_LOAD') {
-      // Returning verified user — already in DB, just launch immediately
-      if (!STATE.user) {
-        launchApp(existing);
-      }
-    }
-  } else {
-    // Supabase verified session but no custom metadata (direct Supabase Auth signup)
-    // Try to find them in local DB by email
-    const users = getDB('vvce_users');
-    const existing = users.find(u => u.email.toLowerCase() === supaUser.email.toLowerCase());
-    if (existing && !STATE.user && trigger !== 'PAGE_LOAD') {
-      toast('🎉 Email verified! Welcome back!', 'success');
-      launchApp(existing);
-    }
+  if (window._mainAuthResolvedId === supaUser.id && STATE.user) return;
+  if (!supaUser.email?.toLowerCase().endsWith('@vvce.ac.in')) {
+    await sb.auth.signOut();
+    showAuthMsg('Only verified @vvce.ac.in accounts can access this website.', 'error');
+    return;
   }
+
+  const { data: authority, error: authorityError } = await sb
+    .from('approving_authorities')
+    .select('id, name, email, designation, active')
+    .eq('auth_user_id', supaUser.id)
+    .eq('active', true)
+    .maybeSingle();
+  if (authorityError) {
+    await sb.auth.signOut();
+    showAuthMsg(`Could not load your authority access: ${authorityError.message}`, 'error');
+    return;
+  }
+
+  let user;
+  if (authority) {
+    user = {
+      id: supaUser.id,
+      authUserId: supaUser.id,
+      type: 'authority',
+      name: authority.name,
+      email: authority.email || supaUser.email,
+      designation: authority.designation || 'Approving Authority',
+      dept: 'Administration',
+      notifs: []
+    };
+    STATE.authorityUnlocked = true;
+    STATE.currentAuthorityId = authority.id;
+    STATE.currentAuthorityName = authority.name;
+  } else {
+    const { data: profile, error: profileError } = await sb
+      .from('users')
+      .select('*')
+      .eq('auth_user_id', supaUser.id)
+      .maybeSingle();
+    if (profileError) {
+      await sb.auth.signOut();
+      showAuthMsg(`Could not load your account profile: ${profileError.message}`, 'error');
+      return;
+    }
+    if (!profile) {
+      const { data: cpmProfile, error: cpmError } = await sb.rpc('get_cpm_admin_session');
+      if (!cpmError && cpmProfile?.active) {
+        await sb.auth.signOut();
+        showAuthMsg('This is a CPM administrator account. Please sign in through the CPM portal.', 'warning');
+        return;
+      }
+      await sb.auth.signOut();
+      showAuthMsg('This login is not linked to an active VVCE account.', 'error');
+      return;
+    }
+    user = mapUser(profile);
+    const profileIndex = SUPABASE_CACHE.vvce_users.findIndex(row => row.id === user.id);
+    if (profileIndex === -1) SUPABASE_CACHE.vvce_users.push(user);
+    else SUPABASE_CACHE.vvce_users[profileIndex] = user;
+    USER_SYNC_SNAPSHOT.set(user.id, mapUserForSupabase(user));
+    try { localStorage.setItem('vvce_users', JSON.stringify(SUPABASE_CACHE.vvce_users)); } catch (e) {}
+    if (user.type === 'admin' && !user.approved) {
+      await sb.auth.signOut();
+      showAuthMsg('Your club account is pending approving-authority review.', 'warning');
+      return;
+    }
+    STATE.authorityUnlocked = false;
+    STATE.currentAuthorityId = null;
+    STATE.currentAuthorityName = null;
+  }
+
+  window._mainAuthResolvedId = supaUser.id;
+  launchApp(user);
+  if (trigger !== 'PAGE_LOAD') toast(`Welcome, ${user.name}!`, 'success');
 }
 
 /* ── Student Signup ── */
@@ -1686,6 +1570,20 @@ function handleForgotPassword() {
 }
 window.handleForgotPassword = handleForgotPassword;
 
+function openPasswordRecoveryForm(email = '') {
+  const step1 = document.getElementById('reset-step-1');
+  const step2 = document.getElementById('reset-step-2');
+  const otpField = document.getElementById('reset-otp-input')?.closest('.auth-field-group');
+  const emailInput = document.getElementById('reset-email-input');
+  if (emailInput && email) emailInput.value = email;
+  if (step1) step1.style.display = 'none';
+  if (step2) step2.style.display = 'block';
+  if (otpField) otpField.style.display = 'none';
+  const banner = document.getElementById('reset-code-banner');
+  if (banner) banner.textContent = 'Choose a new password for your account.';
+  openModal('modal-forgot-password');
+}
+
 function backToResetStep1() {
   const step1 = document.getElementById('reset-step-1');
   const step2 = document.getElementById('reset-step-2');
@@ -1715,6 +1613,38 @@ async function sendResetVerificationCode() {
     }
     return;
   }
+
+  const sb = getSupabaseClient();
+  if (!sb?.auth) {
+    if (msgEl) {
+      msgEl.textContent = 'Secure password recovery is unavailable. Please try again later.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+  let error;
+  try {
+    ({ error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    }));
+  } catch (requestError) {
+    error = requestError;
+  }
+  if (error) {
+    if (msgEl) {
+      msgEl.textContent = `Could not send the recovery email: ${error.message}`;
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+  if (msgEl) {
+    msgEl.textContent = 'If an account exists for this address, Supabase has sent a secure password recovery link.';
+    msgEl.className = 'auth-msg success';
+    msgEl.style.display = 'block';
+  }
+  return;
 
   const btn = document.getElementById('btn-send-reset-code');
   if (btn) { btn.disabled = true; btn.textContent = 'Verifying Account...'; }
@@ -1846,6 +1776,56 @@ async function executePasswordReset() {
   const otp = (document.getElementById('reset-otp-input')?.value || '').trim();
   const newPass = document.getElementById('reset-new-pass')?.value || '';
   const confirmPass = document.getElementById('reset-confirm-pass')?.value || '';
+
+  const sb = getSupabaseClient();
+  if (!sb?.auth) {
+    if (msgEl) {
+      msgEl.textContent = 'Secure password recovery is unavailable. Please try again later.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+  if (!newPass || newPass.length < 8) {
+    if (msgEl) {
+      msgEl.textContent = 'Password must be at least 8 characters long.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+  if (newPass !== confirmPass) {
+    if (msgEl) {
+      msgEl.textContent = 'Passwords do not match.';
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+  let error;
+  try {
+    ({ error } = await sb.auth.updateUser({ password: newPass }));
+  } catch (updateError) {
+    error = updateError;
+  }
+  if (error) {
+    if (msgEl) {
+      msgEl.textContent = `Could not update your password: ${error.message}`;
+      msgEl.className = 'auth-msg error';
+      msgEl.style.display = 'block';
+    }
+    return;
+  }
+  window._resetPasswordState = null;
+  closeModal('modal-forgot-password');
+  const { error: signOutError } = await sb.auth.signOut();
+  showAuthMsg(
+    signOutError
+      ? 'Password updated, but this session could not be closed. Sign out before using another account.'
+      : 'Password updated. You can now sign in with your new password.',
+    signOutError ? 'warning' : 'success'
+  );
+  return;
 
   if (!otp) {
     if (msgEl) {
@@ -2040,18 +2020,20 @@ function initGoogleAuth() {
 
 /* Called when user clicks the Google button */
 window.triggerGoogleSignIn = function() {
-  if (typeof google !== 'undefined' && GOOGLE_CLIENT_ID) {
-    /* Use real Google OAuth popup */
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        /* Fallback to manual entry if popup blocked */
-        manualGoogleEmailEntry();
-      }
-    });
+  const sb = getSupabaseClient();
+  if (!sb?.auth) {
+    showAuthMsg('Secure sign-in is unavailable. Please try again later.', 'error');
     return;
   }
-  /* No Client ID configured — use manual email entry fallback */
-  manualGoogleEmailEntry();
+  sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: { hd: 'vvce.ac.in' }
+    }
+  }).then(({ error }) => {
+    if (error) showAuthMsg(`Google sign-in failed: ${error.message}`, 'error');
+  });
 };
 
 function manualGoogleEmailEntry() {
@@ -2084,38 +2066,15 @@ window.handleGoogleSignIn = function(response) {
 
 /* Find or auto-create user, then launch app */
 function googleLoginByEmail(email, name, photo) {
-  const users = getDB('vvce_users');
-  let user = users.find(u => u.email.toLowerCase() === email);
-
-  if (!user) {
-    /* Auto-create student account for first-time @vvce.ac.in sign-in */
-    const displayName = name
-      || email.split('@')[0].replace(/[._]/g,' ')
-          .replace(/\b\w/g, c => c.toUpperCase());
-    user = {
-      id: genId('u'), type: 'student',
-      name: displayName.toUpperCase(), email, pass: null,
-      profilePhoto: photo || null,
-      usn: '', branch: 'CS', section: 'A',
-      year: '1st Year', sem: 'Sem 1',
-      dept: 'Computer Science', phone: '',
-      interests: [], skills: [], bio: '',
-      linkedin: '', github: '', achievements: [],
-      points: 0,
-      pointsBySem: { 'Sem 1':0,'Sem 2':0,'Sem 3':0,'Sem 4':0,'Sem 5':0,'Sem 6':0,'Sem 7':0,'Sem 8':0 },
-      notifs: [{ id:genId('n'), msg:'Welcome to VVCE Events Hub! 🎉 Please complete your profile.', time:'Just now', read:false, icon:'🎉' }]
-    };
-    users.push(user);
-    setDB('vvce_users', users);
-    toast('Account created via Google Sign-In! Please complete your profile. 🎓', 'success');
-  }
-
-  if (user.type === 'admin' && !user.approved) {
-    showAuthMsg('Your club account is pending Dean SW approval.', 'warning'); return;
-  }
-  launchApp(user);
+  void email;
+  void name;
+  void photo;
+  showAuthMsg('Email-only Google sign-in is disabled. Use Supabase Auth.', 'warning');
 }
 
+window.handleGoogleSignIn = function() {
+  showAuthMsg('Please use the secure Google sign-in button.', 'warning');
+};
 
 /* ─────────────────────────────────────────────────────────────
    APP LAUNCH & ROUTING
@@ -2124,6 +2083,16 @@ function launchApp(user) {
   STATE.user = user;
   STATE.deanUnlocked = false;
   STATE.principalUnlocked = false;
+
+  try {
+    sessionStorage.setItem('vvce_session', JSON.stringify({
+      user,
+      authorityUnlocked: STATE.authorityUnlocked || false,
+      currentAuthorityId: STATE.currentAuthorityId || null,
+      currentAuthorityName: STATE.currentAuthorityName || null,
+      page: STATE.page || null
+    }));
+  } catch (e) {}
 
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
@@ -2149,11 +2118,23 @@ function launchApp(user) {
   }
 }
 
-function logout() {
+async function logout() {
   if (!confirm('Sign out of VVCE Events Hub?')) return;
+  const sb = getSupabaseClient();
+  if (sb?.auth) {
+    const { error } = await sb.auth.signOut();
+    if (error) {
+      showAuthMsg(`Could not sign out securely: ${error.message}`, 'error');
+      return;
+    }
+  }
   STATE.user = null;
   STATE.deanUnlocked = false;
   STATE.principalUnlocked = false;
+  STATE.authorityUnlocked = false;
+  STATE.currentAuthorityId = null;
+  STATE.currentAuthorityName = null;
+  try { sessionStorage.removeItem('vvce_session'); } catch (e) {}
   document.getElementById('app').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   if (!window.currentTheme || !window.currentTheme.bannerUrl) {
@@ -2166,9 +2147,33 @@ function logout() {
 }
 
 function showPage(pageId) {
+  if (STATE.user?.type === 'admin' && (pageId === 'events' || pageId === 'clubs')) {
+    toast('All Events and Clubs Directory are available in the Student Dashboard.', 'info');
+    pageId = 'admin-dashboard';
+  }
+
   const prev = STATE.page;
   STATE.prevPage = prev;
   STATE.page = pageId;
+
+  if (STATE.user) {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('vvce_session') || '{}');
+      saved.page = pageId;
+      saved.user = STATE.user;
+      saved.authorityUnlocked = STATE.authorityUnlocked || false;
+      saved.currentAuthorityId = STATE.currentAuthorityId || null;
+      saved.currentAuthorityName = STATE.currentAuthorityName || null;
+      sessionStorage.setItem('vvce_session', JSON.stringify(saved));
+    } catch (e) {}
+  }
+
+  if (document.getElementById('app')?.style.display !== 'none') {
+    const nextHash = `#${pageId}`;
+    if (window.location.hash !== nextHash) {
+      try { window.history.pushState({ page: pageId }, '', nextHash); } catch (e) {}
+    }
+  }
 
   // Hide all pages
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -2201,7 +2206,6 @@ function showPage(pageId) {
     'authority-attendance': 'Attendance',
     'authority-portal': 'Approving Authority Portal',
     'dean-portal': 'Approving Authority Portal',
-    'principal-portal': 'Principal Portal',
   };
   document.getElementById('topbar-title').textContent = titles[pageId] || pageId;
 
@@ -2233,7 +2237,6 @@ function showPage(pageId) {
     'authority-clash':      renderClashDetect,
     'authority-attendance': renderAttendancePage,
     'authority-portal':     () => renderAuthorityPortal(),
-    'dean-portal':          () => renderAuthorityPortal(),
     'dean-portal':          () => renderDeanPortal(),
     // 'principal-portal' removed as requested
   };
@@ -2304,8 +2307,6 @@ function renderSidebar() {
     html = `
       <div class="sb-section-label">Management</div>
       ${navItem('admin-dashboard','📊','Dashboard')}
-      ${navItem('events','🗓️','All Events')}
-      ${navItem('clubs','🏛️','Clubs')}
       ${navItem('create-event','➕','Create Event')}
       ${navItem('manage-events','📋','My Events')}
       ${navItem('participants','👥','Participants')}
@@ -5910,12 +5911,7 @@ async function applyAttendanceRewards(eventId, userId, attended, ev) {
 
 /* Helper to verify if current user is the Dean of Student Welfare */
 function isDeanUser(user = STATE.user) {
-  if (!user) return false;
-  return user.type === 'authority' && (
-    user.designation === 'dean' ||
-    (user.email && user.email.toLowerCase() === 'dean.sw@vvce.ac.in') ||
-    (user.email && user.email.toLowerCase().startsWith('dean'))
-  );
+  return Boolean(user?.type === 'authority' && STATE.authorityUnlocked && STATE.currentAuthorityId);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -6078,17 +6074,27 @@ async function approveEvent(id) {
   }
   const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
   if(!ev) return;
+  const sb = getSupabaseClient();
+  if (!sb) {
+    toast('⚠️ Database connection unavailable. Approval could not be saved.', 'error');
+    return;
+  }
+  const { data, error } = await sb.rpc('approve_event_with_clash_check', {
+    p_event_id: id,
+    p_authority_id: STATE.currentAuthorityId,
+    p_authority_name: STATE.currentAuthorityName || 'Approving Authority'
+  });
+  if (error) {
+    toast(`⚠️ Server approval failed: ${error.message}`, 'error', 6000);
+    return;
+  }
+  if (!data?.success) {
+    toast(`⚠️ Approval Rejected by Server: ${data?.error || 'Unknown server error'}`, 'error', 6000);
+    return;
+  }
   ev.status='approved'; ev.rejReason=null;
   await setDB('vvce_events',events);
-
-  // Directly update Supabase table
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      await sb.from('events').update({ status: 'approved', rej_reason: null }).eq('id', id);
-      await syncEventsFromSupabase();
-    } catch(e) { console.warn('Supabase update approval:', e); }
-  }
+  await syncEventsFromSupabase();
 
   // Notify admin
   const users=getDB('vvce_users'); const admin=users.find(u=>u.id===ev.adminId);
@@ -6121,16 +6127,28 @@ async function confirmReject() {
   if(!reason){toast('Please provide a rejection reason.','error');return;}
   const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
   if(!ev) return;
+  const sb = getSupabaseClient();
+  if (!sb) {
+    toast('⚠️ Database connection unavailable. Rejection could not be saved.', 'error');
+    return;
+  }
+  const { data, error } = await sb.rpc('reject_event_by_authority', {
+    p_event_id: id,
+    p_authority_id: STATE.currentAuthorityId,
+    p_authority_name: STATE.currentAuthorityName || 'Approving Authority',
+    p_reason: reason
+  });
+  if (error) {
+    toast(`⚠️ Server rejection failed: ${error.message}`, 'error', 6000);
+    return;
+  }
+  if (!data?.success) {
+    toast(`⚠️ Rejection failed: ${data?.error || 'Unknown server error'}`, 'error', 6000);
+    return;
+  }
   ev.status='rejected'; ev.rejReason=reason;
   await setDB('vvce_events',events);
-
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      await sb.from('events').update({ status: 'rejected', rej_reason: reason }).eq('id', id);
-      await syncEventsFromSupabase();
-    } catch(e) { console.warn('Supabase update reject:', e); }
-  }
+  await syncEventsFromSupabase();
 
   const users=getDB('vvce_users'); const admin=users.find(u=>u.id===ev.adminId);
   if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" was rejected by Dean SW: ${reason}`,icon:'❌',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
@@ -6437,24 +6455,12 @@ function renderAttendancePage() {
 /* ─────────────────────────────────────────────────────────────
    DEAN PORTAL
 ───────────────────────────────────────────────────────────────*/
-const DEAN_PASS = 'deanwellfair@vvce';
-
 function handleDeanPortalNav() {
-  if (STATE.deanUnlocked) { showPage('dean-portal'); return; }
-  document.getElementById('dean-pass-input').value='';
-  document.getElementById('dean-pass-error').style.display='none';
-  openModal('modal-dean-pass');
-}
-
-function verifyDeanPassword() {
-  const pass = document.getElementById('dean-pass-input').value;
-  if (pass === DEAN_PASS) {
+  if (STATE.deanUnlocked || STATE.authorityUnlocked) {
     STATE.deanUnlocked = true;
-    closeModal('modal-dean-pass');
     showPage('dean-portal');
   } else {
-    const err=document.getElementById('dean-pass-error');
-    err.textContent='Incorrect password. Try again.'; err.style.display='';
+    toast('Please sign in with an approving authority account to access this portal.', 'error');
   }
 }
 
@@ -6847,6 +6853,12 @@ window.addEventListener('pageshow', function(e) {
   bootApp();
 });
 
+window.addEventListener('popstate', function() {
+  if (!STATE.user) return;
+  const pageId = window.location.hash.replace(/^#/, '');
+  if (pageId) showPage(pageId);
+});
+
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') {
     bootApp();
@@ -7137,49 +7149,11 @@ window.handleAuthoritySectionNav = function() {
 };
 
 window.openAuthoritySelectionModal = function() {
-  const active = getActiveApprovingAuthorities();
-  const modal = document.getElementById('modal-authority-pass');
-  if (!modal) return;
-
-  const titleEl = document.getElementById('authority-modal-title');
-  if (titleEl) titleEl.textContent = 'Approving Authority Portal';
-
-  // Inject authority selector dropdown above password input if not present
-  let selContainer = document.getElementById('auth-modal-select-container');
-  if (!selContainer) {
-    const passInput = document.getElementById('authority-pass-input');
-    selContainer = document.createElement('div');
-    selContainer.id = 'auth-modal-select-container';
-    selContainer.style.marginBottom = '12px';
-    selContainer.innerHTML = `
-      <label style="display:block; font-size:12px; font-weight:700; color:#cbd5e1; margin-bottom:5px; text-align:left;">
-        Select Approving Authority
-      </label>
-      <select id="modal-authority-select" class="auth-input" style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.2); color:#fff; cursor:pointer;" onchange="onAuthorityModalSelectChange()">
-      </select>
-    `;
-    passInput.parentElement.parentElement.insertBefore(selContainer, passInput.parentElement);
+  if (STATE.user?.type === 'authority' && STATE.authorityUnlocked && STATE.currentAuthorityId) {
+    showPage('authority-portal');
+    return;
   }
-
-  const sel = document.getElementById('modal-authority-select');
-  if (sel) {
-    if (!active.length) {
-      sel.innerHTML = '<option value="">-- No Active Authorities Found --</option>';
-    } else {
-      sel.innerHTML = '<option value="">-- Select Authority to Access --</option>' +
-        active.map(a => `<option value="${a.id}">${a.name} (${a.designation || 'Approving Authority'})</option>`).join('');
-      if (STATE.currentAuthorityId && active.some(a => a.id === STATE.currentAuthorityId)) {
-        sel.value = STATE.currentAuthorityId;
-      }
-    }
-  }
-
-  const passInput = document.getElementById('authority-pass-input');
-  if (passInput) passInput.value = '';
-  const err = document.getElementById('authority-pass-error');
-  if (err) err.style.display = 'none';
-
-  openModal('modal-authority-pass');
+  showAuthMsg('Sign in with the Supabase Auth account assigned to your approving authority.', 'warning');
 };
 
 window.onAuthorityModalSelectChange = function() {
@@ -7188,48 +7162,7 @@ window.onAuthorityModalSelectChange = function() {
 };
 
 window.verifyAuthorityPassword = async function() {
-  const sel = document.getElementById('modal-authority-select');
-  const authId = sel ? sel.value : null;
-  const pass = document.getElementById('authority-pass-input').value;
-  const err = document.getElementById('authority-pass-error');
-
-  if (!authId) {
-    err.textContent = 'Please select an approving authority from the list.';
-    err.style.display = 'block';
-    return;
-  }
-
-  const authorities = getActiveApprovingAuthorities();
-  const target = authorities.find(a => a.id === authId);
-  if (!target) {
-    err.textContent = 'Selected authority is not active or no longer exists.';
-    err.style.display = 'block';
-    return;
-  }
-
-  let isValid = false;
-  // If target has stored salt and password_hash
-  if (target.password_hash && target.salt) {
-    isValid = await verifyPasswordWithSalt(pass, target.password_hash, target.salt);
-  } else if (target.pass) {
-    // Backward compatibility for raw test records
-    isValid = (pass === target.pass);
-  } else if (target.id === 'auth_dean_sw' && pass === 'deanwellfair@vvce') {
-    isValid = true;
-  }
-
-  if (isValid) {
-    STATE.authorityUnlocked = true;
-    STATE.currentAuthorityId = target.id;
-    STATE.currentAuthorityName = target.name;
-    closeModal('modal-authority-pass');
-    toast(`Authenticated as ${target.name}! ✓`, 'success');
-    renderSidebar();
-    showPage('authority-portal');
-  } else {
-    err.textContent = 'Invalid credentials for ' + target.name + '. Please try again.';
-    err.style.display = 'block';
-  }
+  showAuthMsg('Approving-authority access is granted only after Supabase Auth verifies your mapped account.', 'warning');
 };
 
 window.lockAuthorityPortal = function() {
@@ -7623,16 +7556,22 @@ window.authorityApproveEvent = async function(id) {
         p_authority_name: currentAuthName
       });
 
-      if (!error && data) {
-        if (!data.success) {
-          toast(`⚠️ Approval Rejected by Server: ${data.error}`, 'error', 6000);
-          return;
-        }
-        serverHandled = true;
+      if (error) {
+        toast(`⚠️ Server approval failed: ${error.message}`, 'error', 6000);
+        return;
       }
+      if (!data?.success) {
+        toast(`⚠️ Approval Rejected by Server: ${data?.error || 'Unknown server error'}`, 'error', 6000);
+        return;
+      }
+      serverHandled = true;
     } catch (rpcErr) {
-      console.warn('RPC approve_event_with_clash_check fallback to direct update:', rpcErr);
+      toast(`⚠️ Server approval failed: ${rpcErr.message}`, 'error', 6000);
+      return;
     }
+  } else {
+    toast('⚠️ Database connection unavailable. Approval could not be saved.', 'error');
+    return;
   }
 
   // Local state update & audit history
@@ -7707,23 +7646,31 @@ window.authorityRejectEventPrompt = async function(id) {
     timestamp: new Date().toISOString()
   };
 
+  const sb = getSupabaseClient();
+  if (!sb) {
+    toast('⚠️ Database connection unavailable. Rejection could not be saved.', 'error');
+    return;
+  }
+  const { data, error } = await sb.rpc('reject_event_by_authority', {
+    p_event_id: id,
+    p_authority_id: currentAuthId,
+    p_authority_name: currentAuthName,
+    p_reason: reason.trim() || 'Rejected by Approving Authority'
+  });
+  if (error) {
+    toast(`⚠️ Server rejection failed: ${error.message}`, 'error', 6000);
+    return;
+  }
+  if (!data?.success) {
+    toast(`⚠️ Rejection failed: ${data?.error || 'Unknown server error'}`, 'error', 6000);
+    return;
+  }
+
   ev.status = 'rejected';
   ev.rejReason = reason.trim() || 'Rejected by Approving Authority';
   if (!ev.decisionHistory) ev.decisionHistory = [];
   ev.decisionHistory.push(decisionEntry);
-
   await setDB('vvce_events', events);
-
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      await sb.from('events').update({
-        status: 'rejected',
-        rej_reason: ev.rejReason,
-        decision_history: ev.decisionHistory
-      }).eq('id', id);
-    } catch(e) {}
-  }
 
   // Notify Club Admin
   const users = getDB('vvce_users');
@@ -7746,12 +7693,43 @@ window.authorityRejectEventPrompt = async function(id) {
 };
 
 window.authorityApproveClub = async function(id) {
+  if (!STATE.authorityUnlocked || !STATE.currentAuthorityId) {
+    toast('⚠️ You must authenticate as an Approving Authority first.', 'error');
+    return;
+  }
+
   const users = getDB('vvce_users');
   const club = users.find(u => u.id === id);
   if (!club) return;
 
   const currentAuthId = STATE.currentAuthorityId;
   const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+  const sb = getSupabaseClient();
+
+  if (!sb) {
+    toast('⚠️ Database connection unavailable. Club approval could not be saved.', 'error');
+    return;
+  }
+
+  try {
+    const { data, error } = await sb.rpc('approve_club_registration', {
+      p_club_id: id,
+      p_authority_id: currentAuthId,
+      p_authority_name: currentAuthName
+    });
+
+    if (error) {
+      toast(`⚠️ Server approval failed: ${error.message}`, 'error', 6000);
+      return;
+    }
+    if (!data?.success) {
+      toast(`⚠️ Approval Rejected by Server: ${data?.error || 'Unknown server error'}`, 'error', 6000);
+      return;
+    }
+  } catch (rpcErr) {
+    toast(`⚠️ Server approval failed: ${rpcErr.message}`, 'error', 6000);
+    return;
+  }
 
   club.approved = true;
   if (!club.approvalHistory) club.approvalHistory = [];
@@ -7780,6 +7758,26 @@ window.authorityRejectClubPrompt = async function(id) {
   const currentAuthId = STATE.currentAuthorityId;
   const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
 
+  const sb = getSupabaseClient();
+  if (!sb) {
+    toast('⚠️ Database connection unavailable. Rejection could not be saved.', 'error');
+    return;
+  }
+  const { data, error } = await sb.rpc('reject_club_registration', {
+    p_club_id: id,
+    p_authority_id: currentAuthId,
+    p_authority_name: currentAuthName,
+    p_reason: reason.trim() || 'Registration rejected by Approving Authority'
+  });
+  if (error) {
+    toast(`⚠️ Server rejection failed: ${error.message}`, 'error', 6000);
+    return;
+  }
+  if (!data?.success) {
+    toast(`⚠️ Rejection failed: ${data?.error || 'Unknown server error'}`, 'error', 6000);
+    return;
+  }
+
   club.approved = false;
   club.rejectionReason = reason.trim() || 'Registration rejected by Approving Authority';
   if (!club.approvalHistory) club.approvalHistory = [];
@@ -7790,7 +7788,6 @@ window.authorityRejectClubPrompt = async function(id) {
     authorityName: currentAuthName,
     timestamp: new Date().toISOString()
   });
-
   await setDB('vvce_users', users);
   toast('Club registration rejected.', 'warning');
   renderAuthorityPortal('club-approvals');
@@ -7801,6 +7798,31 @@ window.authorityRevokeClub = async function(id) {
   const users = getDB('vvce_users');
   const club = users.find(u => u.id === id);
   if (!club) return;
+
+  if (!STATE.authorityUnlocked || !STATE.currentAuthorityId) {
+    toast('⚠️ You must authenticate as an Approving Authority first.', 'error');
+    return;
+  }
+  const sb = getSupabaseClient();
+  if (!sb) {
+    toast('⚠️ Database connection unavailable. Revocation could not be saved.', 'error');
+    return;
+  }
+  const currentAuthId = STATE.currentAuthorityId;
+  const currentAuthName = STATE.currentAuthorityName || 'Approving Authority';
+  const { data, error } = await sb.rpc('revoke_club_registration', {
+    p_club_id: id,
+    p_authority_id: currentAuthId,
+    p_authority_name: currentAuthName
+  });
+  if (error) {
+    toast(`⚠️ Server revocation failed: ${error.message}`, 'error', 6000);
+    return;
+  }
+  if (!data?.success) {
+    toast(`⚠️ Revocation failed: ${data?.error || 'Unknown server error'}`, 'error', 6000);
+    return;
+  }
 
   club.approved = false;
   await setDB('vvce_users', users);
