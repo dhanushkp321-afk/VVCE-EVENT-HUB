@@ -86,6 +86,7 @@ async function runTests() {
     ['CPM authority creation never stores passwords', !cpmHtml.includes('new-auth-pass') && cpmHtml.includes('auth_user_id')],
     ['CPM login maps usernames to active server-side roles before Auth sign-in', cpmLoginFunction.includes('cpm_admin_members') && cpmLoginFunction.includes('signInWithPassword') && cpmLoginFunction.includes('.eq("role", role)') && cpmLoginFunction.includes('.eq("active", true)')],
     ['CPM login does not return mapped email addresses', cpmLoginFunction.includes('access_token: authData.session.access_token') && !/jsonResponse\([^)]*email/is.test(cpmLoginFunction)],
+    ['CPM login falls back to legacy Supabase keys when key maps have no default', /if \(keysJson\) \{[\s\S]*?\r?\n  \}\s*\r?\n\s*const legacyKey = Deno\.env\.get\(legacyEnv\);/.test(cpmLoginFunction)],
     ['CPM usernames are unique and login attempts are rate-limited', cpmLoginMigration.includes('idx_cpm_admin_members_login_username') && cpmLoginMigration.includes('consume_cpm_login_attempt') && cpmLoginMigration.includes('GRANT EXECUTE ON FUNCTION public.consume_cpm_login_attempt(TEXT) TO service_role')],
     ['Main-site role and approval state are protected server-side', authMigration.includes('protect_user_auth_role') && authMigration.includes('vvce.authority_rpc') && migrationSql.includes('protect_club_approval_columns') && migrationSql.includes('protect_event_approval_columns')]
   ];

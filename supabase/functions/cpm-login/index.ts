@@ -29,12 +29,11 @@ function getDefaultKey(keysEnv: string, legacyEnv: string): string {
       const defaultKey = (keys as Record<string, unknown>).default;
       if (typeof defaultKey === "string" && defaultKey) return defaultKey;
     }
-    throw new Error(`Missing default key in ${keysEnv}`);
   }
 
   const legacyKey = Deno.env.get(legacyEnv);
   if (legacyKey) return legacyKey;
-  throw new Error(`Missing ${keysEnv}`);
+  throw new Error(`Missing default key in ${keysEnv} and ${legacyEnv}`);
 }
 
 Deno.serve(async (req: Request) => {
