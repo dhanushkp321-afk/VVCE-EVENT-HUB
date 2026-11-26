@@ -298,12 +298,9 @@ function renderAuthorityEventApprovalsTab(pending) {
       <span class="sec-title">Event Proposals Awaiting Your Approval (${pending.length})</span>
     </div>
     ${pending.length ? pending.map(e => {
-      // Check for venue clash against ANY approved event
-      const conflict = allActiveEvents.find(other => 
-        other.id !== e.id &&
-        other.status === 'approved' &&
-        other.date === e.date &&
-        (other.venue || '').trim().toLowerCase() === (e.venue || '').trim().toLowerCase()
+      // Check for overlapping venue time-slot clash against approved events
+      const conflict = allActiveEvents.find(other =>
+        doEventSlotsOverlap(e, other, { allowedStatuses: ['approved'] })
       );
 
       return `
@@ -312,7 +309,7 @@ function renderAuthorityEventApprovalsTab(pending) {
             <div style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:10px 14px; border-radius:8px; margin-bottom:12px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
               <span style="font-size:18px;">⚠️</span>
               <div>
-                GLOBAL VENUE CLASH WARNING: Conflicting approved event "${conflict.name}" (${conflict.club}) is already booked for ${e.venue} on ${formatDate(e.date)} (${formatTime(conflict.time)}). Approval is blocked.
+                GLOBAL VENUE CLASH WARNING: Conflicting approved event "${conflict.name}" (${conflict.club}) is already booked at ${e.venue} on ${formatDate(e.date)} (${formatEventTimeSlot(conflict)}). Approval is blocked.
               </div>
             </div>
           ` : ''}
@@ -474,15 +471,14 @@ window.authorityApproveEvent = async function(id) {
     return;
   }
 
-  // 1. Client-Side Global Clash Verification across ALL clubs/departments
+  // 1. Client-Side Global Time-Slot Clash Verification across ALL clubs/departments
   const allEvents = events.filter(e => e.status === 'approved' && e.id !== id);
-  const clash = allEvents.find(other => 
-    other.date === ev.date &&
-    (other.venue || '').trim().toLowerCase() === (ev.venue || '').trim().toLowerCase()
+  const clash = allEvents.find(other =>
+    doEventSlotsOverlap(ev, other, { allowedStatuses: ['approved'] })
   );
 
   if (clash) {
-    toast(`⚠️ Cannot approve! Global clash detected with approved event "${clash.name}" (${clash.club}) at ${ev.venue} on ${ev.date}.`, 'error', 6000);
+    toast(`⚠️ Cannot approve! Global clash detected with approved event "${clash.name}" (${clash.club}) at ${ev.venue} on ${formatDate(ev.date)} (${formatEventTimeSlot(clash)}).`, 'error', 6000);
     return;
   }
 

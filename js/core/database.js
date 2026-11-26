@@ -156,7 +156,7 @@ function mapEventForSupabase(e) {
     date: e.date,
     time: e.time,
     end_date: e.endDate || e.end_date || e.date,
-    end_time: e.endTime || e.end_time || '',
+    end_time: (e.endTime || e.end_time || '').trim() || null,
     venue: e.venue,
     max_participants: e.maxParticipants ?? e.max_participants ?? 100,
     reg_count: e.regCount ?? e.reg_count ?? 0,
@@ -301,7 +301,7 @@ function mapUser(u) {
 
 function mapEvent(e) {
   return {
-    id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time, venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, adminUpiId: e.admin_upi_id || '', points: e.points ?? null, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || [],
+    id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time || e.endTime || '', venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, adminUpiId: e.admin_upi_id || '', points: e.points ?? null, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || [],
     isTeamEvent: e.isTeamEvent ?? e.is_team_event ?? false,
     minTeamSize: e.minTeamSize ?? e.min_team_size ?? 1,
     maxTeamSize: e.maxTeamSize ?? e.max_team_size ?? 1,

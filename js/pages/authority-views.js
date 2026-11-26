@@ -245,9 +245,7 @@ function renderClashDetect() {
   for(let i=0;i<events.length;i++) {
     for(let j=i+1;j<events.length;j++) {
       const a = events[i], b = events[j];
-      const sameDate = a.date === b.date;
-      const sameVenue = (a.venue || '').toLowerCase().trim() === (b.venue || '').toLowerCase().trim();
-      if(sameDate && sameVenue) {
+      if(doEventSlotsOverlap(a, b)) {
         clashes.push([a, b]);
         if (!clashingMap.has(a.id)) clashingMap.set(a.id, []);
         if (!clashingMap.has(b.id)) clashingMap.set(b.id, []);
@@ -281,12 +279,12 @@ function renderClashDetect() {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px;">
             <div style="background:#ffffff;border:1px solid #fca5a5;padding:10px;border-radius:8px;">
               <div style="font-weight:800;color:#0f172a;">${a.name}</div>
-              <div style="color:#64748b;margin-top:2px;">🏛️ ${a.club} • ⏰ ${formatTime(a.time)}</div>
+              <div style="color:#64748b;margin-top:2px;">🏛️ ${a.club} • ⏰ ${formatEventTimeSlot(a)}</div>
               <div style="margin-top:4px;"><span class="badge ${a.status==='approved'?'badge-green':'badge-amber'}">${a.status.toUpperCase()}</span></div>
             </div>
             <div style="background:#ffffff;border:1px solid #fca5a5;padding:10px;border-radius:8px;">
               <div style="font-weight:800;color:#0f172a;">${b.name}</div>
-              <div style="color:#64748b;margin-top:2px;">🏛️ ${b.club} • ⏰ ${formatTime(b.time)}</div>
+              <div style="color:#64748b;margin-top:2px;">🏛️ ${b.club} • ⏰ ${formatEventTimeSlot(b)}</div>
               <div style="margin-top:4px;"><span class="badge ${b.status==='approved'?'badge-green':'badge-amber'}">${b.status.toUpperCase()}</span></div>
             </div>
           </div>
@@ -436,9 +434,7 @@ function deanClashContent(events) {
   for(let i=0;i<activeEvents.length;i++) {
     for(let j=i+1;j<activeEvents.length;j++) {
       const a = activeEvents[i], b = activeEvents[j];
-      const sameDate = a.date === b.date;
-      const sameVenue = (a.venue || '').toLowerCase().trim() === (b.venue || '').toLowerCase().trim();
-      if(sameDate && sameVenue) {
+      if(doEventSlotsOverlap(a, b)) {
         clashes.push([a, b]);
         if (!clashingMap.has(a.id)) clashingMap.set(a.id, []);
         if (!clashingMap.has(b.id)) clashingMap.set(b.id, []);
@@ -466,12 +462,12 @@ function deanClashContent(events) {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
             <div style="background:rgba(255,255,255,0.85);padding:10px;border-radius:8px;border:1px solid #fca5a5;">
               <strong style="color:#0f172a;">${a.name}</strong><br>
-              <span style="color:#64748b;">${a.club} • ${formatTime(a.time)}</span>
+              <span style="color:#64748b;">${a.club} • ${formatEventTimeSlot(a)}</span>
               <div style="margin-top:4px;"><span class="badge ${a.status==='approved'?'badge-green':'badge-amber'}">${a.status.toUpperCase()}</span></div>
             </div>
             <div style="background:rgba(255,255,255,0.85);padding:10px;border-radius:8px;border:1px solid #fca5a5;">
               <strong style="color:#0f172a;">${b.name}</strong><br>
-              <span style="color:#64748b;">${b.club} • ${formatTime(b.time)}</span>
+              <span style="color:#64748b;">${b.club} • ${formatEventTimeSlot(b)}</span>
               <div style="margin-top:4px;"><span class="badge ${b.status==='approved'?'badge-green':'badge-amber'}">${b.status.toUpperCase()}</span></div>
             </div>
           </div>

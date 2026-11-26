@@ -72,7 +72,7 @@ function renderAdminDashboard() {
           <div class="qa-card" onclick="showPage('create-event')"><span class="qa-icon">➕</span><div class="qa-label">Create Event</div></div>
           <div class="qa-card" onclick="showPage('manage-events')"><span class="qa-icon">📋</span><div class="qa-label">Manage Events</div></div>
           <div class="qa-card" onclick="showPage('participants')"><span class="qa-icon">👥</span><div class="qa-label">View Participants</div></div>
-          <div class="qa-card" onclick="showPage('authority-clash')"><span class="qa-icon">⚡</span><div class="qa-label">Clash Detect</div></div>
+          <div class="qa-card" onclick="showPage('events')"><span class="qa-icon">🗓️</span><div class="qa-label">All Events</div></div>
         </div>
 
         <!-- Recent events -->

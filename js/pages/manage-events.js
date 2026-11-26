@@ -18,7 +18,7 @@ function renderManageEventsPage() {
     </div>
     ${events.length
       ? events.map(e=>{
-        const clash = allScheduled.find(o => o.id !== e.id && o.date === e.date && (o.venue||'').toLowerCase().trim() === (e.venue||'').toLowerCase().trim());
+        const clash = isSlotBlockingEvent(e) ? allScheduled.find(o => doEventSlotsOverlap(e, o)) : null;
         return `
         <div class="ev-row" style="${clash ? 'border-left: 4.5px solid #ef4444; background: #fff8f8; box-shadow: 0 2px 8px rgba(239,68,68,0.1);' : ''}">
           <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
@@ -26,13 +26,14 @@ function renderManageEventsPage() {
             <div class="ev-row-name">
               ${clash ? '<span style="color:#ef4444; font-weight:800;">⚠️ </span>' : ''}${e.name}
             </div>
-            <div class="ev-row-meta">${formatDate(e.date)} • ${e.venue} • ${e.isTeamEvent ? `👥 ${(e.teams||[]).length} teams (${e.regCount||0}/${e.maxParticipants})` : `👤 ${e.regCount||0}/${e.maxParticipants} registered`}</div>
-            ${clash ? `<div style="font-size:11px;font-weight:700;color:#dc2626;background:#fee2e2;border:1px solid #fca5a5;padding:3px 8px;border-radius:6px;display:inline-block;margin-top:4px;">⚡ Venue Clash with "${clash.name}" (${clash.club}) on ${formatDate(e.date)} at ${e.venue}</div>` : ''}
+            <div class="ev-row-meta">${formatDate(e.date)} • ${formatEventTimeSlot(e)} • ${e.venue} • ${e.isTeamEvent ? `👥 ${(e.teams||[]).length} teams (${e.regCount||0}/${e.maxParticipants})` : `👤 ${e.regCount||0}/${e.maxParticipants} registered`}</div>
+            ${clash ? `<div style="font-size:11px;font-weight:700;color:#dc2626;background:#fee2e2;border:1px solid #fca5a5;padding:3px 8px;border-radius:6px;display:inline-block;margin-top:4px;">⚡ Slot Clash with "${clash.name}" (${clash.club}) on ${formatDate(e.date)} (${formatEventTimeSlot(clash)}) at ${e.venue}</div>` : ''}
             ${e.rejReason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">Rejected: ${e.rejReason}</div>`:''}
           </div>
           <span class="badge ${clash ? 'badge-red' : (e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red')}">${clash ? '⚠️ CLASH' : e.status}</span>
           <div class="ev-row-acts">
             <button class="btn btn-outline" onclick="openEventModal('${e.id}')">View</button>
+            ${(e.status==='draft'||e.status==='pending'||e.status==='rejected')?`<button class="btn btn-outline" onclick="editClubEvent('${e.id}')">Edit</button>`:''}
             ${e.status==='draft'?`<button class="btn btn-gold" onclick="submitDraftEvent('${e.id}')">Submit</button>`:''}
           </div>
         </div>`;
@@ -52,6 +53,13 @@ async function submitDraftEvent(id) {
   const events = getDB('vvce_events');
   const ev = events.find(e => e.id === id);
   if (!ev) return;
+
+  // Prevent submitting a draft if an active event already occupies the overlapping venue time slot
+  const clash = events.find(o => doEventSlotsOverlap(ev, o));
+  if (clash) {
+    toast(`⚠️ Slot Clash with "${clash.name}" (${clash.club}) on ${formatDate(clash.date)} (${formatEventTimeSlot(clash)}) at ${clash.venue}. Edit date/time/venue first.`, 'error', 5500);
+    return;
+  }
 
   const authorityId = ev.authorityId || STATE.user?.authorityId || null;
   const authorityName = ev.authorityName || STATE.user?.authorityName || 'Approving Authority';

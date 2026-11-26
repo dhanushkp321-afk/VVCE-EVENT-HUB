@@ -57,6 +57,7 @@ function logout() {
 }
 
 function showPage(pageId) {
+  if (STATE.user?.type === 'admin' && pageId === 'authority-clash') { pageId = 'create-event'; }
   const prev = STATE.page;
   STATE.prevPage = prev;
   STATE.page = pageId;
@@ -199,7 +200,7 @@ function renderSidebar() {
       ${navItem('create-event','➕','Create Event')}
       ${navItem('manage-events','📋','My Events')}
       ${navItem('participants','👥','Participants')}
-      ${navItem('authority-clash','⚡','Clash Detect')}
+
       <div class="sb-section-label">Account</div>
       ${navItem('profile','👤','Profile')}
     `;
