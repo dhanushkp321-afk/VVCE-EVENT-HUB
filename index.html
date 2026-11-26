@@ -524,7 +524,7 @@
   </div>
 </div>
 
-<!-- Forgot / Reset Password Modal (Instant Verification Code / Reset Dialog) -->
+<!-- Forgot / Reset Password Modal (Email Reset Link & Recovery Flow) -->
 <div class="modal-overlay" id="modal-forgot-password" style="display:none;">
   <div class="modal-box modal-narrow" style="max-width: 440px;">
     <div class="modal-head">
@@ -532,13 +532,13 @@
         <span style="font-size:22px;">🔑</span>
         <h2 style="margin:0;">Reset Password</h2>
       </div>
-      <button class="modal-x" type="button" onclick="closeModal('modal-forgot-password')">✕</button>
+      <button class="modal-x" type="button" onclick="closeForgotPasswordModal()">✕</button>
     </div>
 
-    <!-- Step 1: Request Code -->
+    <!-- Step 1: Request Reset Link -->
     <div id="reset-step-1">
       <p style="font-size:13px; color:#64748b; margin-top:0; margin-bottom:14px; line-height:1.5;">
-        Enter your institutional <strong>@vvce.ac.in</strong> email address. We will verify your account and provide a 6-digit verification code to reset your password.
+        Enter your institutional <strong>@vvce.ac.in</strong> email address. If your account is registered, we will send a secure password reset link to your VVCE inbox.
       </p>
 
       <div class="auth-field-group">
@@ -549,28 +549,23 @@
       <div id="reset-step1-msg" class="auth-msg" style="display:none; margin-bottom:12px;"></div>
 
       <button type="button" class="btn-signin" id="btn-send-reset-code" onclick="sendResetVerificationCode()">
-        Verify Account & Send Code →
+        Send Reset Link →
       </button>
     </div>
 
-    <!-- Step 2: Enter Code & New Password -->
+    <!-- Step 2: Set New Password (opened after clicking email reset link / PASSWORD_RECOVERY) -->
     <div id="reset-step-2" style="display:none;">
       <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:10px 14px; margin-bottom:14px;">
         <div style="font-size:12px; color:#166534; font-weight:600; display:flex; align-items:center; gap:6px;">
-          <span>✓</span> Account Verified for: <span id="reset-target-name" style="font-weight:700;"></span>
+          <span>✓</span> Reset Link Verified for: <span id="reset-target-name" style="font-weight:700;"></span>
         </div>
         <div id="reset-code-banner" style="font-size:12px; color:#15803d; margin-top:4px;">
-          Verification code dispatched.
+          Enter and confirm your new password below.
         </div>
       </div>
 
       <div class="auth-field-group">
-        <label class="auth-label">6-Digit Verification Code</label>
-        <input class="auth-input" type="text" id="reset-otp-input" placeholder="e.g. 482910" maxlength="6" style="letter-spacing:4px; font-weight:700; text-align:center; font-size:18px;">
-      </div>
-
-      <div class="auth-field-group">
-        <label class="auth-label">New Password (min 6 characters)</label>
+        <label class="auth-label">New Password (min 8 chars)</label>
         <div class="auth-pass-wrap">
           <input class="auth-input" type="password" id="reset-new-pass" placeholder="••••••••">
           <button type="button" class="pass-toggle" onclick="togglePass('reset-new-pass', this)" title="Show/Hide">

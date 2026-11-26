@@ -67,7 +67,7 @@ function cleanAuthUrlParams() {
   try {
     const url = new URL(window.location.href);
     let changed = false;
-    ['code', 'error', 'error_code', 'error_description'].forEach(param => {
+    ['code', 'type', 'error', 'error_code', 'error_description'].forEach(param => {
       if (url.searchParams.has(param)) {
         url.searchParams.delete(param);
         changed = true;
@@ -364,30 +364,67 @@ async function finalizeRegistration(role, userPayload) {
   switchMainTab('signin');
 }
 
-// Function to handle the redirect back from email verification or Google OAuth
+// Function to handle the redirect back from email verification, Google OAuth, or Password Recovery
 async function checkSupabaseEmailVerification() {
   const sb = getSupabaseClient();
   if (!sb || !sb.auth) return;
 
-  // Surface any OAuth redirect errors (e.g., cancelled or domain-restricted Google sign-in)
+  let isRecoveryUrl = false;
+  let recoveryLinkError = null;
+
+  // Inspect redirect URL params BEFORE Supabase auth handlers clean or process them
   try {
     const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
     const searchParams = new URLSearchParams(window.location.search || '');
+    isRecoveryUrl = hashParams.get('type') === 'recovery'
+      || searchParams.get('type') === 'recovery'
+      || searchParams.get('mode') === 'reset';
+
+    const errCode = searchParams.get('error_code') || hashParams.get('error_code') || '';
     const oauthErr = searchParams.get('error_description') || hashParams.get('error_description')
       || searchParams.get('error') || hashParams.get('error');
+
     if (oauthErr) {
       cleanAuthUrlParams();
       try { sessionStorage.removeItem('vvce_oauth_flow'); } catch (e) {}
-      showAuthMsg('❌ Sign-in could not be completed: ' + oauthErr, 'error');
+      let hasResetCtx = false;
+      try { hasResetCtx = !!sessionStorage.getItem('vvce_pw_reset_ctx'); } catch (e) {}
+
+      if (isRecoveryUrl || errCode === 'otp_expired' || (hasResetCtx && /expired|invalid|token|recovery/i.test(oauthErr))) {
+        recoveryLinkError = '❌ Your password reset link is invalid or has expired. Please enter your @vvce.ac.in email to request a new link.';
+      } else {
+        showAuthMsg('❌ Sign-in could not be completed: ' + oauthErr, 'error');
+      }
+    } else if (isRecoveryUrl) {
+      window._isPasswordRecoveryActive = true;
     }
   } catch (e) {}
 
-  // Listen for auth state changes (fires on email verification link click or Google OAuth redirect)
+  if (recoveryLinkError) {
+    handleForgotPassword();
+    const step1Msg = document.getElementById('reset-step1-msg');
+    if (step1Msg) {
+      step1Msg.textContent = recoveryLinkError;
+      step1Msg.className = 'auth-msg error';
+      step1Msg.style.display = 'block';
+    }
+    showAuthMsg(recoveryLinkError, 'error');
+    return;
+  }
+
+  // Listen for auth state changes (email verification, Google OAuth, and PASSWORD_RECOVERY)
   if (!window._authListenerSetup) {
     window._authListenerSetup = true;
     sb.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'PASSWORD_RECOVERY') return;
+      if (event === 'PASSWORD_RECOVERY') {
+        window._isPasswordRecoveryActive = true;
+        if (session && session.user) {
+          await openRecoveryResetView(session);
+        }
+        return;
+      }
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) {
+        if (window._isPasswordRecoveryActive) return;
         await handleVerifiedSession(session, event);
       }
     });
@@ -396,7 +433,23 @@ async function checkSupabaseEmailVerification() {
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (session && session.user) {
-      await handleVerifiedSession(session, 'PAGE_LOAD');
+      if (window._isPasswordRecoveryActive || isRecoveryUrl) {
+        window._isPasswordRecoveryActive = true;
+        await openRecoveryResetView(session);
+      } else {
+        await handleVerifiedSession(session, 'PAGE_LOAD');
+      }
+    } else if (isRecoveryUrl) {
+      // Recovery URL opened without a valid session (e.g. already consumed or expired token)
+      cleanAuthUrlParams();
+      window._isPasswordRecoveryActive = false;
+      handleForgotPassword();
+      const step1Msg = document.getElementById('reset-step1-msg');
+      if (step1Msg) {
+        step1Msg.textContent = '❌ This password reset link has expired or is invalid. Please request a new reset link.';
+        step1Msg.className = 'auth-msg error';
+        step1Msg.style.display = 'block';
+      }
     }
   } catch(e) {
     console.error('Email verification check failed:', e);
@@ -404,6 +457,7 @@ async function checkSupabaseEmailVerification() {
 }
 
 async function handleVerifiedSession(session, trigger) {
+  if (window._isPasswordRecoveryActive) return;
   if (_activeAuthSessionPromise) {
     return _activeAuthSessionPromise;
   }
@@ -734,15 +788,89 @@ function handleAuthoritySignup() {
   finalizeRegistration('authority', newUser);
 }
 
-/* ── Forgot Password & Instant Verification / Reset Flow (Method B) ── */
+/* ── Forgot Password & Supabase Email Recovery Flow ── */
+window._isPasswordRecoveryActive = false;
 window._resetPasswordState = {
   email: '',
   targetType: '', // 'authority' | 'user'
   targetId: '',
-  targetName: '',
-  code: '',
-  expiresAt: 0
+  targetName: ''
 };
+
+function showResetStepMsg(msgElId, text, type = 'error') {
+  const msgEl = document.getElementById(msgElId);
+  if (!msgEl) return;
+  msgEl.textContent = text;
+  msgEl.className = `auth-msg ${type}`;
+  msgEl.style.display = 'block';
+}
+
+async function resolveResetTargetAccount(email) {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const sb = getSupabaseClient();
+
+  // 1. Check Approving Authorities first (Supabase + cache)
+  await syncApprovingAuthoritiesFromSupabase();
+  const activeAuthorities = getActiveApprovingAuthorities();
+  let authMatch = activeAuthorities.find(a => a.email && a.email.toLowerCase() === cleanEmail);
+
+  if (!authMatch && sb && typeof sb.from === 'function') {
+    try {
+      const { data } = await sb.from('approving_authorities').select('*').ilike('email', cleanEmail).limit(1);
+      if (data && data.length > 0) authMatch = data[0];
+    } catch (e) {
+      console.warn('Supabase approving_authorities check error:', e);
+    }
+  }
+
+  if (authMatch) {
+    return {
+      targetType: 'authority',
+      account: authMatch,
+      targetId: authMatch.id,
+      targetName: authMatch.name || 'Approving Authority'
+    };
+  }
+
+  // 2. Check registered users in Supabase directly (users, then registered_students)
+  let userMatch = null;
+  let remoteLookupSucceeded = false;
+
+  if (sb && typeof sb.from === 'function') {
+    try {
+      const { data: uData, error: uErr } = await sb.from('users').select('*').ilike('email', cleanEmail).limit(1);
+      if (!uErr) {
+        remoteLookupSucceeded = true;
+        if (uData && uData.length > 0) userMatch = mapUser(uData[0]);
+      }
+      if (!userMatch) {
+        const { data: rData, error: rErr } = await sb.from('registered_students').select('*').ilike('email', cleanEmail).limit(1);
+        if (!rErr) {
+          remoteLookupSucceeded = true;
+          if (rData && rData.length > 0) userMatch = mapUser(rData[0]);
+        }
+      }
+    } catch (e) {
+      console.warn('Supabase users check error:', e);
+    }
+  }
+
+  if (!userMatch && !remoteLookupSucceeded) {
+    const users = getDB('vvce_users');
+    userMatch = users.find(u => u.email && u.email.toLowerCase() === cleanEmail) || null;
+  }
+
+  if (userMatch) {
+    return {
+      targetType: 'user',
+      account: userMatch,
+      targetId: userMatch.id,
+      targetName: userMatch.name || 'Student / Staff'
+    };
+  }
+
+  return null;
+}
 
 function handleForgotPassword() {
   const currentLoginEmail = (document.getElementById('login-email')?.value || '').trim();
@@ -751,7 +879,6 @@ function handleForgotPassword() {
     emailInp.value = currentLoginEmail;
   }
 
-  // Reset UI elements to step 1
   const step1 = document.getElementById('reset-step-1');
   const step2 = document.getElementById('reset-step-2');
   if (step1) step1.style.display = 'block';
@@ -762,8 +889,9 @@ function handleForgotPassword() {
   const msg2 = document.getElementById('reset-step2-msg');
   if (msg2) { msg2.style.display = 'none'; msg2.textContent = ''; }
 
-  const otpInp = document.getElementById('reset-otp-input');
-  if (otpInp) otpInp.value = '';
+  const btn = document.getElementById('btn-send-reset-code');
+  if (btn) { btn.disabled = false; btn.textContent = 'Send Reset Link →'; }
+
   const newPassInp = document.getElementById('reset-new-pass');
   if (newPassInp) newPassInp.value = '';
   const confirmPassInp = document.getElementById('reset-confirm-pass');
@@ -774,11 +902,29 @@ function handleForgotPassword() {
 }
 window.handleForgotPassword = handleForgotPassword;
 
-function backToResetStep1() {
+async function closeForgotPasswordModal() {
+  if (window._isPasswordRecoveryActive) {
+    window._isPasswordRecoveryActive = false;
+    window._recoveryViewOpenedFor = null;
+    try { sessionStorage.removeItem('vvce_pw_reset_ctx'); } catch (e) {}
+    await cleanupSupabaseAuthSession();
+  }
+  closeModal('modal-forgot-password');
+}
+window.closeForgotPasswordModal = closeForgotPasswordModal;
+
+async function backToResetStep1() {
+  if (window._isPasswordRecoveryActive) {
+    window._isPasswordRecoveryActive = false;
+    window._recoveryViewOpenedFor = null;
+    await cleanupSupabaseAuthSession();
+  }
   const step1 = document.getElementById('reset-step-1');
   const step2 = document.getElementById('reset-step-2');
   if (step1) step1.style.display = 'block';
   if (step2) step2.style.display = 'none';
+  const msg2 = document.getElementById('reset-step2-msg');
+  if (msg2) { msg2.style.display = 'none'; msg2.textContent = ''; }
 }
 window.backToResetStep1 = backToResetStep1;
 
@@ -788,195 +934,194 @@ async function sendResetVerificationCode() {
 
   const email = (document.getElementById('reset-email-input')?.value || '').trim().toLowerCase();
   if (!email) {
-    if (msgEl) {
-      msgEl.textContent = 'Please enter your VVCE email address.';
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
+    showResetStepMsg('reset-step1-msg', 'Please enter your VVCE email address.', 'error');
     return;
   }
   if (!isValidVvceEmail(email)) {
-    if (msgEl) {
-      msgEl.textContent = '❌ Only @vvce.ac.in institutional email addresses are permitted.';
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
+    showResetStepMsg('reset-step1-msg', '❌ Only @vvce.ac.in institutional email addresses are permitted.', 'error');
     return;
   }
 
   const btn = document.getElementById('btn-send-reset-code');
-  if (btn) { btn.disabled = true; btn.textContent = 'Verifying Account...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking Account...'; }
 
   try {
-    let matchedAccount = null;
-    let targetType = 'user';
-
-    // 1. Check Approving Authorities first (Supabase & local cache)
-    await syncApprovingAuthoritiesFromSupabase();
-    const activeAuthorities = getActiveApprovingAuthorities();
-    let authMatch = activeAuthorities.find(a => a.email && a.email.toLowerCase() === email);
-
-    if (!authMatch) {
-      const sb = getSupabaseClient();
-      if (sb && typeof sb.from === 'function') {
-        try {
-          const { data } = await sb.from('approving_authorities').select('*').ilike('email', email);
-          if (data && data.length > 0) authMatch = data[0];
-        } catch(e) { console.warn('Supabase approving_authorities check error:', e); }
-      }
-    }
-
-    if (authMatch) {
-      matchedAccount = authMatch;
-      targetType = 'authority';
-    } else {
-      // 2. Check regular users in local DB
-      let users = getDB('vvce_users');
-      let userMatch = users.find(u => u.email && u.email.toLowerCase() === email);
-
-      // Check Supabase users table fallback
-      if (!userMatch) {
-        const sb = getSupabaseClient();
-        if (sb && typeof sb.from === 'function') {
-          try {
-            const { data } = await sb.from('users').select('*').ilike('email', email);
-            if (data && data.length > 0) {
-              userMatch = mapUser(data[0]);
-              if (!users.some(u => u.id === userMatch.id)) {
-                users.push(userMatch);
-                SUPABASE_CACHE.vvce_users = users;
-                try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
-              }
-            }
-          } catch(e) { console.warn('Supabase users check error:', e); }
-        }
-      }
-
-      if (userMatch) {
-        matchedAccount = userMatch;
-        targetType = 'user';
-      }
-    }
-
-    if (!matchedAccount) {
-      if (msgEl) {
-        msgEl.textContent = '❌ No registered account found with that email. Please check your spelling or register.';
-        msgEl.className = 'auth-msg error';
-        msgEl.style.display = 'block';
-      }
-      if (btn) { btn.disabled = false; btn.textContent = 'Verify Account & Send Code →'; }
+    const sb = getSupabaseClient();
+    if (!sb || !sb.auth) {
+      showResetStepMsg('reset-step1-msg', 'Authentication service unavailable. Please check your Supabase configuration.', 'error');
       return;
     }
 
-    // Generate 6-digit verification code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const resolved = await resolveResetTargetAccount(email);
+    if (!resolved) {
+      showResetStepMsg(
+        'reset-step1-msg',
+        '❌ No registered account found with that @vvce.ac.in email. Please check your spelling or register first.',
+        'error'
+      );
+      return;
+    }
+
     window._resetPasswordState = {
       email,
-      targetType,
-      targetId: matchedAccount.id,
-      targetName: matchedAccount.name || (targetType === 'authority' ? 'Approving Authority' : 'Student/Staff'),
-      code,
-      expiresAt: Date.now() + 10 * 60 * 1000 // 10 minutes
+      targetType: resolved.targetType,
+      targetId: resolved.targetId,
+      targetName: resolved.targetName
     };
-
-    // Attempt sending email via /api/send-otp
     try {
-      fetch('/api/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email,
-          otp: code,
-          name: _resetPasswordState.targetName
-        })
-      }).catch(err => console.warn('OTP API warning (non-blocking):', err));
-    } catch(e) {}
+      sessionStorage.setItem('vvce_pw_reset_ctx', JSON.stringify(window._resetPasswordState));
+    } catch (e) {}
 
-    // Update Step 2 UI
-    const targetNameEl = document.getElementById('reset-target-name');
-    if (targetNameEl) targetNameEl.textContent = _resetPasswordState.targetName;
+    if (btn) btn.textContent = 'Sending Reset Link...';
 
-    const bannerEl = document.getElementById('reset-code-banner');
-    if (bannerEl) {
-      bannerEl.innerHTML = 
-        `Verification code sent to <strong>${email}</strong>.<br>` +
-        `<span style="display:inline-block; margin-top:4px; font-weight:700; color:#1e1b4b; background:#e0e7ff; padding:3px 8px; border-radius:6px; font-size:12px;">Instant Code: <strong style="letter-spacing:1px; color:#4338ca;">${code}</strong></span>`;
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+
+    if (error) {
+      if (error.status === 429 || /rate limit|over_email_send_rate_limit/i.test(error.message || '')) {
+        showResetStepMsg(
+          'reset-step1-msg',
+          '⚠️ Too many reset requests right now. Please wait a couple of minutes and try again.',
+          'warning'
+        );
+      } else {
+        showResetStepMsg('reset-step1-msg', '❌ Could not send password reset email: ' + error.message, 'error');
+      }
+      return;
     }
 
-    const step1 = document.getElementById('reset-step-1');
-    const step2 = document.getElementById('reset-step-2');
-    if (step1) step1.style.display = 'none';
-    if (step2) step2.style.display = 'block';
-
-    const otpInp = document.getElementById('reset-otp-input');
-    if (otpInp) {
-      otpInp.value = '';
-      setTimeout(() => otpInp.focus(), 150);
-    }
-    toast(`Verification code generated for ${email}`, 'info');
-  } catch(err) {
-    console.error('Password reset code error:', err);
-    if (msgEl) {
-      msgEl.textContent = 'Failed to initiate password reset: ' + (err.message || 'Unknown error');
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
+    showResetStepMsg(
+      'reset-step1-msg',
+      `✅ Check your VVCE inbox for the reset link sent to ${email}. Click the link in your email (also check spam/junk) to set a new password.`,
+      'success'
+    );
+    toast('Check your VVCE inbox for the reset link', 'success', 5000);
+  } catch (err) {
+    console.error('Password reset email error:', err);
+    showResetStepMsg('reset-step1-msg', '❌ Failed to initiate password reset: ' + (err.message || 'Unknown error'), 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Verify Account & Send Code →'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Reset Link →'; }
   }
 }
 window.sendResetVerificationCode = sendResetVerificationCode;
+
+async function openRecoveryResetView(session) {
+  const recoveryEmail = (session?.user?.email || '').trim().toLowerCase();
+  if (!isValidVvceEmail(recoveryEmail)) {
+    window._isPasswordRecoveryActive = false;
+    window._recoveryViewOpenedFor = null;
+    await cleanupSupabaseAuthSession();
+    showAuthMsg('❌ Only @vvce.ac.in institutional accounts can reset passwords here.', 'error');
+    return;
+  }
+
+  const modalEl = document.getElementById('modal-forgot-password');
+  const step2El = document.getElementById('reset-step-2');
+  if (
+    window._recoveryViewOpenedFor === recoveryEmail &&
+    modalEl?.classList.contains('open') &&
+    step2El?.style.display === 'block'
+  ) {
+    return;
+  }
+  window._recoveryViewOpenedFor = recoveryEmail;
+
+  let ctx = null;
+  try {
+    const raw = sessionStorage.getItem('vvce_pw_reset_ctx');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.email === recoveryEmail) ctx = parsed;
+    }
+  } catch (e) {}
+
+  if (!ctx) {
+    const resolved = await resolveResetTargetAccount(recoveryEmail);
+    ctx = resolved
+      ? {
+          email: recoveryEmail,
+          targetType: resolved.targetType,
+          targetId: resolved.targetId,
+          targetName: resolved.targetName
+        }
+      : {
+          email: recoveryEmail,
+          targetType: 'user',
+          targetId: '',
+          targetName: recoveryEmail
+        };
+  }
+
+  window._resetPasswordState = ctx;
+
+  // Ensure user is on Auth screen (not logged into app yet)
+  STATE.user = null;
+  const appEl = document.getElementById('app');
+  const authEl = document.getElementById('auth-screen');
+  if (appEl) appEl.style.display = 'none';
+  if (authEl) authEl.style.display = 'flex';
+  switchMainTab('signin');
+  cleanAuthUrlParams();
+
+  const targetNameEl = document.getElementById('reset-target-name');
+  if (targetNameEl) targetNameEl.textContent = ctx.targetName || recoveryEmail;
+
+  const bannerEl = document.getElementById('reset-code-banner');
+  if (bannerEl) {
+    bannerEl.innerHTML = `Reset link verified for <strong>${recoveryEmail}</strong>. Enter and confirm your new password below.`;
+  }
+
+  const msg1 = document.getElementById('reset-step1-msg');
+  if (msg1) { msg1.style.display = 'none'; msg1.textContent = ''; }
+  const msg2 = document.getElementById('reset-step2-msg');
+  if (msg2) { msg2.style.display = 'none'; msg2.textContent = ''; }
+
+  const newPassInp = document.getElementById('reset-new-pass');
+  if (newPassInp) newPassInp.value = '';
+  const confirmPassInp = document.getElementById('reset-confirm-pass');
+  if (confirmPassInp) confirmPassInp.value = '';
+
+  const step1 = document.getElementById('reset-step-1');
+  const step2 = document.getElementById('reset-step-2');
+  if (step1) step1.style.display = 'none';
+  if (step2) step2.style.display = 'block';
+
+  openModal('modal-forgot-password');
+  if (newPassInp) setTimeout(() => newPassInp.focus(), 150);
+}
+window.openRecoveryResetView = openRecoveryResetView;
 
 async function executePasswordReset() {
   const msgEl = document.getElementById('reset-step2-msg');
   if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
 
-  const otp = (document.getElementById('reset-otp-input')?.value || '').trim();
   const newPass = document.getElementById('reset-new-pass')?.value || '';
   const confirmPass = document.getElementById('reset-confirm-pass')?.value || '';
 
-  if (!otp) {
-    if (msgEl) {
-      msgEl.textContent = 'Please enter the 6-digit verification code.';
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
+  const sb = getSupabaseClient();
+  if (!sb || !sb.auth) {
+    showResetStepMsg('reset-step2-msg', '❌ Authentication service unavailable. Please try again later.', 'error');
     return;
   }
 
-  if (otp !== window._resetPasswordState.code) {
-    if (msgEl) {
-      msgEl.textContent = '❌ Invalid verification code. Please check and re-enter.';
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
+  const { data: sessionData } = await sb.auth.getSession();
+  const session = sessionData?.session;
+  if (!window._isPasswordRecoveryActive || !session || !session.user) {
+    showResetStepMsg(
+      'reset-step2-msg',
+      '❌ Your password reset link has expired or is invalid. Please click Back and request a new reset link.',
+      'error'
+    );
     return;
   }
 
-  if (Date.now() > window._resetPasswordState.expiresAt) {
-    if (msgEl) {
-      msgEl.textContent = '❌ Verification code has expired. Please go back and request a new code.';
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
-    return;
-  }
-
-  if (!newPass || newPass.length < 6) {
-    if (msgEl) {
-      msgEl.textContent = '❌ Password must be at least 6 characters long.';
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
+  if (!newPass || newPass.length < 8) {
+    showResetStepMsg('reset-step2-msg', '❌ Password must be at least 8 characters long.', 'error');
     return;
   }
 
   if (newPass !== confirmPass) {
-    if (msgEl) {
-      msgEl.textContent = '❌ Passwords do not match. Please re-enter.';
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
+    showResetStepMsg('reset-step2-msg', '❌ Passwords do not match. Please re-enter.', 'error');
     return;
   }
 
@@ -984,105 +1129,137 @@ async function executePasswordReset() {
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Updating Password...'; }
 
   try {
-    const sb = getSupabaseClient();
-    const { email, targetType, targetId } = window._resetPasswordState;
+    const recoveryEmail = (session.user.email || window._resetPasswordState.email || '').trim().toLowerCase();
+    if (!isValidVvceEmail(recoveryEmail)) {
+      showResetStepMsg('reset-step2-msg', '❌ Only @vvce.ac.in accounts are permitted.', 'error');
+      return;
+    }
 
-    if (targetType === 'authority') {
-      // 1. Authority password reset: Salt + PBKDF2 hash
-      const salt = 'salt_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
-      const { hash } = await hashPasswordWithSalt(newPass, salt);
+    // 1. Update password securely in Supabase Auth
+    const { error: authUpdErr } = await sb.auth.updateUser({ password: newPass });
+    if (authUpdErr) {
+      const msg = /expired|invalid|token|session/i.test(authUpdErr.message || '')
+        ? '❌ Your reset link has expired or is invalid. Please go back and request a new reset link.'
+        : '❌ Could not update password: ' + authUpdErr.message;
+      showResetStepMsg('reset-step2-msg', msg, 'error');
+      return;
+    }
 
-      // Update in Supabase
-      if (sb && typeof sb.from === 'function') {
-        try {
-          await sb.from('approving_authorities').update({
-            password_hash: hash,
-            salt: salt,
-            pass: newPass,
-            updated_at: new Date().toISOString()
-          }).eq('id', targetId);
-        } catch(e) { console.warn('Supabase approving_authorities update warning:', e); }
-      }
-
-      // Update local authorities cache
-      if (Array.isArray(APPROVING_AUTHORITIES_CACHE)) {
-        const item = APPROVING_AUTHORITIES_CACHE.find(a => a.id === targetId || (a.email && a.email.toLowerCase() === email));
-        if (item) {
-          item.password_hash = hash;
-          item.salt = salt;
-          item.pass = newPass;
-          item.updated_at = new Date().toISOString();
-        }
-      }
-      let rawAuth = localStorage.getItem('vvce_approving_authorities');
-      if (rawAuth) {
-        try {
-          let list = JSON.parse(rawAuth);
-          let target = list.find(a => a.id === targetId || (a.email && a.email.toLowerCase() === email));
-          if (target) {
-            target.password_hash = hash;
-            target.salt = salt;
-            target.pass = newPass;
-            target.updated_at = new Date().toISOString();
-            localStorage.setItem('vvce_approving_authorities', JSON.stringify(list));
-          }
-        } catch(e) {}
-      }
-
-      // Also update in vvce_users if authority has an entry there
-      let users = getDB('vvce_users');
-      let uIdx = users.findIndex(u => u.id === targetId || (u.email && u.email.toLowerCase() === email));
-      if (uIdx > -1) {
-        users[uIdx].pass = newPass;
-        setDB('vvce_users', users);
-      }
-    } else {
-      // 2. Regular user password reset (Student, Club Admin, Faculty)
-      if (sb && typeof sb.from === 'function') {
-        try {
-          await sb.from('users').update({
-            pass: newPass
-          }).eq('id', targetId);
-        } catch(e) {
-          try {
-            await sb.from('users').update({ pass: newPass }).ilike('email', email);
-          } catch(e2) {
-            console.warn('Supabase users table update warning:', e2);
-          }
-        }
-      }
-
-      // Update local storage
-      let users = getDB('vvce_users');
-      let uIdx = users.findIndex(u => u.id === targetId || (u.email && u.email.toLowerCase() === email));
-      if (uIdx > -1) {
-        users[uIdx].pass = newPass;
-        setDB('vvce_users', users);
-      }
-      if (STATE.user && (STATE.user.id === targetId || STATE.user.email?.toLowerCase() === email)) {
-        STATE.user.pass = newPass;
+    // 2. Sync application record so standard email/password & authority logins use the new password
+    let { targetType, targetId } = window._resetPasswordState;
+    if (!targetId) {
+      const resolved = await resolveResetTargetAccount(recoveryEmail);
+      if (resolved) {
+        targetType = resolved.targetType;
+        targetId = resolved.targetId;
       }
     }
 
-    // Set email into login input and clear password input
+    if (targetType === 'authority') {
+      // Authority password reset: Salt + PBKDF2 hash (no plaintext pass column on approving_authorities)
+      const salt = 'salt_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+      const { hash } = await hashPasswordWithSalt(newPass, salt);
+      const updatedAt = new Date().toISOString();
+
+      if (typeof sb.from === 'function') {
+        const query = sb.from('approving_authorities').update({
+          password_hash: hash,
+          salt: salt,
+          updated_at: updatedAt
+        });
+        const { error: authTblErr } = targetId
+          ? await query.eq('id', targetId)
+          : await query.ilike('email', recoveryEmail);
+        if (authTblErr) console.warn('approving_authorities update warning:', authTblErr.message);
+      }
+
+      if (Array.isArray(APPROVING_AUTHORITIES_CACHE)) {
+        const item = APPROVING_AUTHORITIES_CACHE.find(
+          a => (targetId && a.id === targetId) || (a.email && a.email.toLowerCase() === recoveryEmail)
+        );
+        if (item) {
+          item.password_hash = hash;
+          item.salt = salt;
+          delete item.pass;
+          item.updated_at = updatedAt;
+        }
+      }
+      const rawAuth = localStorage.getItem('vvce_approving_authorities');
+      if (rawAuth) {
+        try {
+          const list = JSON.parse(rawAuth);
+          const target = list.find(
+            a => (targetId && a.id === targetId) || (a.email && a.email.toLowerCase() === recoveryEmail)
+          );
+          if (target) {
+            target.password_hash = hash;
+            target.salt = salt;
+            delete target.pass;
+            target.updated_at = updatedAt;
+            localStorage.setItem('vvce_approving_authorities', JSON.stringify(list));
+          }
+        } catch (e) {}
+      }
+
+      // Sync authority mirror entry in users table if one exists
+      const users = getDB('vvce_users');
+      const uIdx = users.findIndex(
+        u => (targetId && u.id === targetId) || (u.email && u.email.toLowerCase() === recoveryEmail)
+      );
+      if (uIdx > -1) {
+        users[uIdx].pass = newPass;
+        SUPABASE_CACHE.vvce_users = users;
+        try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch (e) {}
+      }
+      if (typeof sb.from === 'function') {
+        await sb.from('users').update({ pass: newPass }).ilike('email', recoveryEmail).catch(() => {});
+      }
+    } else {
+      // Regular user password sync (Student, Club Admin, Faculty)
+      if (typeof sb.from === 'function') {
+        const updQuery = sb.from('users').update({ pass: newPass });
+        const { error: uUpdErr } = targetId
+          ? await updQuery.eq('id', targetId)
+          : await updQuery.ilike('email', recoveryEmail);
+        if (uUpdErr) console.warn('Supabase users update warning:', uUpdErr.message);
+
+        await sb.from('registered_students').update({ pass: newPass }).ilike('email', recoveryEmail).catch(() => {});
+      }
+
+      const users = getDB('vvce_users');
+      const uIdx = users.findIndex(
+        u => (targetId && u.id === targetId) || (u.email && u.email.toLowerCase() === recoveryEmail)
+      );
+      if (uIdx > -1) {
+        users[uIdx].pass = newPass;
+        SUPABASE_CACHE.vvce_users = users;
+        try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch (e) {}
+      }
+    }
+
+    // 3. End recovery session, clear URL hash & state, and redirect cleanly to Sign In
+    window._isPasswordRecoveryActive = false;
+    window._recoveryViewOpenedFor = null;
+    window._resetPasswordState = { email: '', targetType: '', targetId: '', targetName: '' };
+    try { sessionStorage.removeItem('vvce_pw_reset_ctx'); } catch (e) {}
+    await cleanupSupabaseAuthSession();
+
+    closeModal('modal-forgot-password');
+    switchMainTab('signin');
+
     const loginEmail = document.getElementById('login-email');
-    if (loginEmail) loginEmail.value = email;
+    if (loginEmail) loginEmail.value = recoveryEmail;
     const loginPass = document.getElementById('login-pass');
     if (loginPass) {
       loginPass.value = '';
       setTimeout(() => loginPass.focus(), 250);
     }
 
-    closeModal('modal-forgot-password');
-    showAuthMsg(`✅ Password updated successfully for ${email}! You can now sign in with your new password.`, 'success');
+    showAuthMsg(`✅ Password updated successfully for ${recoveryEmail}! Please sign in with your new password.`, 'success');
     toast('Password reset successfully! Please sign in.', 'success', 5000);
-  } catch(err) {
+  } catch (err) {
     console.error('Password reset execution failed:', err);
-    if (msgEl) {
-      msgEl.textContent = '❌ Failed to reset password: ' + (err.message || 'Unknown error');
-      msgEl.className = 'auth-msg error';
-      msgEl.style.display = 'block';
-    }
+    showResetStepMsg('reset-step2-msg', '❌ Failed to reset password: ' + (err.message || 'Unknown error'), 'error');
   } finally {
     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save New Password ✓'; }
   }
