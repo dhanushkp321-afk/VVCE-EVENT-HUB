@@ -10,7 +10,6 @@ function renderProfilePage() {
   const user  = STATE.user;
   const certs = getDB('vvce_certs').filter(c=>c.userId===user.id);
   const regs  = getDB('vvce_events').filter(e=>(e.registrations||[]).includes(user.id));
-  const total = user.points || 0;
   const el    = document.getElementById('page-profile');
 
   if (user.type !== 'student') { el.innerHTML = renderAuthorityProfile(); return; }
@@ -38,10 +37,9 @@ function renderProfilePage() {
         <button class="btn btn-gold" onclick="openProfileEdit()" style="align-self:flex-start;white-space:nowrap;">✏️ Edit Profile</button>
       </div>
       <div class="prof-stats">
-        <div class="prof-stat"><div class="val">${total}</div><div class="lbl">AICTE Points</div></div>
         <div class="prof-stat"><div class="val">${regs.length}</div><div class="lbl">Registered</div></div>
         <div class="prof-stat"><div class="val">${certs.length}</div><div class="lbl">Certificates</div></div>
-        <div class="prof-stat"><div class="val">${regs.filter(e=>new Date(e.date)<new Date()).length}</div><div class="lbl">Attended</div></div>
+        <div class="prof-stat"><div class="val">${(() => { const _n=new Date(); const _t=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`; return regs.filter(e=>e.date && e.date < _t).length; })()}</div><div class="lbl">Attended</div></div>
       </div>
     </div>
 
@@ -88,13 +86,6 @@ function renderProfilePage() {
       }
     </div>
 
-    <!-- AICTE Sem breakdown -->
-    <div class="white-card">
-      <div class="sec-title" style="margin-bottom:1rem;">AICTE Points — Semester Breakdown</div>
-      <div class="sem-grid">
-        ${Object.entries(user.pointsBySem||{}).map(([s,p])=>`<div class="sem-cell"><div class="sem-val">${p}</div><div class="sem-lbl">${s}</div></div>`).join('')}
-      </div>
-    </div>
   `;
 }
 
@@ -163,8 +154,8 @@ function renderAuthorityProfile() {
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">${user.skills.map(s=>`<span class="skill-chip">${s}</span>`).join('')}</div>
         </div>` : ''}
       <div style="display:flex;gap:8px;margin-top:12px;">
-        ${user.linkedin?`<a href="https://${user.linkedin}" target="_blank" class="soc-link">LinkedIn</a>`:''}
-        ${user.github?`<a href="https://${user.github}" target="_blank" class="soc-link">GitHub</a>`:''}
+        ${user.linkedin?`<a href="${/^https?:\/\//i.test(user.linkedin) ? user.linkedin : 'https://' + user.linkedin}" target="_blank" rel="noopener" class="soc-link">LinkedIn</a>`:''}
+        ${user.github?`<a href="${/^https?:\/\//i.test(user.github) ? user.github : 'https://' + user.github}" target="_blank" rel="noopener" class="soc-link">GitHub</a>`:''}
       </div>
     </div>` : `
     <div class="white-card" style="margin-top:1rem;">
@@ -182,7 +173,8 @@ function renderAuthorityProfile() {
 function profField(label, val) { return `<div class="prof-field"><label>${label}</label><span>${val||'—'}</span></div>`; }
 function profFieldLink(label, val) {
   if (!val) return profField(label,'—');
-  return `<div class="prof-field"><label>${label}</label><a href="https://${val}" target="_blank" style="font-size:13px;color:#f59e0b;font-weight:600;">${val}</a></div>`;
+  const url = /^https?:\/\//i.test(val) ? val : 'https://' + val;
+  return `<div class="prof-field"><label>${label}</label><a href="${url}" target="_blank" rel="noopener" style="font-size:13px;color:#f59e0b;font-weight:600;">${val}</a></div>`;
 }
 
 function triggerPhotoUpload() { document.getElementById('photo-upload')?.click(); }
@@ -269,15 +261,46 @@ function openProfileEdit() {
   openModal('modal-profile-edit');
 }
 
-function saveProfileEdit() {
+async function saveProfileEdit() {
   const isClubAdmin = STATE.user.type === 'admin';
   const isAuthority = STATE.user.type === 'authority';
   const updates = {};
   
   if (isAuthority) {
-    updates.name = document.getElementById('pe-name')?.value.trim();
-    updates.designation = document.getElementById('pe-designation')?.value.trim();
-    updates.email = document.getElementById('pe-email')?.value.trim();
+    const newName = (document.getElementById('pe-name')?.value || '').trim();
+    const newDesig = (document.getElementById('pe-designation')?.value || '').trim();
+    const newEmail = (document.getElementById('pe-email')?.value || '').trim().toLowerCase();
+    if (!newName || !newEmail) {
+      toast('Name and email are required.', 'error');
+      return;
+    }
+    if (!newEmail.endsWith('@vvce.ac.in')) {
+      toast('❌ Only @vvce.ac.in email addresses are permitted.', 'error');
+      return;
+    }
+    const allUsers = getDB('vvce_users');
+    const duplicate = allUsers.find(u => u.id !== STATE.user.id && (u.email || '').toLowerCase() === newEmail);
+    if (duplicate) {
+      toast('❌ That email is already in use by another account.', 'error');
+      return;
+    }
+    updates.name = newName;
+    updates.designation = newDesig;
+    updates.email = newEmail;
+
+    // Sync authority updates to approving_authorities if applicable
+    const sb = getSupabaseClient();
+    const targetAuthId = STATE.currentAuthorityId || STATE.user.id;
+    if (sb && typeof sb.from === 'function') {
+      try {
+        await sb.from('approving_authorities').update({
+          name: newName,
+          designation: newDesig || 'Approving Authority',
+          email: newEmail,
+          updated_at: new Date().toISOString()
+        }).eq('id', targetAuthId);
+      } catch (e) { console.warn('Sync authority profile warning:', e); }
+    }
   } else {
     updates.phone = document.getElementById('pe-phone')?.value.trim();
     updates.linkedin = document.getElementById('pe-linkedin')?.value.trim();

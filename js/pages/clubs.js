@@ -43,8 +43,8 @@ function renderClubsDirectoryPage(selectedClubName = null) {
       </div>
 
       <div style="display:flex; gap:10px; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
-        <button id="tab-club-up" class="btn" style="background:#4f46e5; color:#fff; padding:6px 14px; font-size:13px;" onclick="switchClubTab('upcoming', '${selectedClubName}')">Upcoming Events (${upcoming.length})</button>
-        <button id="tab-club-past" class="btn" style="background:#f1f5f9; color:#475569; padding:6px 14px; font-size:13px;" onclick="switchClubTab('past', '${selectedClubName}')">Past & Completed (${past.length})</button>
+        <button id="tab-club-up" class="btn" style="background:#4f46e5; color:#fff; padding:6px 14px; font-size:13px;" onclick="switchClubTab('upcoming', '${selectedClubName.replace(/'/g, "\\'")}')">Upcoming Events (${upcoming.length})</button>
+        <button id="tab-club-past" class="btn" style="background:#f1f5f9; color:#475569; padding:6px 14px; font-size:13px;" onclick="switchClubTab('past', '${selectedClubName.replace(/'/g, "\\'")}')">Past & Completed (${past.length})</button>
       </div>
 
       <div class="event-grid" id="club-events-grid">
@@ -56,7 +56,7 @@ function renderClubsDirectoryPage(selectedClubName = null) {
 
   // Otherwise, render full Clubs Directory grid
   // Gather registered clubs
-  const clubAdmins = users.filter(u => u.type === 'admin' && u.clubName);
+  const clubAdmins = users.filter(u => u.type === 'admin' && u.approved && u.clubName);
   const knownClubNames = new Set(clubAdmins.map(u => u.clubName.toLowerCase()));
   
   // Include clubs from events that might not have an admin account
@@ -134,37 +134,4 @@ function filterClubsView(term) {
   });
 }
 
-function registerEv(id) {
-  if (STATE.registrationLocked) {
-    toast('Event registrations are temporarily paused by administration.', 'warning');
-    return;
-  }
-  const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === id);
-  if (!ev) return;
-  if ((ev.registrations||[]).includes(STATE.user.id)) { toast('Already registered!','info'); return; }
-
-  const currentRegCount = (ev.registrations || []).length;
-  const maxCap = ev.max_participants || ev.maxParticipants || 100;
-  if (currentRegCount >= maxCap) {
-    if (ev.waitlist_enabled) {
-      joinWaitlist(id);
-    } else {
-      toast('Event capacity is full.', 'warning');
-    }
-    return;
-  }
-
-  // Team event → open team registration modal
-  if (ev.isTeamEvent) {
-    openTeamRegisterModal(ev);
-    return;
-  }
-
-  if (ev.fee > 0) {
-    openPaymentModal(ev);
-  } else {
-    completeRegistration(ev);
-  }
-}
 

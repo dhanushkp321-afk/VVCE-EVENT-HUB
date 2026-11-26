@@ -87,7 +87,7 @@ function showPage(pageId) {
     'authority-attendance': 'Attendance',
     'authority-portal': 'Approving Authority Portal',
     'dean-portal': 'Approving Authority Portal',
-    'principal-portal': 'Principal Portal',
+
   };
   document.getElementById('topbar-title').textContent = titles[pageId] || pageId;
 
@@ -120,8 +120,7 @@ function showPage(pageId) {
     'authority-attendance': renderAttendancePage,
     'authority-portal':     () => renderAuthorityPortal(),
     'dean-portal':          () => renderAuthorityPortal(),
-    'dean-portal':          () => renderDeanPortal(),
-    // 'principal-portal' removed as requested
+
   };
   if (renders[pageId]) renders[pageId]();
 }

@@ -84,7 +84,7 @@ function eventCard(ev) {
         <div class="ev-metas">
           <div class="ev-meta">📅 ${formatDate(ev.date)}</div>
           <div class="ev-meta">🕐 ${formatTime(ev.time)} &nbsp;|&nbsp; 📍 ${ev.venue}</div>
-          <div class="ev-meta">⭐ ${ev.points||0} pts &nbsp;|&nbsp; ${ev.fee>0?`<span style="color:#b45309;">₹${ev.fee}</span>`:`<span style="color:#15803d;">FREE</span>`}</div>
+          <div class="ev-meta">💰 ${ev.fee>0?`<span style="color:#b45309;">₹${ev.fee}</span>`:`<span style="color:#15803d;">FREE</span>`}</div>
           <div class="ev-meta" style="color:#6366f1;font-weight:600;">🎓 Open to: ${(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches'}</div>
           ${ev.isTeamEvent ? `<div class="ev-meta" style="color:#7c3aed;font-weight:700;">👥 Team Event &nbsp;|&nbsp; ${ev.minTeamSize}–${ev.maxTeamSize} members</div>` : ''}
           ${ev.desc ? `
@@ -1098,8 +1098,9 @@ function joinWaitlist(id) {
   }
   ev.waitlist.push(STATE.user.id);
   setDB('vvce_events', events);
-  if (window.sb) {
-    window.sb.from('events').update({ waitlist: ev.waitlist }).eq('id', id);
+  const sb = getSupabaseClient();
+  if (sb) {
+    sb.from('events').update({ waitlist: ev.waitlist }).eq('id', id).catch(() => {});
   }
   addNotif(`You have been added to the waitlist for ${ev.name}. You will be notified if a slot opens up.`, '⏳');
   toast('Added to waitlist! You will be notified if a seat opens up.', 'success');
@@ -1294,6 +1295,39 @@ function unregisterEv(id) {
   if (STATE.page==='registrations') renderRegistrationsPage();
 }
 
+function registerEv(id) {
+  if (STATE.registrationLocked) {
+    toast('Event registrations are temporarily paused by administration.', 'warning');
+    return;
+  }
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  if ((ev.registrations || []).includes(STATE.user.id)) { toast('Already registered!', 'info'); return; }
+
+  const currentRegCount = (ev.registrations || []).length;
+  const maxCap = ev.max_participants || ev.maxParticipants || 100;
+  if (currentRegCount >= maxCap) {
+    if (ev.waitlist_enabled) {
+      joinWaitlist(id);
+    } else {
+      toast('Event capacity is full.', 'warning');
+    }
+    return;
+  }
+
+  if (ev.isTeamEvent) {
+    openTeamRegisterModal(ev);
+    return;
+  }
+
+  if (ev.fee > 0) {
+    openPaymentModal(ev);
+  } else {
+    completeRegistration(ev);
+  }
+}
+
 function openEventModal(id) {
   const ev   = getDB('vvce_events').find(e => e.id === id);
   if (!ev) return;
@@ -1388,7 +1422,6 @@ function openEventModal(id) {
       ${detailChip('📍','Venue',ev.venue)}
       ${detailChip('👥','Capacity', ev.isTeamEvent ? `${(ev.teams||[]).length} teams (${ev.regCount}/${ev.maxParticipants} people)` : `${ev.regCount}/${ev.maxParticipants} seats`)}
       ${ev.isTeamEvent ? detailChip('👥','Team Size', `${ev.minTeamSize || 2}–${ev.maxTeamSize || 4} members`) : detailChip('👤','Event Type', 'Solo Event')}
-      ${detailChip('⭐','AICTE Points',`${ev.points||0} pts`)}
       ${detailChip('🎓','Target Branches',(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches')}
       <div style="grid-column:1/-1;">${detailChip('💰','Fee',ev.fee>0?`₹${ev.fee}`:'FREE')}</div>
     </div>

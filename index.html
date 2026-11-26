@@ -5,13 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VVCE Events Hub — Vidyavardhaka College of Engineering</title>
   <meta name="description" content="VVCE Events Hub — College event management for students, clubs, and faculty.">
-  <!-- Html5-Qrcode for Barcode Scanning -->
-  <script src="https://unpkg.com/html5-qrcode"></script>
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- EmailJS Client for direct email delivery -->
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -102,7 +97,7 @@
           <span class="forgot-link" onclick="handleForgotPassword()">Forgot password?</span>
         </div>
         <div class="auth-notice-blue">
-          ⚠️ Club Admin accounts require approval from Dean Student Welfare before you can log in.
+          ⚠️ Club Admin accounts require approval from your selected Approving Authority before you can log in.
         </div>
         <!-- Quick demo logins -->
         <div class="quick-demo-row">
@@ -249,23 +244,23 @@
         <div id="form-admin" style="display:none;">
           <div id="admin-manual-fields">
             <div class="auth-notice-info">
-              ⏳ Club accounts require <strong>Dean Student Welfare approval</strong> before you can log in.
+              ⏳ Club accounts require <strong>Approving Authority approval</strong> before you can log in.
             </div>
 
             
             <!-- Select Approving Authority (Required) -->
-            <div class="auth-field-group" style="background:rgba(99,102,241,0.08); padding:14px; border-radius:12px; border:1px solid rgba(99,102,241,0.25); margin-bottom:15px;">
-              <label class="auth-label" style="color:#a5b4fc; font-weight:700; font-size:14px;">🏛️ Select Approving Authority *</label>
-              <select class="auth-input" id="a-authority" style="background:rgba(15,23,42,0.6); border-color:rgba(99,102,241,0.4); color:#fff; cursor:pointer;" required>
+            <div class="auth-field-group" style="background:rgba(99,102,241,0.06); padding:14px; border-radius:12px; border:1px solid rgba(99,102,241,0.28); margin-bottom:15px;">
+              <label class="auth-label" style="color:#3730a3; font-weight:700; font-size:14px;">🏛️ Select Approving Authority *</label>
+              <select class="auth-input" id="a-authority" style="background:#ffffff; border-color:rgba(99,102,241,0.45); color:#0f172a; cursor:pointer;" required>
                 <option value="">-- Loading Approving Authorities... --</option>
               </select>
-              <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Club registration requests will be routed to this authority's review queue.</div>
+              <div style="font-size:11px; color:#475569; margin-top:4px;">Club registration requests will be routed to this authority's review queue.</div>
             </div>
 
             <!-- Faculty Coordinator Name -->
-            <div class="auth-field-group" style="background:rgba(99,102,241,0.08); padding:14px; border-radius:12px; border:1px solid rgba(99,102,241,0.25); margin-bottom:15px;">
-              <label class="auth-label" style="color:#a5b4fc; font-weight:700; font-size:14px;">👩‍🏫 Faculty Coordinator Name *</label>
-              <input class="auth-input" type="text" id="a-faculty" placeholder="Dr. / Prof. Name (e.g. Dr. Ramesh Kumar)" style="background:rgba(15,23,42,0.6); border-color:rgba(99,102,241,0.4);">
+            <div class="auth-field-group" style="background:rgba(99,102,241,0.06); padding:14px; border-radius:12px; border:1px solid rgba(99,102,241,0.28); margin-bottom:15px;">
+              <label class="auth-label" style="color:#3730a3; font-weight:700; font-size:14px;">👩‍🏫 Faculty Coordinator Name *</label>
+              <input class="auth-input" type="text" id="a-faculty" placeholder="Dr. / Prof. Name (e.g. Dr. Ramesh Kumar)" style="background:#ffffff; border-color:rgba(99,102,241,0.45); color:#0f172a;">
             </div>
 
             <!-- Club Logo Upload -->
@@ -364,25 +359,25 @@
               <label class="auth-label">Full Name</label>
               <input class="auth-input" type="text" id="f-name" placeholder="Dr. / Prof. Name">
             </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Designation</label>
-            <select class="auth-input" id="f-designation">
-              <option value="faculty">Faculty</option>
-              <option value="hod">Head of Department (HOD)</option>
-              <option value="authority">Approving Authority</option>
-              <option value="dean-academics">Dean Academics</option>
-            </select>
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">VVCE Email</label>
-            <input class="auth-input" type="email" id="f-email" placeholder="yourname@vvce.ac.in">
-          </div>
-          <div class="auth-field-group">
-            <label class="auth-label">Password (min 8 chars)</label>
-            <input class="auth-input" type="password" id="f-pass" placeholder="••••••••">
-          </div>
-          <button class="btn-dark-register" onclick="handleAuthoritySignup()">Create Authority Account →</button>
-          <p class="auth-verify-note">Check your VVCE email to verify your account.</p>
+            <div class="auth-field-group">
+              <label class="auth-label">Designation</label>
+              <select class="auth-input" id="f-designation">
+                <option value="faculty">Faculty</option>
+                <option value="hod">Head of Department (HOD)</option>
+                <option value="authority">Approving Authority</option>
+                <option value="dean-academics">Dean Academics</option>
+              </select>
+            </div>
+            <div class="auth-field-group">
+              <label class="auth-label">VVCE Email</label>
+              <input class="auth-input" type="email" id="f-email" placeholder="yourname@vvce.ac.in">
+            </div>
+            <div class="auth-field-group">
+              <label class="auth-label">Password (min 8 chars)</label>
+              <input class="auth-input" type="password" id="f-pass" placeholder="••••••••">
+            </div>
+            <button class="btn-dark-register" onclick="handleAuthoritySignup()">Create Authority Account →</button>
+            <p class="auth-verify-note">Check your VVCE email to verify your account.</p>
           </div> <!-- /auth-manual-fields -->
         </div>
 
@@ -391,9 +386,6 @@
     </div><!-- /auth-card -->
   </div><!-- /auth-outer -->
 </div><!-- /auth-screen -->
-
-<!-- Hidden div for Html5Qrcode internal use -->
-<div id="reader-hidden" style="position:absolute; top:-9999px; left:-9999px; width:500px; height:500px; overflow:hidden;"></div>
 
 <!-- ═══════════════════════════════════ MAIN APP ═══════════════════════════════════ -->
 <div id="app" style="display:none;">
@@ -641,21 +633,15 @@
           <input class="auth-input" type="date" id="cert-date">
         </div>
       </div>
-      <div class="reg-two-col">
-        <div class="auth-field-group">
-          <label class="auth-label">Achievement</label>
-          <select class="auth-input" id="cert-position">
-            <option>Participant</option>
-            <option>Winner</option>
-            <option>Runner-up</option>
-            <option>Finalist</option>
-            <option>Organizer</option>
-          </select>
-        </div>
-        <div class="auth-field-group">
-          <label class="auth-label">AICTE Points</label>
-          <input class="auth-input" type="number" id="cert-points" placeholder="e.g. 10" min="1" max="50">
-        </div>
+      <div class="auth-field-group">
+        <label class="auth-label">Achievement</label>
+        <select class="auth-input" id="cert-position">
+          <option>Participant</option>
+          <option>Winner</option>
+          <option>Runner-up</option>
+          <option>Finalist</option>
+          <option>Organizer</option>
+        </select>
       </div>
       <button class="btn-dark-register" onclick="submitCertificate()" style="margin-top:8px;">Submit for Verification →</button>
     </div>
@@ -673,21 +659,6 @@
   </div>
 </div>
 
-<!-- Reject Reason Modal -->
-<div class="modal-overlay" id="modal-reject">
-  <div class="modal-box modal-narrow">
-    <div class="modal-head">
-      <h2>Reject Event</h2>
-      <button class="modal-x" onclick="closeModal('modal-reject')">✕</button>
-    </div>
-    <input type="hidden" id="reject-event-id">
-    <div class="auth-field-group">
-      <label class="auth-label">Reason for Rejection</label>
-      <textarea class="auth-input" id="reject-reason" rows="3" placeholder="Provide a reason..."></textarea>
-    </div>
-    <button class="btn-red-submit" onclick="confirmReject()">Confirm Reject</button>
-  </div>
-</div>
 
 <!-- Registered Students Modal -->
 <div class="modal-overlay" id="modal-auth-students">
@@ -746,45 +717,6 @@
   </div>
 </div>
 
-<!-- Email OTP Verification Modal -->
-<div class="modal-overlay" id="modal-otp">
-  <div class="modal-box" style="max-width:420px; text-align:center; padding:24px; border-radius:16px;">
-    <div style="font-size:42px; margin-bottom:8px;">📧</div>
-    <h2 style="font-size:20px; font-weight:800; color:#111827; margin-bottom:6px;">Verify Your VVCE Email</h2>
-    <p style="font-size:13px; color:#6b7280; margin-bottom:16px; line-height:1.5;">
-      We have dispatched a 6-digit security code to<br>
-      <strong id="otp-target-email" style="color:#4f46e5; font-size:14px; font-weight:700;">yourname@vvce.ac.in</strong>
-    </p>
-
-    <!-- Security notice -->
-    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; margin-bottom:18px; font-size:12px; color:#475569; display:flex; align-items:center; gap:8px; text-align:left;">
-      <span style="font-size:18px;">🔒</span>
-      <span>Check your inbox or spam folder for the one-time passcode.</span>
-    </div>
-
-    <!-- OTP Input Group -->
-    <div class="otp-inputs-row" style="display:flex; justify-content:center; gap:8px; margin-bottom:16px;">
-      <input type="text" maxlength="1" class="otp-digit" id="otp-d1" oninput="handleOtpInput(1, event)" onkeydown="handleOtpKey(1, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
-      <input type="text" maxlength="1" class="otp-digit" id="otp-d2" oninput="handleOtpInput(2, event)" onkeydown="handleOtpKey(2, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
-      <input type="text" maxlength="1" class="otp-digit" id="otp-d3" oninput="handleOtpInput(3, event)" onkeydown="handleOtpKey(3, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
-      <input type="text" maxlength="1" class="otp-digit" id="otp-d4" oninput="handleOtpInput(4, event)" onkeydown="handleOtpKey(4, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
-      <input type="text" maxlength="1" class="otp-digit" id="otp-d5" oninput="handleOtpInput(5, event)" onkeydown="handleOtpKey(5, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
-      <input type="text" maxlength="1" class="otp-digit" id="otp-d6" oninput="handleOtpInput(6, event)" onkeydown="handleOtpKey(6, event)" style="width:44px; height:50px; font-size:22px; font-weight:800; text-align:center; border:2px solid #e2e8f0; border-radius:10px; outline:none; transition:all 0.2s;">
-    </div>
-
-    <div id="otp-error-msg" style="color:#ef4444; font-size:12px; font-weight:600; margin-bottom:12px; display:none;"></div>
-
-    <button class="btn-dark-register" onclick="verifyRegistrationOtp()" style="width:100%; padding:13px; font-size:15px; font-weight:700; background:linear-gradient(135deg, #4f46e5, #4338ca); border-radius:10px; margin-bottom:14px; cursor:pointer;">
-      Verify &amp; Create Account →
-    </button>
-
-    <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#6b7280; padding:0 4px;">
-      <span id="otp-timer">Resend code in <strong id="otp-countdown">60</strong>s</span>
-      <button id="btn-resend-otp" onclick="resendRegistrationOtp()" style="background:none; border:none; color:#4f46e5; font-weight:700; cursor:pointer; padding:0; display:none;">Resend Code</button>
-      <button onclick="closeModal('modal-otp')" style="background:none; border:none; color:#9ca3af; cursor:pointer; padding:0;">Cancel</button>
-    </div>
-  </div>
-</div>
 
 <!-- Toast Container -->
 <div id="toast-wrap"></div>

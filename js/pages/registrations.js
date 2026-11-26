@@ -10,7 +10,8 @@ function renderRegistrationsPage() {
   const events    = getDB('vvce_events');
   const userId    = STATE.user?.id;
   const userEmail = (STATE.user?.email || '').toLowerCase();
-  const now       = new Date();
+  const _now      = new Date();
+  const todayStr  = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
 
   // Find all events relevant to user (registered, leader, member, or pending invite)
   const myRegs = events.filter(e => {
@@ -28,7 +29,7 @@ function renderRegistrationsPage() {
   const past = [];
 
   myRegs.forEach(e => {
-    const isPast = new Date(e.date) < now;
+    const isPast = Boolean(e.date && e.date < todayStr);
     if (isPast) {
       past.push(e);
       return;
@@ -189,7 +190,6 @@ function regList(evs, past, isPendingTab = false) {
               ✏️ Alter Team
             </button>
           ` : '')}
-          <div style="font-size:11px;color:#9ca3af;">⭐ ${e.points||0} pts</div>
         </div>
       </div>
     `;

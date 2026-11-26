@@ -9,7 +9,11 @@
 function renderCalendarPage() {
   const el = document.getElementById('page-calendar');
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 300px;gap:1.5rem;">
+    <style>
+      .cal-layout { display:grid; grid-template-columns:1fr 300px; gap:1.5rem; }
+      @media (max-width: 768px) { .cal-layout { grid-template-columns:1fr; } }
+    </style>
+    <div class="cal-layout">
       <div>
         <div class="cal-wrap">
           <div class="cal-head">
@@ -64,7 +68,7 @@ function drawCalendar() {
   const totalDays = new Date(year,month+1,0).getDate();
   let events = getDB('vvce_events').filter(e=>e.status==='approved' || e.status==='rescheduled' || e.status==='completed');
   if (STATE.user && STATE.user.type === 'student') {
-    events = events.filter(e => !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(STATE.user.branch));
+    events = events.filter(e => isBranchMatch(e.branches, STATE.user.branch));
   }
   const acad   = getDB('vvce_academic');
 
@@ -130,7 +134,7 @@ function drawCalendar() {
 function showCalDateEvents(ds) {
   let events = getDB('vvce_events').filter(e=>(e.status==='approved'||e.status==='rescheduled'||e.status==='completed')&&e.date===ds);
   if (STATE.user && STATE.user.type === 'student') {
-    events = events.filter(e => !e.branches || e.branches.length === 0 || e.branches.includes('All') || e.branches.includes(STATE.user.branch));
+    events = events.filter(e => isBranchMatch(e.branches, STATE.user.branch));
   }
   const acad = getDB('vvce_academic').filter(a => a.date === ds);
   const panel  = document.getElementById('cal-events-panel');
@@ -169,7 +173,10 @@ function showCalDateEvents(ds) {
 
 function renderAcadSchedule() {
   const acad   = getDB('vvce_academic');
-  const events = getDB('vvce_events').filter(e=>e.status==='approved'||e.status==='rescheduled');
+  let events   = getDB('vvce_events').filter(e=>e.status==='approved'||e.status==='rescheduled');
+  if (STATE.user && STATE.user.type === 'student') {
+    events = events.filter(e => isBranchMatch(e.branches, STATE.user.branch));
+  }
   const panel  = document.getElementById('acad-schedule');
   if (!panel) return;
 

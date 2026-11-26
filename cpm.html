@@ -44,6 +44,9 @@
     .btn-danger:hover { background: #fee2e2; }
     .btn-warning { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
     .btn-warning:hover { background: #fef3c7; }
+    .btn-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .btn-success:hover { background: #dcfce7; }
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
 
     #auth-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .login-box { background: #ffffff; border: 1px solid #fde68a; border-radius: 20px; width: 100%; max-width: 440px; padding: 2.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.18); }
@@ -252,7 +255,8 @@
               <input type="text" id="media-bg-url" class="form-control" placeholder="Optional custom background image URL">
             </div>
             <div class="form-group">
-
+              <label>Sign-In Background Image URL</label>
+              <input type="text" id="media-signin-bg-url" class="form-control" placeholder="Optional sign-in screen background URL">
             </div>
           </div>
 
@@ -479,9 +483,9 @@
           <small style="color:#64748b;" id="analytics-user-breakdown">Students / Faculty</small>
         </div>
         <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
-          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">DAILY ACTIVE USERS</div>
+          <div style="font-size:0.75rem; color:#64748b; font-weight:700;">NEW SIGNUPS (24H)</div>
           <div style="font-size:1.85rem; font-weight:800; font-family:'Outfit'; margin-top:0.25rem; color:#059669;" id="analytics-daily-active">0</div>
-          <small style="color:#64748b;">Active past 24 hours</small>
+          <small style="color:#64748b;">Registered past 24 hours</small>
         </div>
         <div class="stat-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:1.3rem; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
           <div style="font-size:0.75rem; color:#64748b; font-weight:700;">TOTAL EVENT REGISTRATIONS</div>
@@ -679,15 +683,9 @@
           <label style="color:#ef4444;">Cancellation Reason (Communicated to Students)</label>
           <input type="text" id="edit-cancel-reason" class="form-control" placeholder="e.g. Rescheduled due to faculty symposium.">
         </div>
-        <div class="grid-2">
-          <div class="form-group">
-            <label>Max Participant Capacity</label>
-            <input type="number" id="edit-max-participants" class="form-control" min="1">
-          </div>
-          <div class="form-group">
-            <label>Activity Points Awarded</label>
-            <input type="number" id="edit-points" class="form-control" min="0">
-          </div>
+        <div class="form-group">
+          <label>Max Participant Capacity</label>
+          <input type="number" id="edit-max-participants" class="form-control" min="1">
         </div>
         <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-bottom:1rem;">
           <input type="checkbox" id="edit-waitlist-enabled" style="width:18px; height:18px; cursor:pointer; accent-color:#f59e0b;">
@@ -937,6 +935,7 @@
         if (tabs.media) tabs.media.style.display = 'none';
         if (tabs.theme) tabs.theme.style.display = 'none';
         if (tabs.audit) tabs.audit.style.display = 'none';
+        if (tabs.authorities) tabs.authorities.style.display = 'none';
         if (tabs.emergency) tabs.emergency.style.display = 'none';
         switchTab('events', tabs.events);
       } else if (currentAdminRole === 'content_manager') {
@@ -944,6 +943,7 @@
         if (tabs.recycle) tabs.recycle.style.display = 'none';
         if (tabs.analytics) tabs.analytics.style.display = 'none';
         if (tabs.audit) tabs.audit.style.display = 'none';
+        if (tabs.authorities) tabs.authorities.style.display = 'none';
         if (tabs.emergency) tabs.emergency.style.display = 'none';
         switchTab('banner', tabs.banner);
       } else if (currentAdminRole === 'analytics_viewer') {
@@ -952,10 +952,12 @@
         if (tabs.banner) tabs.banner.style.display = 'none';
         if (tabs.media) tabs.media.style.display = 'none';
         if (tabs.theme) tabs.theme.style.display = 'none';
+        if (tabs.audit) tabs.audit.style.display = 'none';
+        if (tabs.authorities) tabs.authorities.style.display = 'none';
         if (tabs.emergency) tabs.emergency.style.display = 'none';
         switchTab('analytics', tabs.analytics);
-        document.querySelectorAll('.btn-primary, .btn-danger, .btn-warning').forEach(b => {
-          if (b.innerText.includes('Save') || b.innerText.includes('Delete') || b.innerText.includes('Activate') || b.innerText.includes('Enable')) {
+        document.querySelectorAll('.btn-primary, .btn-danger, .btn-warning, .btn-success').forEach(b => {
+          if (/save|delete|activate|deactivate|enable|restore|pause|approve|add|password/i.test(b.innerText)) {
             b.style.display = 'none';
           }
         });
@@ -1039,7 +1041,6 @@
         const regCount = (e.registrations || []).length;
         const isPending = e.status === 'pending';
         const feeLabel = (!e.fee || e.fee === 0) ? '🆓 Free' : `💰 ₹${e.fee}`;
-        const pointsLabel = e.points ? `⭐ ${e.points} pts` : '';
         const branchLabel = e.branches && e.branches.length > 0 && !e.branches.includes('All')
           ? `🎓 ${e.branches.join(', ')}`
           : '🎓 All Branches';
@@ -1065,7 +1066,7 @@
                 <div>⏰ <strong>Time:</strong> ${e.time || 'TBD'}</div>
                 <div>📍 <strong>Venue:</strong> ${e.venue || 'TBD'}</div>
                 <div>👥 <strong>Registered:</strong> ${regCount} / ${e.max_participants || 100}</div>
-                <div>${feeLabel}${pointsLabel ? ' &nbsp;•&nbsp; ' + pointsLabel : ''}</div>
+                <div>${feeLabel}</div>
                 <div>${branchLabel}</div>
                 <div>${teamLabel}</div>
               </div>
@@ -1108,7 +1109,6 @@
       document.getElementById('edit-publish-at').value = ev.publish_at || '';
       document.getElementById('edit-cancel-reason').value = ev.rej_reason || '';
       document.getElementById('edit-max-participants').value = ev.max_participants || 100;
-      document.getElementById('edit-points').value = ev.points || 0;
       document.getElementById('edit-waitlist-enabled').checked = !!ev.waitlist_enabled;
       document.getElementById('edit-desc').value = ev.desc || '';
       document.getElementById('modal-event-title').innerText = 'Modify: ' + ev.name;
@@ -1130,9 +1130,8 @@
           </div>` : '<span style="font-size:12px;color:#94a3b8;">No registrations yet.</span>';
 
       document.getElementById('edit-registered-count-info').innerHTML = `
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px; margin-bottom:8px;">
           <div><span style="font-weight:700; color:#334155;">💰 Fee:</span> ${feeStr}</div>
-          <div><span style="font-weight:700; color:#334155;">⭐ Points:</span> ${ev.points || 0} pts</div>
           <div><span style="font-weight:700; color:#334155;">🎓 Branches:</span> ${branchStr}</div>
           <div><span style="font-weight:700; color:#334155;">👥 Type:</span> ${teamStr}</div>
           <div style="grid-column:1/-1;"><span style="font-weight:700; color:#334155;">🏦 UPI ID:</span> ${upiStr}</div>
@@ -1197,7 +1196,6 @@
         publish_at: newStatus === 'scheduled' ? document.getElementById('edit-publish-at').value : null,
         rej_reason: newStatus === 'cancelled' ? document.getElementById('edit-cancel-reason').value : null,
         max_participants: parseInt(document.getElementById('edit-max-participants').value) || 100,
-        points: parseInt(document.getElementById('edit-points').value) || 0,
         waitlist_enabled: document.getElementById('edit-waitlist-enabled').checked,
         desc: document.getElementById('edit-desc').value
       };
@@ -1260,9 +1258,11 @@
           venue: payload.venue,
           category: payload.category,
           status: payload.status,
+          publish_at: payload.publish_at || null,
+          waitlist_enabled: !!payload.waitlist_enabled,
+          change_history: payload.change_history || [],
           rej_reason: payload.rej_reason || null,
           max_participants: payload.max_participants,
-          points: payload.points,
           desc: payload.desc
         };
 
@@ -1408,7 +1408,8 @@
             document.getElementById('media-hero-banner').value = currentConfig.media.heroBanner || '';
             document.getElementById('media-logo-url').value = currentConfig.media.logoUrl || '';
             document.getElementById('media-bg-url').value = currentConfig.media.bgUrl || '';
-            document.getElementById('media-signin-bg-url').value = currentConfig.media.signinBgUrl || '';
+            const signinBgEl = document.getElementById('media-signin-bg-url');
+            if (signinBgEl) signinBgEl.value = currentConfig.media.signinBgUrl || '';
             previewMedia('hero', currentConfig.media.heroBanner || '');
           }
           if (currentConfig.theme) {
@@ -1475,7 +1476,7 @@
         heroBanner: document.getElementById('media-hero-banner').value.trim(),
         logoUrl: document.getElementById('media-logo-url').value.trim(),
         bgUrl: document.getElementById('media-bg-url').value.trim(),
-        signinBgUrl: document.getElementById('media-signin-bg-url').value.trim()
+        signinBgUrl: (document.getElementById('media-signin-bg-url')?.value || '').trim()
       };
       await sb.from('cpm_config').upsert([{ id: 'global', config: currentConfig }]);
       await recordAuditAction({ action: 'Media Assets Updated', target: 'Visual Branding', details: 'Hero Banner and Background updated' });
@@ -1699,7 +1700,7 @@
 
     async function loadAnalytics() {
       const { data: users } = await sb.from('users').select('id, type, created_at');
-      const { data: events } = await sb.from('events').select('id, name, category, registrations, waitlist, max_participants, status');
+      const { data: events } = await sb.from('events').select('id, name, club, category, registrations, waitlist, max_participants, status');
 
       const uList = users || [];
       const eList = events || [];
@@ -1709,7 +1710,9 @@
       const faculty = uList.length - students;
       document.getElementById('analytics-user-breakdown').innerText = `${students} Students • ${faculty} Faculty / Admins`;
 
-      document.getElementById('analytics-daily-active').innerText = Math.max(1, Math.round(uList.length * 0.45));
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      const recentSignups = uList.filter(u => u.created_at && new Date(u.created_at).getTime() >= oneDayAgo).length;
+      document.getElementById('analytics-daily-active').innerText = recentSignups;
 
       let totalRegs = 0;
       const catCount = {};
@@ -1722,7 +1725,7 @@
       document.getElementById('analytics-total-regs').innerText = totalRegs;
 
       const clubs = new Set(eList.map(e => e.club).filter(Boolean));
-      document.getElementById('analytics-active-clubs').innerText = clubs.size || 12;
+      document.getElementById('analytics-active-clubs').innerText = clubs.size;
 
       const chartBox = document.getElementById('category-chart-container');
       const totalPoints = Object.values(catCount).reduce((a, b) => a + b, 0) || 1;

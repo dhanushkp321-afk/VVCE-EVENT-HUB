@@ -9,7 +9,6 @@
 function renderCertificatesPage() {
   const user  = STATE.user;
   const certs = getDB('vvce_certs').filter(c=>c.userId===user.id);
-  const totalPts = user.points || 0;
   const el = document.getElementById('page-certificates');
 
   el.innerHTML = `
@@ -19,20 +18,20 @@ function renderCertificatesPage() {
     </div>
 
     <!-- Summary banner -->
-    <div style="background:linear-gradient(135deg,#111827,#1e2a3d);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:2rem;flex-wrap:wrap;">
+    <div style="background:linear-gradient(135deg,#111827,#1e2a3d);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-around;gap:2rem;flex-wrap:wrap;">
       <div style="text-align:center;">
-        <div style="font-family:'Outfit',sans-serif;font-size:40px;font-weight:900;color:#f59e0b;">${totalPts}</div>
-        <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;font-weight:700;">Total AICTE Points</div>
+        <div style="font-family:'Outfit',sans-serif;font-size:32px;font-weight:900;color:#f59e0b;">${certs.length}</div>
+        <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;font-weight:700;">Total Certificates</div>
       </div>
-      <div style="width:1px;height:50px;background:rgba(255,255,255,0.08);"></div>
-      <div style="flex:1;min-width:180px;">
-        <div style="font-size:13px;color:#d1d5db;margin-bottom:6px;">Progress to AICTE Target (100 pts)</div>
-        <div class="pts-bar-wrap"><div class="pts-bar" style="width:${Math.min(100,totalPts)}%"></div></div>
-        <div style="font-size:11px;color:#9ca3af;margin-top:4px;">${totalPts}/100 points</div>
+      <div style="width:1px;height:44px;background:rgba(255,255,255,0.08);"></div>
+      <div style="text-align:center;">
+        <div style="font-family:'Outfit',sans-serif;font-size:32px;font-weight:900;color:#fbbf24;">${certs.filter(c=>c.type==='achievement').length}</div>
+        <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;font-weight:700;">Achievements</div>
       </div>
-      <div style="display:flex;gap:1.5rem;">
-        <div style="text-align:center;"><div style="font-family:'Outfit',sans-serif;font-size:24px;font-weight:900;color:#fbbf24;">${certs.filter(c=>c.type==='achievement').length}</div><div style="font-size:11px;color:#9ca3af;">Achievements</div></div>
-        <div style="text-align:center;"><div style="font-family:'Outfit',sans-serif;font-size:24px;font-weight:900;color:#10b981;">${certs.filter(c=>c.type==='participation').length}</div><div style="font-size:11px;color:#9ca3af;">Participation</div></div>
+      <div style="width:1px;height:44px;background:rgba(255,255,255,0.08);"></div>
+      <div style="text-align:center;">
+        <div style="font-family:'Outfit',sans-serif;font-size:32px;font-weight:900;color:#10b981;">${certs.filter(c=>c.type==='participation').length}</div>
+        <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;font-weight:700;">Participation</div>
       </div>
     </div>
 
@@ -51,8 +50,7 @@ function renderCertificatesPage() {
             <div class="cert-title">${c.title}</div>
             <div class="cert-issuer">${c.issuer}</div>
             <div style="font-size:12px;color:#9ca3af;margin-bottom:8px;">${formatDate(c.date)} • ${c.position}</div>
-            <div class="cert-foot">
-              <span class="cert-pts">⭐ ${c.points} AICTE Points</span>
+            <div class="cert-foot" style="justify-content:flex-end;">
               <button class="cert-dl-btn" onclick="downloadCertPDF('${c.id}')">Download PDF</button>
             </div>
           </div>`).join('')
@@ -67,12 +65,11 @@ function submitCertificate() {
   const issuer = document.getElementById('cert-issuer').value.trim();
   const date   = document.getElementById('cert-date').value;
   const pos    = document.getElementById('cert-position').value;
-  const pts    = parseInt(document.getElementById('cert-points').value||'0');
 
   if (!title||!issuer||!date) { toast('Please fill all required fields.','error'); return; }
 
   const certs = getDB('vvce_certs');
-  certs.push({ id:genId('c'), userId:STATE.user.id, title, issuer, date, position:pos, points:pts, type:['Winner','Runner-up'].includes(pos)?'achievement':'participation', verified:false });
+  certs.push({ id:genId('c'), userId:STATE.user.id, title, issuer, date, position:pos, type:['Winner','Runner-up'].includes(pos)?'achievement':'participation', verified:false });
   setDB('vvce_certs', certs);
   closeModal('modal-cert-upload');
   toast('Certificate submitted for verification! ⏳','success');
@@ -113,10 +110,7 @@ window.downloadCertPDF = function(certId) {
     .body{font-size:14px;color:#374151;line-height:1.7;max-width:200mm;}
     .event{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;
       color:${isAchievement?'#92400e':'#1e40af'};display:inline;}
-    .pts-badge{display:inline-block;margin-top:12px;padding:6px 20px;border-radius:20px;
-      background:${isAchievement?'rgba(180,83,9,0.1)':'rgba(30,64,175,0.08)'};
-      border:1px solid ${isAchievement?'rgba(180,83,9,0.3)':'rgba(30,64,175,0.25)'};
-      color:${isAchievement?'#92400e':'#1e40af'};font-size:13px;font-weight:700;}
+
     .footer{margin-top:14px;display:flex;justify-content:space-between;width:100%;align-items:flex-end;}
     .sig{text-align:center;flex:1;}
     .sig-line{width:120px;height:1px;background:#9ca3af;margin:0 auto 4px;}
@@ -136,7 +130,6 @@ window.downloadCertPDF = function(certId) {
       the event <span class="event">${cert.title}</span><br>
       organised by <strong>${cert.issuer}</strong>
     </div>
-    <div class="pts-badge">⭐ ${cert.points} AICTE Activity Points Awarded</div>
     <div class="footer">
       <div class="sig"><div class="sig-line"></div><div class="sig-name">Club Coordinator</div></div>
       <div class="date-box"><strong>${dateStr}</strong><br><span style="font-size:10px;">Date of Event</span></div>
@@ -145,6 +138,10 @@ window.downloadCertPDF = function(certId) {
   </div></body></html>`;
 
   const win = window.open('','_blank','width=1200,height=900');
+  if (!win) {
+    toast('Popup blocked! Please allow popups for this site to print/download your certificate PDF.', 'warning', 5000);
+    return;
+  }
   win.document.write(html);
   win.document.close();
   setTimeout(() => win.print(), 800);

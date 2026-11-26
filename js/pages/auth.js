@@ -59,397 +59,6 @@ function clearAuthMsg() {
   if (el) { el.style.display = 'none'; el.textContent = ''; }
 }
 
-/* ── Login ── *//* ── ID Card Photo Scanner (OCR & Barcode) ── */
-window._scannedData = { student: { photoAttached: false }, admin: { photoAttached: false }, authority: { photoAttached: false } };
-
-function extractUSNFuzzy(text) {
-  if (!text) return null;
-  const raw = text.toUpperCase();
-  const usnRegex = /(?:USN\s*[:;-]?\s*)?(4[A-Z]{2}\s*\d{2}\s*[A-Z]{2,4}\s*[\dOIZ]{3,4})/i;
-  const match = raw.match(usnRegex);
-  
-  if (match) {
-    let candidate = match[1].replace(/[\s\-_]/g, '');
-    const prefixPart = candidate.slice(0, 7);
-    const digitsPart = candidate.slice(7).replace(/O/g, '0').replace(/I/g, '1').replace(/Z/g, '2');
-    candidate = prefixPart + digitsPart;
-    if (/^4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4}$/.test(candidate)) {
-      return candidate;
-    }
-  }
-
-  const directMatch = raw.replace(/[\s\-_]/g, '').match(/(4[A-Z]{2}\d{2}[A-Z]{2,4}\d{3,4})/);
-  if (directMatch) return directMatch[1];
-  return null;
-}
-
-/* Helper to map "Program: BE - CS&E" text or USN branch code to Branch dropdown selection */
-function parseProgramToBranch(ocrText, usn) {
-  if (ocrText) {
-    const progMatch = ocrText.match(/Program\s*[:;-]?\s*BE\s*[-:]?\s*([A-Z&\s]+)/i) || ocrText.match(/BE\s*[-:]\s*([A-Z&\s]+)/i);
-    if (progMatch) {
-      const p = progMatch[1].toUpperCase().replace(/\s+/g, '');
-      if (p.includes('CS&E') || p.includes('CSE') || p.includes('CS')) return 'CS';
-      if (p.includes('AI') || p.includes('ML')) return 'CS AI/ML';
-      if (p.includes('IS&E') || p.includes('ISE') || p.includes('IS')) return 'IS';
-      if (p.includes('EC&E') || p.includes('ECE') || p.includes('EC')) return 'EC';
-      if (p.includes('ME')) return 'ME';
-      if (p.includes('EE') || p.includes('EEE')) return 'EEE';
-      if (p.includes('CV') || p.includes('CIVIL')) return 'CV';
-    }
-  }
-
-  if (usn) {
-    const match = usn.match(/^4[A-Z]{2}\d{2}([A-Z]{2,4})\d{3,4}$/i);
-    if (match) {
-      const br = match[1].toUpperCase();
-      if (br === 'CS' || br === 'CSE') return 'CS';
-      if (br === 'AI' || br === 'AIML') return 'CS AI/ML';
-      if (br === 'IS' || br === 'ISE') return 'IS';
-      if (br === 'EC' || br === 'ECE') return 'EC';
-      if (br === 'ME') return 'ME';
-      if (br === 'EE' || br === 'EEE') return 'EEE';
-      if (br === 'CV') return 'CV';
-    }
-  }
-  return null;
-}
-
-/* Fast 4-Angle Canvas Generator for ID Card Processing */
-async function getFastCanvasVariants(file) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = async () => {
-      const variants = [];
-      const targetWidth = 1200; // Optimal resolution for sharp OCR & Barcode
-      const isPortrait = img.height > img.width;
-      const angles = isPortrait ? [90, 270, 0, 180] : [0, 180, 90, 270];
-
-      for (const angle of angles) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        let w = img.width;
-        let h = img.height;
-        const scale = targetWidth / Math.max(w, h);
-        w = Math.round(w * scale);
-        h = Math.round(h * scale);
-
-        if (angle === 90 || angle === 270) {
-          canvas.width = h;
-          canvas.height = w;
-          ctx.translate(canvas.width / 2, canvas.height / 2);
-          ctx.rotate((angle * Math.PI) / 180);
-          ctx.drawImage(img, -w / 2, -h / 2, w, h);
-        } else if (angle === 180) {
-          canvas.width = w;
-          canvas.height = h;
-          ctx.translate(canvas.width / 2, canvas.height / 2);
-          ctx.rotate((angle * Math.PI) / 180);
-          ctx.drawImage(img, -w / 2, -h / 2, w, h);
-        } else {
-          canvas.width = w;
-          canvas.height = h;
-          if (angle !== 0) {
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate((angle * Math.PI) / 180);
-            ctx.drawImage(img, -w / 2, -h / 2, w, h);
-          } else {
-            ctx.drawImage(img, 0, 0, w, h);
-          }
-        }
-
-        // 1. Save Natural variant
-        const naturalBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.90));
-        if (naturalBlob) {
-          variants.push({ blob: naturalBlob, angle, binarized: false });
-        }
-
-        // 2. Save High-Contrast Binarized variant for blurry/low-contrast photos
-        try {
-          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imgData.data;
-          const contrast = 1.8;
-          for (let i = 0; i < data.length; i += 4) {
-            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            gray = (gray - 128) * contrast + 128;
-            gray = gray > 150 ? 255 : (gray < 90 ? 0 : gray);
-            data[i] = data[i + 1] = data[i + 2] = gray;
-          }
-          ctx.putImageData(imgData, 0, 0);
-          const binarizedBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.90));
-          if (binarizedBlob) {
-            variants.push({ blob: binarizedBlob, angle, binarized: true });
-          }
-        } catch(e) {}
-      }
-      resolve(variants);
-    };
-    img.onerror = () => resolve([]);
-    img.src = URL.createObjectURL(file);
-  });
-}
-
-window.handleFileUpload = async function(event, role) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const progressDiv = document.getElementById(`ocr-progress-${role}`);
-  if (progressDiv) progressDiv.style.display = 'block';
-  toast('Analyzing ID card photo...', 'info');
-
-  let finalUsn = null;
-  let parsedName = null;
-  let bestCanvasObj = null;
-
-  // 1. Generate 4 rotated canvas variants (takes ~50ms)
-  const variants = await getFastCanvasVariants(file);
-
-  // 2. Ultra-Fast Barcode Pass (<150ms total)
-  // Scans Html5Qrcode across rotated variants to instantly locate barcode and rotation angle!
-  for (const v of variants) {
-    try {
-      const html5QrCode = new Html5Qrcode('reader-hidden');
-      const res = await html5QrCode.scanFile(v.blob, true);
-      try { await html5QrCode.clear(); } catch(e){}
-      const bcUsn = extractUSNFuzzy(res);
-      if (bcUsn) {
-        finalUsn = bcUsn;
-        bestCanvasObj = v;
-        break; // Barcode & correct rotation angle found instantly!
-      }
-    } catch(e) {}
-  }
-
-  // 3. Target OCR Pass across variants until both USN AND Name are found
-  for (const v of variants) {
-    try {
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 3000));
-      const res = await Promise.race([Tesseract.recognize(v.blob, 'eng'), timeout]);
-      const ocrText = res?.data?.text || '';
-
-      if (!finalUsn) {
-        const ocrUsn = extractUSNFuzzy(ocrText);
-        if (ocrUsn) finalUsn = ocrUsn;
-      }
-
-      if (!parsedName) {
-        const nameCandidate = parseNameFromOCRText(ocrText);
-        if (nameCandidate) parsedName = nameCandidate;
-      }
-
-      if (finalUsn && parsedName) break; // Found both USN and Name, exit!
-    } catch(e) {
-      console.log('OCR error:', e);
-    }
-  }
-
-  if (progressDiv) progressDiv.style.display = 'none';
-  event.target.value = ''; // Reset input element
-
-  if (role === 'student' || role === 'admin') {
-    const users = getDB('vvce_users');
-    
-    // Check if auto-extracted USN is already registered
-    if (finalUsn && role === 'student') {
-      let existing = users.find(u => u.type === 'student' && u.usn === finalUsn);
-      if (existing) {
-        // Double-check with Supabase in real-time to avoid false blocks from stale local cache
-        const sb = getSupabaseClient();
-        if (sb && typeof sb.from === 'function') {
-          try {
-            const { data, error } = await sb.from('users').select('id, usn, email').eq('usn', finalUsn);
-            if (!error && (!data || data.length === 0)) {
-              // Not in Supabase! Stale local cache from a previous session — purge it immediately!
-              users = users.filter(u => u.usn !== finalUsn);
-              SUPABASE_CACHE.vvce_users = users;
-              try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
-              existing = null;
-            }
-          } catch(e) {
-            console.warn('Supabase USN check fallback:', e);
-          }
-        }
-      }
-      if (existing) {
-        showAuthMsg(`❌ A student account with USN ${finalUsn} has already been registered!`, 'error');
-        toast(`❌ USN ${finalUsn} already registered`, 'error');
-        return;
-      }
-    }
-
-    window._scannedData[role] = { usn: finalUsn, name: parsedName, photoAttached: true };
-
-    if (finalUsn || parsedName) {
-      toast('✅ ID Card Scanned & Auto-Filled!', 'success');
-    } else {
-      toast('ℹ️ Photo attached! Please fill in your details below.', 'info');
-    }
-
-    if (role === 'student') {
-      const usnEl = document.getElementById('s-usn');
-      if (usnEl) {
-        if (finalUsn) {
-          usnEl.value = finalUsn;
-          usnEl.setAttribute('value', finalUsn);
-          usnEl.dispatchEvent(new Event('input', { bubbles: true }));
-          usnEl.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        usnEl.readOnly = false;
-        usnEl.style.opacity = '1';
-        usnEl.style.cursor = 'text';
-        usnEl.placeholder = 'e.g. 4VV25CS047';
-      }
-
-      const nameEl = document.getElementById('s-name');
-      if (nameEl && parsedName) {
-        nameEl.value = parsedName.toUpperCase();
-        nameEl.setAttribute('value', parsedName.toUpperCase());
-        nameEl.dispatchEvent(new Event('input', { bubbles: true }));
-        nameEl.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-
-      const verEl = document.getElementById('s-verified-usn');
-      if (verEl) {
-        verEl.innerHTML = finalUsn 
-          ? `<strong>USN:</strong> ${finalUsn} ${parsedName ? '• <strong>Name:</strong> ' + parsedName.toUpperCase() : ''}`
-          : 'ID Photo Attached (Verify your details below)';
-      }
-
-      const scanUi = document.getElementById('student-scanner-ui');
-      if (scanUi) scanUi.style.display = 'none';
-
-      const manualUi = document.getElementById('student-manual-fields');
-      if (manualUi) manualUi.style.display = 'block';
-
-      const targetBranch = parseProgramToBranch(ocrTextCombined, finalUsn);
-      if (targetBranch) {
-        const sel = document.getElementById('s-branch');
-        if (sel) {
-          for(let i = 0; i < sel.options.length; i++) {
-            const optVal = sel.options[i].value.toUpperCase();
-            if (optVal === targetBranch || optVal.startsWith(targetBranch) || (targetBranch === 'CS' && optVal === 'CS')) {
-              sel.selectedIndex = i;
-              sel.dispatchEvent(new Event('change', { bubbles: true }));
-              break;
-            }
-          }
-        }
-
-        const deptSel = document.getElementById('s-dept');
-        if (deptSel) {
-          const deptMap = {
-            'CS': 'Computer Science',
-            'CS AI/ML': 'Computer Science',
-            'IS': 'Information Science',
-            'EC': 'Electronics & Communication',
-            'ME': 'Mechanical',
-            'EEE': 'Electrical & Electronics',
-            'CV': 'Civil'
-          };
-          if (deptMap[targetBranch]) {
-            deptSel.value = deptMap[targetBranch];
-            deptSel.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        }
-      }
-
-      if (finalUsn) {
-        const match = finalUsn.match(/^4[A-Z]{2}(\d{2})([A-Z]{2,4})\d{3,4}$/i);
-        if (match) {
-           const yrCode = parseInt(match[1]);
-           if (yrCode > 0) {
-             const admissionYear = 2000 + yrCode;
-             const now = new Date();
-             const curMonth = now.getMonth() + 1;
-             const curAcadYear = curMonth >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-             const diff = curAcadYear - admissionYear;
-
-             let yearVal = '1st Year';
-             let semVal = 'Sem 1';
-             if (diff === 1) { yearVal = '2nd Year'; semVal = 'Sem 3'; }
-             else if (diff === 2) { yearVal = '3rd Year'; semVal = 'Sem 5'; }
-             else if (diff >= 3) { yearVal = '4th Year'; semVal = 'Sem 7'; }
-
-             const yearSel = document.getElementById('s-year');
-             if (yearSel) {
-               yearSel.value = yearVal;
-               yearSel.dispatchEvent(new Event('change', { bubbles: true }));
-             }
-
-             const semSel = document.getElementById('s-sem');
-             if (semSel) {
-               semSel.value = semVal;
-               semSel.dispatchEvent(new Event('change', { bubbles: true }));
-             }
-           }
-        }
-      }
-    } else {
-      const usnEl = document.getElementById('a-usn');
-      if (usnEl) {
-        if (finalUsn) {
-          usnEl.value = finalUsn;
-          usnEl.setAttribute('value', finalUsn);
-          usnEl.dispatchEvent(new Event('input', { bubbles: true }));
-          usnEl.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        usnEl.readOnly = false;
-        usnEl.style.opacity = '1';
-        usnEl.style.cursor = 'text';
-        usnEl.placeholder = 'e.g. 4VV21CS001';
-      }
-
-      const nameEl = document.getElementById('a-name');
-      if (nameEl && parsedName) {
-        nameEl.value = parsedName.toUpperCase();
-        nameEl.setAttribute('value', parsedName.toUpperCase());
-        nameEl.dispatchEvent(new Event('input', { bubbles: true }));
-        nameEl.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-
-      const verEl = document.getElementById('a-verified-usn');
-      if (verEl) {
-        verEl.innerHTML = finalUsn 
-          ? `<strong>USN:</strong> ${finalUsn} ${parsedName ? '• <strong>Rep Name:</strong> ' + parsedName.toUpperCase() : ''}`
-          : 'ID Photo Attached';
-      }
-
-      const targetBranchAdmin = parseProgramToBranch(ocrTextCombined, finalUsn);
-      if (targetBranchAdmin) {
-        const sel = document.getElementById('a-branch');
-        if (sel) {
-          for(let i = 0; i < sel.options.length; i++) {
-            const optVal = sel.options[i].value.toUpperCase();
-            if (optVal.includes(targetBranchAdmin) || (targetBranchAdmin === 'CS' && optVal.includes('CSE'))) {
-              sel.selectedIndex = i;
-              sel.dispatchEvent(new Event('change', { bubbles: true }));
-              break;
-            }
-          }
-        }
-      }
-
-      const scanUi = document.getElementById('admin-scanner-ui');
-      if (scanUi) scanUi.style.display = 'none';
-
-      const manualUi = document.getElementById('admin-manual-fields');
-      if (manualUi) manualUi.style.display = 'block';
-    }
-  } else if (role === 'authority') {
-    window._scannedData[role] = { name: parsedName || 'Verified Faculty', photoAttached: true };
-    const nameEl = document.getElementById('f-name');
-    if (nameEl && parsedName) nameEl.value = parsedName.toUpperCase();
-
-    const scanUi = document.getElementById('auth-scanner-ui');
-    if (scanUi) scanUi.style.display = 'none';
-
-    const manualUi = document.getElementById('auth-manual-fields');
-    if (manualUi) manualUi.style.display = 'block';
-    toast('✅ Faculty ID Photo Verified & Auto-Filled!', 'success');
-  }
-};
-
 /* ── Login ── */
 async function handleLogin() {
   const email = document.getElementById('login-email').value.trim().toLowerCase();
@@ -666,7 +275,7 @@ async function finalizeRegistration(role, userPayload) {
     if (el) el.value = '';
   });
 
-  switchAuthTab('signin');
+  switchMainTab('signin');
 }
 
 // Function to handle the redirect back from email verification
@@ -727,7 +336,10 @@ async function handleVerifiedSession(session, trigger) {
         resume: meta.resume, points: meta.points, points_by_sem: meta.pointsBySem,
         notifs: meta.notifs, club_name: meta.clubName, club_email: meta.clubEmail,
         domain: meta.domain, faculty: meta.faculty, approved: meta.approved, desc: meta.desc,
-        designation: meta.designation
+        designation: meta.designation,
+        authority_id: meta.authorityId || meta.authority_id || null,
+        authority_name: meta.authorityName || meta.authority_name || null,
+        approval_history: meta.approvalHistory || meta.approval_history || []
       };
       await sb.from('users').upsert([mapped]);
       if (newUser.type === 'student') {
@@ -740,7 +352,8 @@ async function handleVerifiedSession(session, trigger) {
       }
 
       if (newUser.type === 'admin') {
-        showAuthMsg('🎉 Email verified! Club registration submitted. Awaiting Dean Student Welfare approval.', 'success');
+        const authLabel = newUser.authorityName || 'your Approving Authority';
+        showAuthMsg(`🎉 Email verified! Club registration submitted. Awaiting ${authLabel} approval.`, 'success');
         toast('✅ Email verified! Club account submitted for approval.', 'success');
       } else {
         toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
@@ -825,7 +438,7 @@ async function handleStudentSignup() {
     })(),
     skills: [], bio: '', linkedin: '', github: '', achievements: [],
     profilePhoto: null, resume: null,
-    points: 0, pointsBySem: { 'Sem 1':0, 'Sem 2':0, 'Sem 3':0, 'Sem 4':0, 'Sem 5':0, 'Sem 6':0, 'Sem 7':0, 'Sem 8':0 },
+    points: null, pointsBySem: null,
     notifs: [{ id: genId('n'), msg: 'Welcome to VVCE Events Hub! Start exploring events.', time: 'Just now', read: false, icon: '🎉' }]
   };
 
@@ -904,17 +517,6 @@ function handleAdminSignup() {
 }
 
 /* ── Authority Signup ── */
-window.bypassPrincipalScan = function() {
-  window._scannedData.authority = { name: 'Principal' };
-  const scanUi = document.getElementById('auth-scanner-ui');
-  if (scanUi) scanUi.style.display = 'none';
-  const manualUi = document.getElementById('auth-manual-fields');
-  if (manualUi) manualUi.style.display = 'block';
-  const desigSel = document.getElementById('f-designation');
-  if (desigSel) desigSel.value = 'principal';
-  toast('Unlocked for Principal Registration', 'info');
-};
-
 function handleAuthoritySignup() {
   const name  = document.getElementById('f-name').value.trim();
   const desig = document.getElementById('f-designation').value;
@@ -1394,8 +996,8 @@ function googleLoginByEmail(email, name, photo) {
       dept: 'Computer Science', phone: '',
       interests: [], skills: [], bio: '',
       linkedin: '', github: '', achievements: [],
-      points: 0,
-      pointsBySem: { 'Sem 1':0,'Sem 2':0,'Sem 3':0,'Sem 4':0,'Sem 5':0,'Sem 6':0,'Sem 7':0,'Sem 8':0 },
+      points: null,
+      pointsBySem: null,
       notifs: [{ id:genId('n'), msg:'Welcome to VVCE Events Hub! 🎉 Please complete your profile.', time:'Just now', read:false, icon:'🎉' }]
     };
     users.push(user);

@@ -113,18 +113,6 @@ function renderCreateEventPage() {
 
         <div class="form-divider">Additional Details</div>
 
-        <div class="toggle-row">
-          <label class="toggle-sw"><input type="checkbox" id="ev-gives-points" checked><span class="toggle-track"></span></label>
-          <div class="toggle-info">
-            <div class="toggle-lbl">This event provides AICTE Activity Points</div>
-            <div class="toggle-desc">Toggle on to award points to participants</div>
-          </div>
-        </div>
-        <div id="ev-points-wrap" class="form-group" style="margin-left:56px;">
-          <label>AICTE Points Awarded</label>
-          <input type="number" id="ev-points" value="10" min="0">
-        </div>
-
         <!-- Team / Group Event Configuration Card -->
         <div id="team-event-card-wrap" style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:14px; transition:all 0.2s;">
           <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="const cb = document.getElementById('ev-is-team'); cb.checked = !cb.checked; toggleTeamFields();">
@@ -201,16 +189,12 @@ function renderCreateEventPage() {
 
         <div class="create-form-btns">
           <button class="btn-create-draft" onclick="submitEvent('draft')">Save as Draft</button>
-          <button class="btn-create-submit" onclick="submitEvent('pending')">Submit for Dean Approval →</button>
+          <button class="btn-create-submit" onclick="submitEvent('pending')">Submit for Approval →</button>
         </div>
       </div>
     </div>
   `;
 
-  // Toggle points fields
-  document.getElementById('ev-gives-points').addEventListener('change', function() {
-    document.getElementById('ev-points-wrap').style.display = this.checked ? '' : 'none';
-  });
 }
 
 window.handleBranchCheckboxChange = function(cb) {
@@ -260,7 +244,9 @@ async function submitEvent(status='pending') {
     branches = ['All'];
   }
 
-  if (!name||!club||!date||!time||!venue) { toast('Please fill all required fields (marked with *).','error'); return; }
+  const desc  = document.getElementById('ev-desc').value.trim();
+  const rules = document.getElementById('ev-rules').value.trim();
+  if (!name||!club||!date||!time||!venue||!desc||!rules) { toast('Please fill all required fields (marked with *).','error'); return; }
   const userClub = STATE.user;
   const authorityId = userClub.authorityId || null;
   const authorityName = userClub.authorityName || 'Approving Authority';
@@ -287,7 +273,7 @@ async function submitEvent(status='pending') {
   const draftBtn  = document.querySelector('.btn-create-draft');
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.textContent = status === 'pending' ? 'Sending Request to Dean... ⏳' : 'Saving Draft... ⏳';
+    submitBtn.textContent = status === 'pending' ? `Sending Request to ${authorityName}... ⏳` : 'Saving Draft... ⏳';
     submitBtn.style.opacity = '0.65';
     submitBtn.style.cursor = 'not-allowed';
   }
@@ -310,13 +296,12 @@ async function submitEvent(status='pending') {
       venue, maxParticipants: computedMax, regCount: 0,
       fee,
       adminUpiId: upiId,
-      points: document.getElementById('ev-gives-points').checked ? parseInt(document.getElementById('ev-points').value||'0') : 0,
-      desc: document.getElementById('ev-desc').value.trim(),
+      desc,
       speakers: document.getElementById('ev-speakers').value.trim(),
-      rules: document.getElementById('ev-rules').value.trim(),
+      rules,
       poster: document.getElementById('ev-poster-data').value||null,
       branches: branches.length ? branches : ['All'],
-      isTeamEvent, minTeamSize, maxTeamSize,
+      isTeamEvent, minTeamSize, maxTeamSize, maxTeams,
       teams: [],
       status, rejReason: null, registrations: [], pendingPayments: [],
       authorityId: authorityId,
@@ -337,15 +322,20 @@ async function submitEvent(status='pending') {
       try {
         await sb.from('events').upsert([mapEventForSupabase(ev)]);
         await syncEventsFromSupabase();
-  syncApprovingAuthoritiesFromSupabase();
+        await syncApprovingAuthoritiesFromSupabase();
       } catch(e) { console.warn('Supabase direct event upsert:', e); }
     }
 
     if (status==='pending') {
       toast(`Event request "${name}" sent to ${authorityName} for approval! ⏳`, 'success');
-      // Notify authority
-      const users=getDB('vvce_users');
-      users.filter(u=>u.type==='authority').forEach(u=>{
+      // Notify assigned authority (or fallback to authority users if none assigned)
+      const users = getDB('vvce_users');
+      const authRecord = getActiveApprovingAuthorities().find(a => a.id === authorityId);
+      const authEmail = authRecord?.email ? authRecord.email.toLowerCase() : null;
+      const targets = users.filter(u => u.type === 'authority' && (
+        !authorityId || u.id === authorityId || (authEmail && (u.email || '').toLowerCase() === authEmail)
+      ));
+      targets.forEach(u => {
         if(!u.notifs) u.notifs=[];
         u.notifs.push({id:genId('n'),msg:`New event "${name}" by ${club} needs your approval.`,icon:'📋',time:'Just now',timestamp:Date.now(),read:false});
       });
@@ -361,6 +351,17 @@ async function submitEvent(status='pending') {
     toast('Error submitting event: ' + err.message, 'error');
   } finally {
     _isSubmittingEvent = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit for Approval →';
+      submitBtn.style.opacity = '1';
+      submitBtn.style.cursor = 'pointer';
+    }
+    if (draftBtn) {
+      draftBtn.disabled = false;
+      draftBtn.style.opacity = '1';
+      draftBtn.style.cursor = 'pointer';
+    }
   }
 }
 

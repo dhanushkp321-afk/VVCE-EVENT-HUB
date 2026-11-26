@@ -11,9 +11,9 @@ function renderStudentDashboard() {
   const events = getDB('vvce_events');
   const certs  = getDB('vvce_certs').filter(c => c.userId === user.id);
   const regs   = events.filter(e => (e.registrations||[]).includes(user.id));
-  const upcoming = regs.filter(e => new Date(e.date) >= new Date()).slice(0,4);
-  const totalPts = user.points || 0;
-  const pct = Math.min(100, Math.round(totalPts / 100 * 100));
+  const _now = new Date();
+  const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
+  const upcoming = regs.filter(e => e.date && e.date >= todayStr).slice(0, 4);
   const approved = events.filter(e => {
     const s = (e.status || '').toLowerCase().trim();
     const isVisibleStatus = s === 'approved' || s === 'published' || s === 'rescheduled' || 
@@ -70,35 +70,18 @@ function renderStudentDashboard() {
     </div>
 
     <!-- Stats -->
-    <div class="stats-row">
-      ${statCard('🎯','AICTE Points',totalPts,`${pct}% of 100-pt goal`,'stat-amber')}
+    <div class="stats-row" style="grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));">
       ${statCard('📅','Registered',regs.length,`${upcoming.length} upcoming`,'stat-blue')}
       ${statCard('🏆','Certificates',certs.length,`${certs.filter(c=>c.type==='achievement').length} achievements`,'stat-mint')}
-      ${statCard('✅','Completed',regs.filter(e=>new Date(e.date)<new Date()).length,'Events attended','stat-pink')}
+      ${statCard('✅','Completed',regs.filter(e=>e.date && e.date < todayStr).length,'Events attended','stat-pink')}
     </div>
 
     <!-- Two-col dashboard -->
     <div class="dash-grid">
       <!-- Left column -->
       <div>
-        <!-- AICTE Points progress -->
-        <div class="white-card" style="margin-bottom:1rem;">
-          <div class="sec-head">
-            <span class="sec-title">AICTE Activity Points</span>
-            <span style="font-size:12px;color:#6b7280;">${totalPts}/100 target</span>
-          </div>
-          <div class="pts-bar-wrap"><div class="pts-bar" style="width:${pct}%"></div></div>
-          <div class="sem-grid">
-            ${Object.entries(user.pointsBySem||{}).slice(0,8).map(([s,p])=>`
-              <div class="sem-cell">
-                <div class="sem-val">${p}</div>
-                <div class="sem-lbl">${s}</div>
-              </div>`).join('')}
-          </div>
-        </div>
-
         <!-- Recommended Events -->
-        <div class="sec-head" style="margin-top:1.5rem;">
+        <div class="sec-head" style="margin-top:0;">
           <span class="sec-title">Recommended for You ✨</span>
           <button class="btn btn-outline" onclick="showPage('events')">View All →</button>
         </div>

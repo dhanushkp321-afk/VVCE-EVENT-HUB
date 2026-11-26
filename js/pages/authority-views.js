@@ -7,15 +7,10 @@
    AUTHORITY DASHBOARD
 ───────────────────────────────────────────────────────────────*/
 function renderAuthorityDashboard() {
-  const user   = STATE.user;
   const events = getDB('vvce_events');
   const clubs  = getDB('vvce_users').filter(u=>u.type==='admin');
   const approved = events.filter(e=>e.status==='approved');
-  const pending  = events.filter(e=>e.status==='pending');
   const el = document.getElementById('page-authority-dashboard');
-
-  const isPrincipal = false;
-  const isDean      = isDeanUser(user);
 
   const today = new Date().toISOString().split('T')[0];
   const todayEvents = approved.filter(e=>e.date===today);
@@ -43,40 +38,24 @@ function renderAuthorityDashboard() {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 300px;gap:1.5rem;">
-      <!-- Today's schedule -->
-      <div class="white-card">
-        <div class="sec-head"><span class="sec-title">Today's Events (${formatDate(today)})</span></div>
-        ${todayEvents.length
-          ? todayEvents.map(e=>`
-            <div class="today-row">
-              <span class="today-time">${formatTime(e.time)}</span>
-              <div class="today-dot"></div>
-              <div class="today-info">
-                <div class="today-name">${e.name}</div>
-                <div class="today-meta">${e.club} • ${e.venue}</div>
-              </div>
-            </div>`).join('')
-          : `<div class="empty-state" style="padding:1.5rem;"><div class="ei">📅</div><div class="et">No events today</div></div>`
-        }
-      </div>
-
-      <!-- Principal availability (right side) -->
-      <div>
-        
-        ${isDean||isPrincipal?`
-          <div style="margin-top:1rem;">
-            <div class="sec-title" style="margin-bottom:10px;">Special Portals</div>
-            
-            
-          </div>`:''
-        }
-      </div>
+    <!-- Today's schedule -->
+    <div class="white-card">
+      <div class="sec-head"><span class="sec-title">Today's Events (${formatDate(today)})</span></div>
+      ${todayEvents.length
+        ? todayEvents.map(e=>`
+          <div class="today-row">
+            <span class="today-time">${formatTime(e.time)}</span>
+            <div class="today-dot"></div>
+            <div class="today-info">
+              <div class="today-name">${e.name}</div>
+              <div class="today-meta">${e.club} • ${e.venue}</div>
+            </div>
+          </div>`).join('')
+        : `<div class="empty-state" style="padding:1.5rem;"><div class="ei">📅</div><div class="et">No events today</div></div>`
+      }
     </div>
   `;
 }
-
-function renderPrincipalAvailability() { return ""; }
 
 function checkClashCount() {
   const events = getDB('vvce_events').filter(e=>e.status==='approved');
@@ -95,16 +74,16 @@ function renderApprovals() {
   const events  = getDB('vvce_events');
   const pending = events.filter(e=>e.status==='pending');
   const el      = document.getElementById('page-authority-approvals');
-  const isDean  = isDeanUser(STATE.user);
+  const canAct  = Boolean(STATE.authorityUnlocked && STATE.currentAuthorityId);
 
   el.innerHTML=`
     <div class="sec-head">
       <span class="sec-title">Event Approvals (${pending.length} pending)</span>
     </div>
-    ${!isDean ? `
+    ${!canAct ? `
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;font-size:13px;color:#1e40af;">
         <span style="font-size:22px;">ℹ️</span>
-        <div><strong>Dean Approval Required:</strong> As per college policy, only the <strong>Dean of Student Welfare</strong> has authorization to approve or reject club events. This view is read-only for monitoring.</div>
+        <div><strong>Authority Portal Locked:</strong> Unlock the <strong>Approving Authority Portal</strong> to approve or reject club events. This view is read-only until unlocked.</div>
       </div>
     ` : ''}
     ${pending.length
@@ -116,26 +95,25 @@ function renderApprovals() {
               <div>
                 <div style="font-weight:800;font-size:16px;color:#111827;">${e.name}</div>
                 <div style="font-size:12px;color:#6b7280;margin-top:3px;">${e.club}</div>
-                <div style="display:grid;grid-template-columns:repeat(3,auto);gap:6px 16px;margin-top:8px;font-size:12px;color:#374151;">
+                <div style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:12px;color:#374151;">
                   <span>📅 ${formatDate(e.date)}</span>
                   <span>🕐 ${formatTime(e.time)}</span>
                   <span>📍 ${e.venue}</span>
                   <span>👥 Max: ${e.maxParticipants}</span>
-                  <span>⭐ ${e.points} pts</span>
                   <span>💰 ${e.fee>0?`₹${e.fee}`:'Free'}</span>
                 </div>
                 ${e.desc?`<div style="font-size:12px;color:#374151;margin-top:8px;line-height:1.5;max-width:500px;">${e.desc}</div>`:''}
               </div>
             </div>
-            ${isDean ? `
+            ${canAct ? `
               <div style="display:flex;gap:8px;flex-shrink:0;">
                 <button class="btn btn-green" onclick="authorityApproveEvent('${e.id}')">✓ Approve</button>
-                <button class="btn btn-red" onclick="openRejectModal('${e.id}')">✕ Reject</button>
+                <button class="btn btn-red" onclick="authorityRejectEventPrompt('${e.id}')">✕ Reject</button>
               </div>
             ` : `
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
-                <span class="badge badge-amber">⏳ Pending Dean Review</span>
-                <span style="font-size:11px;color:#64748b;font-weight:600;">Dean SW action only</span>
+                <span class="badge badge-amber">⏳ Pending Authority Review</span>
+                <span style="font-size:11px;color:#64748b;font-weight:600;">Unlock Authority Portal to act</span>
               </div>
             `}
           </div>
@@ -154,80 +132,6 @@ function renderApprovals() {
         </div>`).join('') || `<p style="color:#9ca3af;font-size:13px;">None yet.</p>`}
     </div>
   `;
-}
-
-async function approveEvent(id) {
-  if (!isDeanUser(STATE.user)) {
-    toast('⛔ Only the Dean of Student Welfare is authorized to approve events.', 'error');
-    return;
-  }
-  const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
-  if(!ev) return;
-  ev.status='approved'; ev.rejReason=null;
-  await setDB('vvce_events',events);
-
-  // Directly update Supabase table
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      await sb.from('events').update({ status: 'approved', rej_reason: null }).eq('id', id);
-      await syncEventsFromSupabase();
-    } catch(e) { console.warn('Supabase update approval:', e); }
-  }
-
-  // Notify admin
-  const users=getDB('vvce_users'); const admin=users.find(u=>u.id===ev.adminId);
-  if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" has been approved by Dean SW! 🎉`,icon:'✅',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
-  toast(`"${ev.name}" approved! ✅`,'success');
-  renderSidebar();
-  if (STATE.page === 'dean-portal') {
-    const isEventsMonitor = document.querySelector('.portal-tab.active')?.textContent.includes('Monitor');
-    renderDeanPortal(isEventsMonitor ? 'events' : 'event-approvals');
-  } else {
-    renderApprovals();
-  }
-}
-
-function openRejectModal(id) {
-  if (!isDeanUser(STATE.user)) {
-    toast('⛔ Only the Dean of Student Welfare is authorized to reject events.', 'error');
-    return;
-  }
-  STATE.rejectEventId=id;
-  document.getElementById('reject-reason').value='';
-  openModal('modal-reject');
-}
-async function confirmReject() {
-  if (!isDeanUser(STATE.user)) {
-    toast('⛔ Only the Dean of Student Welfare is authorized to reject events.', 'error');
-    return;
-  }
-  const id=STATE.rejectEventId; const reason=document.getElementById('reject-reason').value.trim();
-  if(!reason){toast('Please provide a rejection reason.','error');return;}
-  const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
-  if(!ev) return;
-  ev.status='rejected'; ev.rejReason=reason;
-  await setDB('vvce_events',events);
-
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      await sb.from('events').update({ status: 'rejected', rej_reason: reason }).eq('id', id);
-      await syncEventsFromSupabase();
-    } catch(e) { console.warn('Supabase update reject:', e); }
-  }
-
-  const users=getDB('vvce_users'); const admin=users.find(u=>u.id===ev.adminId);
-  if(admin){if(!admin.notifs)admin.notifs=[];admin.notifs.push({id:genId('n'),msg:`Your event "${ev.name}" was rejected by Dean SW: ${reason}`,icon:'❌',time:'Just now',timestamp:Date.now(),read:false});setDB('vvce_users',users);}
-  closeModal('modal-reject');
-  toast(`Event rejected.`,'info');
-  renderSidebar();
-  if (STATE.page === 'dean-portal') {
-    const isEventsMonitor = document.querySelector('.portal-tab.active')?.textContent.includes('Monitor');
-    renderDeanPortal(isEventsMonitor ? 'events' : 'event-approvals');
-  } else {
-    renderApprovals();
-  }
 }
 
 
@@ -520,242 +424,8 @@ function renderAttendancePage() {
 
 
 /* ─────────────────────────────────────────────────────────────
-   DEAN PORTAL
+   SHARED CLASH DETECTION CONTENT (Used by Authority Portal Tab 6)
 ───────────────────────────────────────────────────────────────*/
-const DEAN_PASS = 'deanwellfair@vvce';
-
-function handleDeanPortalNav() {
-  if (STATE.deanUnlocked) { showPage('dean-portal'); return; }
-  document.getElementById('dean-pass-input').value='';
-  document.getElementById('dean-pass-error').style.display='none';
-  openModal('modal-dean-pass');
-}
-
-function verifyDeanPassword() {
-  const pass = document.getElementById('dean-pass-input').value;
-  if (pass === DEAN_PASS) {
-    STATE.deanUnlocked = true;
-    closeModal('modal-dean-pass');
-    showPage('dean-portal');
-  } else {
-    const err=document.getElementById('dean-pass-error');
-    err.textContent='Incorrect password. Try again.'; err.style.display='';
-  }
-}
-
-function renderDeanPortal(activeTab='dashboard') {
-  if (!STATE.deanUnlocked) { handleDeanPortalNav(); return; }
-
-  // Sync latest events in background so newly submitted events from other devices immediately reflect
-  syncEventsFromSupabase().then(fresh => {
-    const freshPending = fresh.filter(e => e.status === 'pending').length;
-    const oldPending = getDB('vvce_events').filter(e => e.status === 'pending').length;
-    if (freshPending !== oldPending && STATE.page === 'dean-portal' && STATE.deanUnlocked) {
-      renderDeanPortal(activeTab);
-    }
-  });
-
-  const clubs  = getDB('vvce_users').filter(u=>u.type==='admin');
-  const events = getDB('vvce_events').filter(e => e.status !== 'archived');
-  const pending = events.filter(e=>e.status==='pending');
-  const approved = events.filter(e=>e.status==='approved');
-  const today  = new Date().toISOString().split('T')[0];
-  const el     = document.getElementById('page-dean-portal');
-
-  el.innerHTML=`
-    <!-- Authenticated header -->
-    <div class="dean-portal-hdr">
-      <div class="dpicon dpicon-gold">📋</div>
-      <div class="dp-info">
-        <div class="dp-title">Dean Student Welfare Portal <span class="dp-authed">✓ AUTHENTICATED</span></div>
-        <div class="dp-sub">Exclusive administrative portal</div>
-      </div>
-      <button class="dp-lock-btn" onclick="lockDeanPortal()">🔒 Lock Portal</button>
-    </div>
-
-    <!-- Portal tabs -->
-    <div class="portal-tabs">
-      <button class="portal-tab ${activeTab==='dashboard'?'active':''}" onclick="renderDeanPortal('dashboard')">🏠 Dashboard</button>
-      <button class="portal-tab ${activeTab==='approvals'?'active':''}" onclick="renderDeanPortal('approvals')">
-        🏛️ Club Approvals ${clubs.filter(c=>!c.approved).length>0?`<span class="portal-tab-badge">${clubs.filter(c=>!c.approved).length}</span>`:''}
-      </button>
-      <button class="portal-tab ${activeTab==='event-approvals'?'active':''}" onclick="renderDeanPortal('event-approvals')">
-        ✅ Event Approvals ${pending.length>0?`<span class="portal-tab-badge">${pending.length}</span>`:''}
-      </button>
-      <button class="portal-tab ${activeTab==='events'?'active':''}" onclick="renderDeanPortal('events')">📅 Event Monitor</button>
-      <button class="portal-tab ${activeTab==='clash'?'active':''}" onclick="renderDeanPortal('clash')">⚡ Clash Detection</button>
-    </div>
-
-    <div id="dean-tab-content">
-      ${activeTab==='dashboard' ? deanDashboardContent(clubs,events,pending,approved,today) : ''}
-      ${activeTab==='approvals' ? deanApprovalsContent(clubs) : ''}
-      ${activeTab==='event-approvals' ? deanEventApprovalsContent(pending) : ''}
-      ${activeTab==='events'    ? deanEventsContent(events,today) : ''}
-      ${activeTab==='clash'     ? deanClashContent(events) : ''}
-    </div>
-  `;
-}
-
-function deanDashboardContent(clubs,events,pending,approved,today) {
-  const clashes=checkClashCount();
-  return `
-    <div class="stats-row">
-      ${statCard('🏛️','Active Clubs',clubs.filter(c=>c.approved).length,'Registered clubs','stat-mint')}
-      ${statCard('⏳','Pending Approvals',pending.length,'Events to review','stat-amber')}
-      ${statCard('📅','Upcoming Events',approved.filter(e=>e.date>=today).length,'Approved events','stat-blue')}
-      ${statCard('⚡','Slot Conflicts',clashes,'Venue clashes','stat-pink')}
-    </div>
-    <div class="white-card" style="margin-top:1rem;">
-      <div class="sec-title" style="margin-bottom:1rem;">Quick Actions</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-        <div class="auth-qa-card" onclick="renderDeanPortal('approvals')">
-          <span class="auth-qa-icon">✅</span>
-          <div class="auth-qa-label">Review Pending Clubs</div>
-          ${pending.length?`<div style="font-size:11px;color:#b45309;font-weight:600;">${pending.length} item pending</div>`:''}
-        </div>
-        <div class="auth-qa-card" onclick="renderDeanPortal('events')">
-          <span class="auth-qa-icon">📅</span>
-          <div class="auth-qa-label">Monitor Events</div>
-        </div>
-        <div class="auth-qa-card" onclick="renderDeanPortal('clash')">
-          <span class="auth-qa-icon">⚡</span>
-          <div class="auth-qa-label">Check Clashes</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function deanApprovalsContent(clubs) {
-  const pending  = clubs.filter(c=>!c.approved);
-  const approved = clubs.filter(c=>c.approved);
-  return `
-    <div class="sec-head"><span class="sec-title">Pending Club Registrations (${pending.length})</span></div>
-    ${pending.length
-      ? pending.map(c=>`
-        <div class="white-card" style="margin-bottom:10px;">
-          <div class="cpcard-head">
-            <div><div class="cpcard-name">${c.clubName||c.name}</div><div class="cpcard-domain">${c.domain||'—'} • ${c.email}</div></div>
-            <span class="badge badge-amber">Pending</span>
-          </div>
-          <div class="cpcard-info" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:#374151;margin:10px 0;">
-            <span>👤 Rep: ${titleCase(c.name)}</span>
-            <span>👩‍🏫 Faculty: ${c.faculty||'—'}</span>
-            <span>📧 Club: ${c.clubEmail||'—'}</span>
-            <span>📞 ${c.phone||'—'}</span>
-          </div>
-          ${c.desc?`<div style="font-size:12px;color:#374151;background:#f8fafc;padding:8px;border-radius:6px;margin-bottom:10px;">${c.desc}</div>`:''}
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-green" onclick="deanApproveClub('${c.id}')">✓ Approve Club</button>
-            <button class="btn btn-red" onclick="deanRejectClub('${c.id}')">✕ Reject</button>
-            <button class="btn btn-outline" onclick="viewClubDetail('${c.id}')">View Details</button>
-          </div>
-        </div>`).join('')
-      : `<div class="empty-state"><div class="ei">✅</div><div class="et">No pending clubs</div></div>`
-    }
-    ${approved.length?`
-      <div style="margin-top:1.5rem;">
-        <div class="sec-title" style="margin-bottom:10px;">Approved Clubs (${approved.length})</div>
-        ${approved.map(c=>`
-          <div class="ev-row">
-            <span class="ev-row-emoji">🏛️</span>
-            <div class="ev-row-info"><div class="ev-row-name">${c.clubName}</div><div class="ev-row-meta">${c.domain||'—'} • ${titleCase(c.name)}</div></div>
-            <span class="badge badge-green">Active</span>
-            <button class="btn btn-red btn-sm" onclick="revokeClub('${c.id}');renderDeanPortal('approvals')">Revoke</button>
-          </div>`).join('')}
-      </div>`:''
-    }
-  `;
-}
-
-function deanEventApprovalsContent(pending) {
-  return `
-    <div class="sec-head">
-      <span class="sec-title">Event Approvals (${pending.length} pending)</span>
-    </div>
-    ${pending.length
-      ? pending.map(e=>`
-        <div class="white-card" style="margin-bottom:10px;">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
-            <div style="display:flex;gap:12px;align-items:flex-start;">
-              <span style="font-size:36px;">${e.emoji||'🎓'}</span>
-              <div>
-                <div style="font-weight:800;font-size:16px;color:#111827;">${e.name}</div>
-                <div style="font-size:12px;color:#6b7280;margin-top:3px;">${e.club}</div>
-                <div style="display:grid;grid-template-columns:repeat(3,auto);gap:6px 16px;margin-top:8px;font-size:12px;color:#374151;">
-                  <span>📅 ${formatDate(e.date)}</span>
-                  <span>🕐 ${formatTime(e.time)}</span>
-                  <span>📍 ${e.venue}</span>
-                  <span>👥 Max: ${e.maxParticipants}</span>
-                  <span>⭐ ${e.points} pts</span>
-                  <span>💰 ${e.fee>0?`₹${e.fee}`:'Free'}</span>
-                </div>
-                ${e.desc?`<div style="font-size:12px;color:#374151;margin-top:8px;line-height:1.5;max-width:500px;">${e.desc}</div>`:''}
-              </div>
-            </div>
-            ${isDeanUser(STATE.user) ? `
-              <div style="display:flex;gap:8px;flex-shrink:0;">
-                <button class="btn btn-green" onclick="authorityApproveEvent('${e.id}')">✓ Approve</button>
-                <button class="btn btn-red" onclick="openRejectModal('${e.id}')">✕ Reject</button>
-              </div>
-            ` : `
-              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                <span class="badge badge-amber">Pending Dean Approval</span>
-              </div>
-            `}
-          </div>
-        </div>`).join('')
-      : `<div class="empty-state"><div class="ei">✅</div><div class="et">All caught up!</div><div class="es">No events pending approval.</div></div>`
-    }
-  `;
-}
-
-function deanEventsContent(events,today) {
-  const sorted = events.slice().sort((a,b)=>a.date.localeCompare(b.date));
-  return `
-    <div class="filter-row">
-      <input class="search-inp" id="dean-ev-search" placeholder="🔍 Search events…" oninput="deanFilterEvents()">
-      <select class="filter-sel" id="dean-ev-status" onchange="deanFilterEvents()">
-        <option value="">All Status</option>
-        <option value="approved">Approved</option>
-        <option value="pending">Pending</option>
-        <option value="rejected">Rejected</option>
-      </select>
-    </div>
-    <div id="dean-ev-list">
-      ${sorted.map(e=>`
-        <div class="ev-row">
-          <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
-          <div class="ev-row-info">
-            <div class="ev-row-name">${e.name}</div>
-            <div class="ev-row-meta">${e.club} • ${formatDate(e.date)} • ${e.venue}</div>
-          </div>
-          <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red'}">${e.status}</span>
-          ${e.status==='pending' && isDeanUser(STATE.user)?`<button class="btn btn-green" onclick="authorityApproveEvent('${e.id}');renderDeanPortal('events')">Approve</button>
-          <button class="btn btn-red" onclick="openRejectModal('${e.id}')">Reject</button>`:''}
-        </div>`).join('') || `<div class="empty-state"><div class="ei">📅</div><div class="et">No events</div></div>`
-      }
-    </div>
-  `;
-}
-
-function deanFilterEvents() {
-  const q      = (document.getElementById('dean-ev-search')?.value||'').toLowerCase();
-  const status = document.getElementById('dean-ev-status')?.value||'';
-  let evs      = getDB('vvce_events');
-  if (q) evs = evs.filter(e=>e.name.toLowerCase().includes(q)||e.club.toLowerCase().includes(q));
-  if (status) evs = evs.filter(e=>e.status===status);
-  const listEl = document.getElementById('dean-ev-list'); if (!listEl) return;
-  const today  = new Date().toISOString().split('T')[0];
-  listEl.innerHTML = evs.map(e=>`
-    <div class="ev-row">
-      <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
-      <div class="ev-row-info"><div class="ev-row-name">${e.name}</div><div class="ev-row-meta">${e.club} • ${formatDate(e.date)}</div></div>
-      <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">${e.status}</span>
-      ${e.status==='pending' && isDeanUser(STATE.user)?`<button class="btn btn-green" onclick="authorityApproveEvent('${e.id}');renderDeanPortal('events')">Approve</button>`:''}</div>`).join('') ||
-    `<div class="empty-state"><div class="ei">🔍</div><div class="et">No events found</div></div>`;
-}
-
 function deanClashContent(events) {
   const dateVal = document.getElementById('dean-clash-date-filter')?.value || '';
   let activeEvents = events.filter(e=>e.status==='approved'||e.status==='pending');
@@ -778,7 +448,7 @@ function deanClashContent(events) {
     }
   }
 
-  window.runDeanClashFilter = () => renderDeanPortal('clash');
+  window.runDeanClashFilter = () => renderAuthorityPortal('clash');
 
   return `
     <div class="sec-head"><span class="sec-title">Venue Clash Detection</span><span class="badge ${clashes.length?'badge-red':'badge-green'}">${clashes.length} ${clashes.length === 1 ? 'clash' : 'clashes'}</span></div>
@@ -851,27 +521,7 @@ function deanClashContent(events) {
   `;
 }
 
-function deanApproveClub(id) { approveClub(id); setTimeout(()=>renderDeanPortal('approvals'),100); }
-function deanRejectClub(id) {
-  if(!confirm('Reject this club registration?')) return;
-  const users=getDB('vvce_users'); const club=users.find(u=>u.id===id);
-  if(!club) return;
-  club.approved=false; setDB('vvce_users',users);
-  toast('Club registration rejected.','info');
-  renderDeanPortal('approvals');
-}
 
-function lockDeanPortal() {
-  STATE.deanUnlocked=false;
-  toast('Dean portal locked.','info');
-  showPage('authority-dashboard');
-}
-
-
-/* ─────────────────────────────────────────────────────────────
-   PRINCIPAL PORTAL
-───────────────────────────────────────────────────────────────*/
-const PRINCIPAL_PASS = 'principal@vvce2025';
 
 
 

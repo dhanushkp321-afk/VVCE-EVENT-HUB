@@ -718,7 +718,9 @@ body.has-theme-bg .page {
 .btn-outline:hover { border-color: var(--gold); color: var(--gold3); }
 .btn-green { background: linear-gradient(135deg,var(--green),var(--green2)); color: #fff; }
 .btn-red   { background: linear-gradient(135deg,var(--red),var(--red2)); color: #fff; }
+.btn-success { background: linear-gradient(135deg,var(--green),var(--green2)); color: #fff; }
 .btn-purple{ background: linear-gradient(135deg,var(--purple),var(--purple2)); color: #fff; }
+.btn-sm    { padding: 5px 10px; font-size: 11px; }
 .btn-ghost { background: transparent; border: none; color: var(--text-3); }
 .btn-ghost:hover { color: var(--text); background: var(--bg-subtle); }
 .btn-purple-submit {
@@ -847,6 +849,7 @@ body.has-theme-bg .page {
   font-size: 30px; margin: 0 auto 1rem;
 }
 .dean-lock .portal-lock-icon { background: linear-gradient(135deg,var(--gold),var(--gold2)); box-shadow: 0 8px 20px rgba(245,158,11,0.3); }
+.authority-lock .portal-lock-icon { background: linear-gradient(135deg,var(--gold),var(--gold2)); box-shadow: 0 8px 20px rgba(245,158,11,0.3); }
 .principal-lock .portal-lock-icon { background: linear-gradient(135deg,var(--purple),var(--purple2)); box-shadow: 0 8px 20px rgba(124,58,237,0.3); }
 .portal-lock-header h3 { font-size: 20px; font-weight: 900; color: var(--text); margin-bottom: 6px; }
 .portal-lock-header p  { font-size: 13px; color: var(--text-3); }
@@ -980,19 +983,9 @@ body.has-theme-bg .page {
 }
 .welcome-act-btn.gold:hover { box-shadow:0 6px 20px rgba(245,158,11,0.45); }
 
-/* Points bar */
-.pts-bar-wrap { width:100%; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; margin:8px 0; }
-.pts-bar { height:100%; background:linear-gradient(90deg,var(--gold),var(--gold2)); border-radius:4px; transition:width 1.2s ease; }
-
 /* Dashboard grid */
 .dash-grid { display:grid; grid-template-columns:1fr 300px; gap:1.5rem; }
 @media (max-width:1024px) { .dash-grid { grid-template-columns:1fr; } }
-
-/* Semester points */
-.sem-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:10px; }
-.sem-cell { background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--r-xs); padding:10px 8px; text-align:center; }
-.sem-val { font-family:'Outfit',sans-serif; font-size:20px; font-weight:900; color:var(--gold3); }
-.sem-lbl { font-size:10px; color:var(--text-4); margin-top:2px; }
 
 /* Event cards grid */
 .event-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:14px; }
@@ -1081,7 +1074,6 @@ body.has-theme-bg .page {
 .cert-title { font-family:'Outfit',sans-serif; font-size:15px; font-weight:800; color:var(--text); margin-bottom:3px; }
 .cert-issuer { font-size:12px; color:var(--text-3); margin-bottom:8px; }
 .cert-foot { display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid var(--border-light); }
-.cert-pts  { font-size:12px; font-weight:700; color:var(--gold3); }
 .cert-dl-btn { padding:5px 12px; border-radius:var(--r-xs); border:1.5px solid var(--border); background:none; font-size:11px; font-weight:700; color:var(--text-3); cursor:pointer; transition:var(--t); }
 .cert-dl-btn:hover { border-color:var(--gold); color:var(--gold3); }
 

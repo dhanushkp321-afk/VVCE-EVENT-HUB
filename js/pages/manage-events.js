@@ -41,20 +41,51 @@ function renderManageEventsPage() {
     }
   `;
   syncEventsFromSupabase().then(fresh => {
-    const freshCount = fresh.filter(e => e.adminId === STATE.user.id).length;
+    const freshCount = fresh.filter(e => e.adminId === STATE.user.id && e.status !== 'archived').length;
     if (freshCount !== events.length && STATE.page === 'manage-events') {
       renderManageEventsPage();
     }
   });
 }
 
-function submitDraftEvent(id) {
-  const events=getDB('vvce_events'); const ev=events.find(e=>e.id===id);
-  if(ev){
-    ev.status='pending';
-    setDB('vvce_events',events);
-    toast(`Event "${ev.name}" submitted to Dean for approval! ✅`,'success');
-    showPage('admin-dashboard');
+async function submitDraftEvent(id) {
+  const events = getDB('vvce_events');
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+
+  const authorityId = ev.authorityId || STATE.user?.authorityId || null;
+  const authorityName = ev.authorityName || STATE.user?.authorityName || 'Approving Authority';
+  ev.status = 'pending';
+  ev.authorityId = authorityId;
+  ev.authorityName = authorityName;
+  if (!ev.decisionHistory) ev.decisionHistory = [];
+  ev.decisionHistory.push({
+    action: 'submitted',
+    authorityId,
+    authorityName,
+    timestamp: new Date().toISOString()
+  });
+
+  await setDB('vvce_events', events);
+  const sb = getSupabaseClient();
+  if (sb) {
+    try {
+      await sb.from('events').upsert([mapEventForSupabase(ev)]);
+    } catch (e) { console.warn('Draft submit Supabase sync warning:', e); }
   }
+
+  const users = getDB('vvce_users');
+  const authRecord = getActiveApprovingAuthorities().find(a => a.id === authorityId);
+  const authEmail = authRecord?.email ? authRecord.email.toLowerCase() : null;
+  users.filter(u => u.type === 'authority' && (
+    !authorityId || u.id === authorityId || (authEmail && (u.email || '').toLowerCase() === authEmail)
+  )).forEach(u => {
+    if (!u.notifs) u.notifs = [];
+    u.notifs.push({ id: genId('n'), msg: `New event "${ev.name}" by ${ev.club} needs your approval.`, icon: '📋', time: 'Just now', timestamp: Date.now(), read: false });
+  });
+  await setDB('vvce_users', users);
+
+  toast(`Event "${ev.name}" submitted to ${authorityName} for approval! ✅`, 'success');
+  showPage('admin-dashboard');
 }
 

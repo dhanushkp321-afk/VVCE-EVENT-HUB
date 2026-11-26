@@ -328,7 +328,6 @@ function renderAuthorityEventApprovalsTab(pending) {
                   <span>🕐 <strong>Time:</strong> ${formatTime(e.time)}</span>
                   <span>📍 <strong>Venue:</strong> ${e.venue}</span>
                   <span>👥 <strong>Max Part:</strong> ${e.maxParticipants}</span>
-                  <span>⭐ <strong>Points:</strong> ${e.points} pts</span>
                   <span>💰 <strong>Fee:</strong> ${e.fee > 0 ? '₹' + e.fee : 'Free'}</span>
                 </div>
                 ${e.desc ? `<div style="font-size:13px; color:#475569; margin-top:10px; line-height:1.5; background:#f8fafc; padding:10px 12px; border-radius:8px;">${e.desc}</div>` : ''}

@@ -187,10 +187,10 @@ function applyCelebrationTheme(theme) {
     document.body.classList.remove('has-theme-bg');
   }
 
-  // Save theme globally so renderDashboard can inject the greeting ribbon
+  // Save theme globally so renderStudentDashboard can inject the greeting ribbon
   window.currentTheme = theme;
-  if (typeof STATE !== 'undefined' && STATE.page === 'dashboard' && STATE.user && typeof renderDashboard === 'function') {
-    renderDashboard();
+  if (typeof STATE !== 'undefined' && STATE.page === 'dashboard' && STATE.user && typeof renderStudentDashboard === 'function') {
+    renderStudentDashboard();
   }
 
   // Auth Screen Festive Greeting Ribbon (configured in CPM Theme tab)
@@ -214,11 +214,6 @@ function applyCelebrationTheme(theme) {
     }
   }
 
-  // Ensure the old global top ribbon is removed (user requested it moved to dashboard)
-  let ribbon = document.getElementById('cpm-festive-ribbon');
-  if (ribbon) {
-    ribbon.remove();
-  }
 
   // Floating Celebration Visual Particles
   applyFestiveParticles(theme.effect);
