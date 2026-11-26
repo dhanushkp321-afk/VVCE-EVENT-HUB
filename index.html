@@ -666,35 +666,62 @@
   </div>
 </div>
 
-<!-- Payment Modal -->
+<!-- Payment Proof Upload Modal -->
 <div class="modal-overlay" id="modal-payment">
-  <div class="modal-box" style="max-width:380px;">
+  <div class="modal-box" style="max-width:460px; max-height:90vh; overflow-y:auto;">
     <div class="modal-head">
-      <h2>Complete Payment</h2>
-      <button class="modal-x" onclick="closeModal('modal-payment')">✕</button>
+      <h2>Complete Payment &amp; Proof</h2>
+      <button class="modal-x" type="button" onclick="closeModal('modal-payment')">✕</button>
     </div>
-    <div style="padding:20px;text-align:center;">
-      <div style="font-size:14px;color:#6b7280;margin-bottom:8px;" id="pmt-ev-name">Event Name</div>
-      <div style="font-size:36px;font-weight:800;color:#111827;margin-bottom:10px;" id="pmt-amount">₹0</div>
-      <div style="font-size:13px;color:#4b5563;margin-bottom:20px;background:#f3f4f6;padding:8px;border-radius:6px;display:inline-block;">Paying to: <strong id="pmt-upi-id" style="color:#111827;">Not specified</strong></div>
-      
-      <div style="font-size:12px;color:#9ca3af;text-transform:uppercase;font-weight:700;margin-bottom:10px;text-align:left;">Pay via UPI</div>
-      
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        <button onclick="simulatePayment('GPay')" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;color:#374151;transition:all 0.2s;" onmouseover="this.style.borderColor='#4285F4';this.style.background='#f8fafc';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';">
-          <svg width="24" height="24" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-          Google Pay
+    <div style="padding:14px 18px 20px;">
+      <div id="pmt-stepper" style="margin-bottom:14px;"></div>
+
+      <div id="pmt-rejection-banner" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:10px 12px; border-radius:10px; font-size:12.5px; margin-bottom:12px; text-align:left;"></div>
+
+      <div style="text-align:center; margin-bottom:14px;">
+        <div style="font-size:14px;color:#475569;font-weight:600;margin-bottom:4px;" id="pmt-ev-name">Event Name</div>
+        <div style="font-size:32px;font-weight:800;color:#0f172a;margin-bottom:8px;" id="pmt-amount">₹0</div>
+        <div style="font-size:12.5px;color:#4b5563;background:#f3f4f6;padding:6px 12px;border-radius:8px;display:inline-block;">
+          Paying to UPI: <strong id="pmt-upi-id" style="color:#111827;">Not specified</strong>
+        </div>
+      </div>
+
+      <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;margin-bottom:8px;letter-spacing:0.04em;">Step A — Pay via UPI (or QR Code)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+        <button type="button" onclick="simulatePayment('GPay')" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 8px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;font-size:12px;color:#374151;" onmouseover="this.style.borderColor='#4285F4';this.style.background='#f8fafc';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';">
+          <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          GPay
         </button>
-        <button onclick="simulatePayment('PhonePe')" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;color:#374151;transition:all 0.2s;" onmouseover="this.style.borderColor='#5f259f';this.style.background='#f8fafc';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';">
-          <div style="background:#5f259f;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;">पे</div>
+        <button type="button" onclick="simulatePayment('PhonePe')" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 8px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;font-size:12px;color:#374151;" onmouseover="this.style.borderColor='#5f259f';this.style.background='#f8fafc';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';">
+          <span style="background:#5f259f;color:#fff;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;">पे</span>
           PhonePe
         </button>
-        <button onclick="simulatePayment('Other UPI')" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;color:#374151;transition:all 0.2s;" onmouseover="this.style.borderColor='#000';this.style.background='#f8fafc';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';">
-          ⚡ Other UPI ID
+        <button type="button" onclick="simulatePayment('Other UPI')" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 8px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;font-size:12px;color:#374151;" onmouseover="this.style.borderColor='#000';this.style.background='#f8fafc';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';">
+          ⚡ UPI QR
         </button>
       </div>
-      <input type="file" id="pmt-screenshot-input" accept="image/*" style="display:none;" onchange="handleScreenshotUpload(event)">
-      <div id="pmt-status" style="margin-top:16px;font-size:13px;font-weight:600;color:#15803d;display:none;"></div>
+      <div id="pmt-status" style="margin-bottom:12px;font-size:13px;font-weight:600;color:#15803d;display:none;"></div>
+
+      <div style="border-top:1px solid #e2e8f0;padding-top:14px;">
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;margin-bottom:10px;letter-spacing:0.04em;">Step B — Upload Payment Proof</div>
+        <div class="auth-field-group" style="margin-bottom:10px;">
+          <label class="auth-label" style="font-size:12.5px;">Transaction ID / UTR Number *</label>
+          <input class="auth-input" type="text" id="pmt-utr-input" placeholder="e.g. 412890345612 or UPI Ref ID" maxlength="64">
+        </div>
+        <div class="auth-field-group" style="margin-bottom:10px;">
+          <label class="auth-label" style="font-size:12.5px;">Payment Screenshot *</label>
+          <div class="upload-zone" style="padding:14px;" onclick="document.getElementById('pmt-screenshot-input').click()">
+            <div class="upload-icon" style="font-size:24px;">📸</div>
+            <p id="pmt-screenshot-label" style="font-size:12.5px;margin:4px 0 0;">Click to select payment screenshot (JPG/PNG)</p>
+            <input type="file" id="pmt-screenshot-input" accept="image/*" style="display:none;" onchange="handleScreenshotUpload(event)">
+          </div>
+          <img id="pmt-screenshot-preview" src="" alt="Payment preview" style="display:none;max-width:100%;max-height:160px;object-fit:contain;border-radius:8px;margin-top:8px;border:1px solid #e2e8f0;background:#f8fafc;">
+        </div>
+        <div id="pmt-err" class="auth-msg error" style="display:none; margin-bottom:10px;"></div>
+        <button type="button" id="btn-submit-payment-proof" class="btn-dark-register" onclick="submitPaymentProofForm()">
+          Submit Payment Proof for Approval →
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -719,11 +746,13 @@
 <!-- Team Registration Modal -->
 <div class="modal-overlay" id="modal-team-register">
   <div class="modal-box" style="max-width:480px; padding:28px; border-radius:18px;">
-    <div style="text-align:center; margin-bottom:18px;">
-      <div style="font-size:40px; margin-bottom:6px;">👥</div>
+    <div style="text-align:center; margin-bottom:14px;">
+      <div style="font-size:36px; margin-bottom:4px;">👥</div>
       <h2 style="font-size:20px; font-weight:800; color:#111827; margin:0 0 4px;">Team Registration</h2>
       <p id="team-modal-event-name" style="font-size:13px; color:#6b7280; margin:0;"></p>
     </div>
+
+    <div id="team-reg-stepper" style="margin-bottom:14px;"></div>
 
     <!-- Team Name -->
     <div style="margin-bottom:14px;">
@@ -764,10 +793,10 @@
     </div>
 
     <!-- Actions -->
-    <button onclick="submitTeamRegistration()" style="width:100%; padding:13px; background:linear-gradient(135deg,#f59e0b,#fbbf24); border:none; border-radius:10px; font-weight:800; font-size:15px; color:#0f172a; cursor:pointer; margin-bottom:10px;">
+    <button type="button" id="btn-submit-team-reg" onclick="submitTeamRegistration()" style="width:100%; padding:13px; background:linear-gradient(135deg,#f59e0b,#fbbf24); border:none; border-radius:10px; font-weight:800; font-size:15px; color:#0f172a; cursor:pointer; margin-bottom:10px;">
       Register Team 🚀
     </button>
-    <button onclick="closeModal('modal-team-register')" style="width:100%; padding:10px; background:none; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; color:#6b7280; cursor:pointer; font-weight:600;">
+    <button type="button" onclick="cancelTeamRegistrationDraft()" style="width:100%; padding:10px; background:none; border:1.5px solid #e2e8f0; border-radius:10px; font-size:13px; color:#6b7280; cursor:pointer; font-weight:600;">
       Cancel
     </button>
   </div>
@@ -784,7 +813,8 @@
       <button class="modal-x" onclick="closeModal('modal-manage-team')">✕</button>
     </div>
 
-    <!-- Status Notice -->
+    <!-- Stepper & Status Notice -->
+    <div id="manage-team-stepper" style="margin-bottom:12px;"></div>
     <div id="manage-team-status-banner" style="margin-bottom:14px; padding:10px 14px; border-radius:10px; font-size:12.5px;"></div>
 
     <!-- Team Leader Box -->
@@ -825,8 +855,8 @@
       <div id="manage-team-err" style="color:#ef4444; font-size:11.5px; margin-top:6px; display:none;"></div>
     </div>
 
-    <div style="display:flex; gap:10px;">
-      <button onclick="closeModal('modal-manage-team')" style="flex:1; padding:11px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:10px; font-weight:700; font-size:13px; color:#334155; cursor:pointer;">Done</button>
+    <div id="manage-team-action-bar" style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button type="button" onclick="closeModal('modal-manage-team')" style="flex:1; padding:11px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:10px; font-weight:700; font-size:13px; color:#334155; cursor:pointer;">Done</button>
     </div>
   </div>
 </div>

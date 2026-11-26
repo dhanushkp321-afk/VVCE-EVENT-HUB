@@ -161,6 +161,7 @@ function mapEventForSupabase(e) {
     max_participants: e.maxParticipants ?? e.max_participants ?? 100,
     reg_count: e.regCount ?? e.reg_count ?? 0,
     fee: e.fee ?? 0,
+    needs_payment: !!(e.needsPayment ?? e.needs_payment ?? (Number(e.fee || 0) > 0)),
     admin_upi_id: e.adminUpiId || e.admin_upi_id || '',
     points: e.points ?? null,
     desc: e.desc || '',
@@ -220,7 +221,13 @@ async function setDB(key, val) {
       const mapped = val.map(mapEventForSupabase);
       const { error } = await sb.from('events').upsert(mapped);
       if (error) {
-        console.warn('Events upsert warning:', error.message);
+        if (/needs_payment|column|schema/i.test(error.message || '')) {
+          const fallbackMapped = mapped.map(({ needs_payment, ...rest }) => rest);
+          const { error: fbErr } = await sb.from('events').upsert(fallbackMapped);
+          if (fbErr) console.warn('Events upsert warning:', fbErr.message);
+        } else {
+          console.warn('Events upsert warning:', error.message);
+        }
       }
     } else if (key === 'vvce_users') {
       const mapped = val.map(u => ({
@@ -301,7 +308,7 @@ function mapUser(u) {
 
 function mapEvent(e) {
   return {
-    id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time || e.endTime || '', venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, adminUpiId: e.admin_upi_id || '', points: e.points ?? null, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || [],
+    id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time || e.endTime || '', venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, needsPayment: Boolean(e.needs_payment ?? e.needsPayment ?? (Number(e.fee || 0) > 0)), adminUpiId: e.admin_upi_id || '', points: e.points ?? null, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || [],
     isTeamEvent: e.isTeamEvent ?? e.is_team_event ?? false,
     minTeamSize: e.minTeamSize ?? e.min_team_size ?? 1,
     maxTeamSize: e.maxTeamSize ?? e.max_team_size ?? 1,

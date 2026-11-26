@@ -7,56 +7,100 @@
    PARTICIPANTS PAGE (Admin)
 ───────────────────────────────────────────────────────────────*/
 function renderParticipantsPage() {
-  const myEvents = getDB('vvce_events').filter(e=>e.adminId===STATE.user.id&&e.status==='approved');
+  const myEvents = getDB('vvce_events').filter(e => e.adminId === STATE.user.id && e.status === 'approved');
   const allUsers = getDB('vvce_users');
   const el = document.getElementById('page-participants');
 
-  if (!myEvents.length) { el.innerHTML=`<div class="empty-state"><div class="ei">👥</div><div class="et">No approved events</div></div>`; return; }
+  if (!myEvents.length) {
+    el.innerHTML = `<div class="empty-state"><div class="ei">👥</div><div class="et">No approved events</div></div>`;
+    return;
+  }
 
   let pendingHtml = '';
   let pendingCount = 0;
+
   myEvents.forEach(ev => {
-    if (ev.pendingPayments && ev.pendingPayments.length) {
-      ev.pendingPayments.forEach(p => {
-        const student = allUsers.find(u=>u.id===p.uid);
-        if (!student) return;
-        pendingCount++;
-        // Store screenshot in JS map to avoid embedding base64 in onclick attr (breaks HTML)
-        const screenshotKey = `${ev.id}::${p.uid}`;
-        PENDING_SCREENSHOTS[screenshotKey] = p.screenshot || '';
-        const hasScreenshot = !!p.screenshot;
-        pendingHtml += `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
-            background:linear-gradient(135deg,#1e1a2e,#2d1f3d);border-radius:10px;margin-bottom:8px;
-            border:1px solid rgba(251,191,36,0.3);flex-wrap:wrap;gap:8px;">
-            <div>
-              <div style="font-weight:700;color:#fbbf24;font-size:13px;">💳 ${student.name}</div>
-              <div style="font-size:11px;color:#9ca3af;">${ev.name} • ₹${ev.fee} • ${student.usn||student.email}</div>
-              <div style="font-size:11px;color:#9ca3af;">Submitted: ${formatDate(p.date?.split('T')[0]||new Date().toISOString().split('T')[0])}</div>
-            </div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              ${hasScreenshot
-                ? `<button onclick="viewScreenshot('${screenshotKey}')" style="padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11px;cursor:pointer;">📸 View Screenshot</button>`
-                : `<span style="padding:8px 12px;background:#374151;color:#9ca3af;border-radius:6px;font-size:11px;">No screenshot</span>`
-              }
-              <button onclick="approvePayment('${ev.id}','${p.uid}')" style="padding:8px 12px;background:#10b981;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11px;cursor:pointer;">✅ Approve</button>
-              <button onclick="rejectPayment('${ev.id}','${p.uid}')" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11px;cursor:pointer;">❌ Reject</button>
-            </div>
-          </div>`;
+    const queue = (ev.pendingPayments || []).filter(p => {
+      const st = p.status || 'pending_approval';
+      return st === 'pending_approval';
+    });
+
+    queue.forEach(p => {
+      const student = allUsers.find(u => u.id === p.uid);
+      const displayName = student?.name || p.userName || 'Student';
+      const displayId = student?.usn || p.usn || student?.email || p.userEmail || p.uid;
+      const team = p.teamId
+        ? (ev.teams || []).find(t => String(t.id) === String(p.teamId))
+        : (p.teamData?.teamId ? (ev.teams || []).find(t => String(t.id) === String(p.teamData.teamId)) : null);
+
+      const isGroup = Boolean(p.isTeam || team);
+      const memberIds = team ? (team.memberIds || []) : [p.uid];
+      const rosterMembers = memberIds.map(mid => {
+        const u = allUsers.find(usr => usr.id === mid);
+        return u ? `${titleCase(u.name)}${u.usn ? ` (${u.usn})` : ''}` : (mid === p.uid ? titleCase(displayName) : mid);
       });
-    }
+
+      pendingCount++;
+      const screenshotKey = `${ev.id}::${p.uid}${team ? '::' + team.id : ''}`;
+      PENDING_SCREENSHOTS[screenshotKey] = p.screenshot || '';
+      const hasScreenshot = !!p.screenshot;
+      const utrText = p.utrNumber || p.utr_number || '';
+      const teamIdArg = team ? team.id : '';
+      const submittedStr = p.submittedAt || p.date || new Date().toISOString();
+
+      pendingHtml += `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:14px 16px;
+          background:linear-gradient(135deg,#1e1a2e,#2d1f3d);border-radius:12px;margin-bottom:10px;
+          border:1px solid rgba(251,191,36,0.35);flex-wrap:wrap;gap:12px;">
+          <div style="flex:1;min-width:220px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+              <span style="font-weight:800;color:#fbbf24;font-size:14px;">
+                ${isGroup ? `👥 Team: ${team?.name || p.teamName || p.teamData?.teamName || 'Team'}` : `👤 ${titleCase(displayName)}`}
+              </span>
+              <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:${isGroup ? 'rgba(139,92,246,0.22)' : 'rgba(59,130,246,0.22)'};color:${isGroup ? '#ddd6fe' : '#bfdbfe'};">
+                ${isGroup ? `Group (${rosterMembers.length} members)` : 'Solo'}
+              </span>
+              ${(ev.fee > 0 || ev.needsPayment)
+                ? `<span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.2);color:#fde68a;">💳 ₹${ev.fee || 0}</span>`
+                : `<span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,0.2);color:#a7f3d0;">🆓 Free Entry</span>`
+              }
+            </div>
+            <div style="font-size:12px;color:#e2e8f0;margin-bottom:3px;">
+              <strong>${ev.name}</strong> &bull; Lead / Registrant: ${titleCase(displayName)} (${displayId})
+            </div>
+            ${isGroup ? `
+              <div style="font-size:11.5px;color:#cbd5e1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 10px;margin:6px 0;">
+                <strong style="color:#a5b4fc;">Confirmed Team Roster:</strong> ${rosterMembers.join(', ')}
+              </div>` : ''}
+            ${utrText ? `<div style="font-size:11.5px;color:#93c5fd;margin-top:3px;">🔢 <strong>UTR / Transaction ID:</strong> <code style="background:rgba(15,23,42,0.7);padding:2px 6px;border-radius:4px;color:#f8fafc;">${utrText}</code></div>` : ''}
+            <div style="font-size:11px;color:#9ca3af;margin-top:3px;">Submitted: ${formatDate(submittedStr.split('T')[0])}</div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;align-self:center;">
+            ${hasScreenshot
+              ? `<button type="button" onclick="viewScreenshot('${screenshotKey}')" style="padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                  📸 View Payment Proof
+                 </button>`
+              : ((ev.fee > 0 || ev.needsPayment) ? `<span style="padding:8px 12px;background:#374151;color:#9ca3af;border-radius:8px;font-size:11px;">No screenshot</span>` : '')
+            }
+            <button type="button" onclick="approvePayment('${ev.id}','${p.uid}','${teamIdArg}',this)" style="padding:8px 14px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;">✅ Approve &amp; Confirm Registration</button>
+            <button type="button" onclick="rejectPayment('${ev.id}','${p.uid}','${teamIdArg}',this)" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;">✕ Reject</button>
+          </div>
+        </div>`;
+    });
   });
 
   let html = `
-    ${pendingHtml ? `
-      <div style="margin-bottom:18px;">
-        <div style="font-weight:700;color:#fbbf24;font-size:14px;margin-bottom:10px;">⏳ Pending Payment Verifications (${pendingCount})</div>
-        ${pendingHtml}
+    <div style="margin-bottom:18px; background:rgba(15,23,42,0.03); border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div style="font-weight:800;color:#0f172a;font-size:15px;">⏳ Pending Registrations / Verify Payments (${pendingCount})</div>
+        <span style="font-size:11.5px;color:#64748b;">Verify payment proofs &amp; team rosters before confirming seats</span>
       </div>
-      <div style="border-top:1px solid rgba(255,255,255,0.08);margin-bottom:18px;"></div>` : ''}
+      ${pendingHtml || `<div style="font-size:12.5px;color:#64748b;padding:8px 0;">✅ No registrations or payment proofs waiting for verification right now.</div>`}
+    </div>
     <div class="filter-row">
       <select class="filter-sel" id="part-ev-filter" onchange="renderParticipantTable()">
-        ${myEvents.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}
+        ${myEvents.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
       </select>
       <input class="search-inp" id="part-search" placeholder="🔍 Search participant…" oninput="renderParticipantTable()">
     </div>
@@ -67,56 +111,187 @@ function renderParticipantsPage() {
 }
 
 window.viewScreenshot = function(key) {
-  // key is either "eventId::uid" (from PENDING_SCREENSHOTS map) or a direct base64 string (legacy)
   const src = PENDING_SCREENSHOTS[key] || key;
   if (!src || src === 'undefined') {
-    toast('No screenshot available for this payment.', 'error');
+    toast('No screenshot available for this submission.', 'error');
     return;
   }
   document.getElementById('screenshot-img-view').src = src;
   openModal('modal-screenshot');
 };
 
-window.approvePayment = function(eventId, uid) {
-  if (!confirm('Approve this payment and confirm registration?')) return;
-  const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === eventId);
-  if (!ev) return;
-  const pmt = (ev.pendingPayments || []).find(p => p.uid === uid);
-  ev.pendingPayments = (ev.pendingPayments || []).filter(p => p.uid !== uid);
-  
-  if (pmt && pmt.teamData && pmt.teamData.teamId) {
-    const team = (ev.teams || []).find(t => t.id === pmt.teamData.teamId);
-    if (team) {
-      team.paymentStatus = 'approved';
-    }
-  }
+window.approvePayment = async function(eventId, uid, teamId = '', btn = null) {
+  if (!confirm('Approve and confirm this registration? Remaining seat capacity will be verified.')) return;
 
-  if (!ev.registrations) ev.registrations = [];
-  if (!ev.registrations.includes(uid)) {
-    ev.registrations.push(uid);
-    ev.regCount = (ev.regCount||0) + 1;
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Confirming... ⏳'; }
+
+  try {
+    const events = getDB('vvce_events');
+    const ev = events.find(e => e.id === eventId);
+    if (!ev) return;
+
+    const pmt = (ev.pendingPayments || []).find(p =>
+      (p.uid === uid && (!teamId || !p.teamId || String(p.teamId) === String(teamId))) ||
+      (teamId && String(p.teamId || p.teamData?.teamId) === String(teamId))
+    );
+    const resolvedTeamId = teamId || pmt?.teamId || pmt?.teamData?.teamId || null;
+    const team = resolvedTeamId ? (ev.teams || []).find(t => String(t.id) === String(resolvedTeamId)) : null;
+
+    const memberIdsToConfirm = team ? [...new Set(team.memberIds || [uid])] : [uid];
+    const currentRegs = [...(ev.registrations || [])];
+    const newSeatsNeeded = memberIdsToConfirm.filter(id => !currentRegs.includes(id)).length;
+    const maxCap = ev.maxParticipants || ev.max_participants || 100;
+
+    if (currentRegs.length + newSeatsNeeded > maxCap) {
+      const seatsLeft = Math.max(0, maxCap - currentRegs.length);
+      toast(`❌ Cannot approve: only ${seatsLeft} seat(s) left (needs ${newSeatsNeeded}).`, 'error', 5500);
+      return;
+    }
+
+    const reviewerName = STATE.user?.name || 'Organizer';
+    const reviewedAt = new Date().toISOString();
+    const sb = getSupabaseClient();
+    let rpcHandled = false;
+
+    if (sb && typeof sb.rpc === 'function') {
+      try {
+        const { data: rpcData, error: rpcErr } = await sb.rpc('approve_registration_atomic', {
+          p_event_id: eventId,
+          p_user_id: uid,
+          p_reviewer_name: reviewerName,
+          p_team_id: resolvedTeamId
+        });
+        if (!rpcErr && rpcData) {
+          if (!rpcData.success) {
+            toast(`❌ ${rpcData.error || 'Approval blocked due to capacity limit.'}`, 'error', 5500);
+            return;
+          }
+          rpcHandled = true;
+        }
+      } catch (e) {
+        console.warn('approve_registration_atomic RPC fallback to direct update:', e);
+      }
+    }
+
+    // Update local + event state cleanly
+    memberIdsToConfirm.forEach(id => {
+      if (!currentRegs.includes(id)) currentRegs.push(id);
+    });
+    ev.registrations = currentRegs;
+    ev.regCount = currentRegs.length;
+
+    if (team) {
+      team.status = 'registered';
+      team.paymentStatus = 'approved';
+      team.rejectionReason = null;
+      team.reviewedBy = reviewerName;
+      team.reviewedAt = reviewedAt;
+    }
+    if (pmt) {
+      pmt.status = 'registered';
+      pmt.rejectionReason = null;
+      pmt.reviewedBy = reviewerName;
+      pmt.reviewedAt = reviewedAt;
+    }
+
+    if (!rpcHandled && sb && typeof sb.from === 'function') {
+      await sb.from('events').update({
+        registrations: ev.registrations,
+        reg_count: ev.regCount,
+        pending_payments: ev.pendingPayments,
+        teams: ev.teams
+      }).eq('id', eventId).catch(() => {});
+
+      await sb.from('event_registrations').update({
+        status: 'registered',
+        rejection_reason: null,
+        reviewed_by: reviewerName,
+        reviewed_at: reviewedAt,
+        updated_at: reviewedAt
+      }).eq('event_id', eventId).eq('user_id', uid).catch(() => {});
+    }
+
+    await setDB('vvce_events', events);
+
+    memberIdsToConfirm.forEach(memberId => {
+      addNotifToUser(
+        memberId,
+        team
+          ? `Registration CONFIRMED for "${ev.name}" (Team "${team.name}")! 🎉 Your spot is locked in.`
+          : `Registration CONFIRMED for "${ev.name}"! 🎉 Your spot is locked in.`,
+        '✅'
+      );
+    });
+
+    toast('Registration approved and confirmed! 🎉', 'success');
+    renderParticipantsPage();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
-  
-  setDB('vvce_events', events);
-  addNotifToUser(uid, `Your payment for "${ev.name}" was approved! 🎉 Your registration is officially confirmed.`, '✅');
-  toast('Payment approved and registration confirmed.', 'success');
-  renderParticipantsPage();
 };
 
-window.rejectPayment = function(eventId, uid) {
-  if (!confirm('Reject this payment? The student will need to register again.')) return;
-  const events = getDB('vvce_events');
-  const ev = events.find(e => e.id === eventId);
-  if (!ev) return;
-  
-  ev.pendingPayments = ev.pendingPayments.filter(p => p.uid !== uid);
-  setDB('vvce_events', events);
-  
-  addNotifToUser(uid, `Your payment screenshot for "${ev.name}" was rejected. Please contact the club or register again.`, '❌');
-  toast('Payment rejected.', 'info');
-  renderParticipantsPage();
-}
+window.rejectPayment = async function(eventId, uid, teamId = '', btn = null) {
+  const reason = prompt('Enter reason for rejecting this registration / payment proof (e.g. blurred screenshot or mismatched UTR):');
+  if (reason === null) return;
+  const cleanReason = reason.trim() || 'Payment proof or registration details could not be verified. Please re-upload.';
+
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Rejecting...'; }
+
+  try {
+    const events = getDB('vvce_events');
+    const ev = events.find(e => e.id === eventId);
+    if (!ev) return;
+
+    const pmt = (ev.pendingPayments || []).find(p =>
+      (p.uid === uid && (!teamId || !p.teamId || String(p.teamId) === String(teamId))) ||
+      (teamId && String(p.teamId || p.teamData?.teamId) === String(teamId))
+    );
+    const resolvedTeamId = teamId || pmt?.teamId || pmt?.teamData?.teamId || null;
+    const team = resolvedTeamId ? (ev.teams || []).find(t => String(t.id) === String(resolvedTeamId)) : null;
+
+    const reviewerName = STATE.user?.name || 'Organizer';
+    const reviewedAt = new Date().toISOString();
+
+    if (pmt) {
+      pmt.status = 'rejected';
+      pmt.rejectionReason = cleanReason;
+      pmt.reviewedBy = reviewerName;
+      pmt.reviewedAt = reviewedAt;
+    }
+    if (team) {
+      team.status = 'rejected';
+      team.paymentStatus = 'rejected';
+      team.rejectionReason = cleanReason;
+      team.reviewedBy = reviewerName;
+      team.reviewedAt = reviewedAt;
+    }
+
+    const sb = getSupabaseClient();
+    if (sb && typeof sb.from === 'function') {
+      await sb.from('events').update({
+        pending_payments: ev.pendingPayments,
+        teams: ev.teams
+      }).eq('id', eventId).catch(() => {});
+
+      await sb.from('event_registrations').update({
+        status: 'rejected',
+        rejection_reason: cleanReason,
+        reviewed_by: reviewerName,
+        reviewed_at: reviewedAt,
+        updated_at: reviewedAt
+      }).eq('event_id', eventId).eq('user_id', uid).catch(() => {});
+    }
+
+    await setDB('vvce_events', events);
+    addNotifToUser(uid, `Registration/Payment for "${ev.name}" was rejected: ${cleanReason}. You can re-upload your proof from My Registrations.`, '❌');
+    toast('Submission rejected with reason.', 'info');
+    renderParticipantsPage();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+};
 
 function renderParticipantTable() {
   const evId = document.getElementById('part-ev-filter')?.value;

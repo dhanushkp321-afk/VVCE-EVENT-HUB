@@ -182,10 +182,10 @@ function renderCreateEventPage(explicitEditId = null) {
         </div>
 
         <div class="toggle-row">
-          <label class="toggle-sw"><input type="checkbox" id="ev-needs-payment" ${existingEv?.fee > 0 ? 'checked' : ''}><span class="toggle-track"></span></label>
+          <label class="toggle-sw"><input type="checkbox" id="ev-needs-payment" ${(existingEv?.needsPayment || existingEv?.fee > 0) ? 'checked' : ''}><span class="toggle-track"></span></label>
           <div class="toggle-info">
             <div class="toggle-lbl">Require Payment Proof</div>
-            <div class="toggle-desc" style="color:#ef4444;">Future feature — no payment gateway active. Students will need to upload payment screenshot for registration.</div>
+            <div class="toggle-desc" style="color:#64748b;">Students must submit a Transaction ID / UTR and payment screenshot for organizer approval.</div>
           </div>
         </div>
 
@@ -592,9 +592,10 @@ async function submitEvent(status='pending') {
   const authorityId = userClub.authorityId || null;
   const authorityName = userClub.authorityName || 'Approving Authority';
   const fee = parseInt(document.getElementById('create-ev-fee').value||'0');
+  const needsPayment = Boolean(document.getElementById('ev-needs-payment')?.checked || fee > 0);
   const upiId = document.getElementById('create-ev-upi')?.value.trim() || '';
-  if (fee > 0 && !upiId) {
-    toast('⚠️ You set a registration fee but no UPI ID. Students won\'t be able to pay. Add a UPI ID or set fee to 0.', 'error');
+  if ((fee > 0 || needsPayment) && !upiId) {
+    toast('⚠️ Payment proof is required — please add a Club UPI ID (or disable Require Payment Proof & set fee to 0).', 'error');
     return;
   }
 
@@ -666,6 +667,7 @@ async function submitEvent(status='pending') {
       maxParticipants: computedMax,
       regCount: prevEv?.regCount || 0,
       fee,
+      needsPayment,
       adminUpiId: upiId,
       desc,
       speakers: document.getElementById('ev-speakers').value.trim(),

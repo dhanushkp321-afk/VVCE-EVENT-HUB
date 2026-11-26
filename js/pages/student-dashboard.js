@@ -107,7 +107,8 @@ function renderStudentDashboard() {
         ${upcoming.length
           ? upcoming.map(e => {
               const userTeam = (e.teams || []).find(t => t.leaderId === user.id || (t.memberIds || []).includes(user.id));
-              const hasPending = userTeam && (userTeam.pendingEmails || []).length > 0;
+              const prog = typeof getEventRegistrationProgress === 'function' ? getEventRegistrationProgress(e, user) : { status: 'registered' };
+              const statusBadgeHtml = prog.status === 'pending_team' ? `<span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;">⏳ Team Pending</span>` : prog.status === 'pending_payment' ? `<span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;">💳 Pay Proof</span>` : prog.status === 'pending_approval' ? `<span class="att-tag" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700;">⏳ Approval</span>` : prog.status === 'rejected' ? `<span class="att-tag" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:700;">❌ Rejected</span>` : `<span class="att-tag att-reg">✓ Reg.</span>`;
               return `
                 <div class="sched-row" onclick="openEventModal('${e.id}')">
                   <span class="sched-emoji">${e.emoji||'🎓'}</span>
@@ -115,10 +116,7 @@ function renderStudentDashboard() {
                     <div class="sched-name">${e.name}</div>
                     <div class="sched-meta">${formatDate(e.date)} • ${e.venue}${userTeam ? ` &bull; 👥 ${userTeam.name}` : ''}</div>
                   </div>
-                  ${hasPending 
-                    ? `<span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;">⏳ Team Pending</span>`
-                    : `<span class="att-tag att-reg">✓ Reg.</span>`
-                  }
+                  ${statusBadgeHtml}
                 </div>`;
             }).join('')
           : `<div class="empty-state" style="padding:1.5rem;"><div class="ei">📅</div><div class="et">No upcoming events</div></div>`

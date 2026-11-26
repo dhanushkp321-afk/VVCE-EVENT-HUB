@@ -13,8 +13,10 @@ function renderRegistrationsPage() {
   const _now      = new Date();
   const todayStr  = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
 
-  // Find all events relevant to user (registered, leader, member, or pending invite)
+  // Find all events relevant to user (registered, leader, member, pending invite, or solo pending/rejected)
   const myRegs = events.filter(e => {
+    const prog = typeof getEventRegistrationProgress === 'function' ? getEventRegistrationProgress(e, STATE.user) : null;
+    if (prog && prog.status !== 'none') return true;
     const isReg = (e.registrations || []).includes(userId);
     const inTeam = e.isTeamEvent && (e.teams || []).some(t =>
       t.leaderId === userId ||
@@ -35,32 +37,15 @@ function renderRegistrationsPage() {
       return;
     }
 
-    if (e.isTeamEvent) {
-      const userTeam = (e.teams || []).find(t =>
-        t.leaderId === userId ||
-        (t.memberIds || []).includes(userId) ||
-        (t.pendingEmails || []).some(em => em.toLowerCase() === userEmail)
-      );
-
-      if (!userTeam) {
-        confirmedUpcoming.push(e);
-        return;
-      }
-
-      // Check if current user is still pending (invited but not yet accepted)
-      const iSelfPending = (userTeam.pendingEmails || []).some(em => em.toLowerCase() === userEmail);
-
-      // Check if OTHER members (not the current user) are still pending
-      const otherPendingCount = (userTeam.pendingEmails || []).filter(em => em.toLowerCase() !== userEmail).length;
-
-      // Goes to pending tab if: I myself haven't accepted, OR other teammates are still unverified
-      if (iSelfPending || otherPendingCount > 0) {
-        pendingTeams.push(e);
-      } else {
-        confirmedUpcoming.push(e);
-      }
-    } else {
+    const prog = typeof getEventRegistrationProgress === 'function' ? getEventRegistrationProgress(e, STATE.user) : null;
+    if (prog && prog.status === 'registered') {
       confirmedUpcoming.push(e);
+    } else if (prog && ['pending_team', 'pending_payment', 'pending_approval', 'rejected'].includes(prog.status)) {
+      pendingTeams.push(e);
+    } else if ((e.registrations || []).includes(userId)) {
+      confirmedUpcoming.push(e);
+    } else {
+      pendingTeams.push(e);
     }
   });
 
@@ -73,7 +58,7 @@ function renderRegistrationsPage() {
         ✓ Confirmed (${confirmedUpcoming.length})
       </button>
       <button class="tab-btn" id="tab-pending" onclick="switchRegTab('pending')" style="${pendingTeams.length > 0 ? 'color:#b45309; font-weight:700;' : ''}">
-        ⏳ Pending Teams (${pendingTeams.length})
+        ⏳ Pending / Action Needed (${pendingTeams.length})
       </button>
       <button class="tab-btn" id="tab-past" onclick="switchRegTab('past')">
         Past Events (${past.length})
@@ -105,7 +90,7 @@ function switchRegTab(which) {
 function regList(evs, past, isPendingTab = false) {
   if (!evs.length) {
     if (isPendingTab) {
-      return `<div class="empty-state"><div class="ei">🎉</div><div class="et">No pending team verifications</div><p style="font-size:12.5px; color:#6b7280; margin-top:4px;">All your team event registrations are fully confirmed!</p></div>`;
+      return `<div class="empty-state"><div class="ei">🎉</div><div class="et">No pending registrations or actions</div><p style="font-size:12.5px; color:#6b7280; margin-top:4px;">You have no registrations awaiting team confirmation, payment proof, or organizer approval.</p></div>`;
     }
     return `<div class="empty-state"><div class="ei">📋</div><div class="et">${past ? 'No past events.' : 'No upcoming confirmed registrations.'}</div>${!past ? `<button class="btn btn-gold" style="margin-top:12px;" onclick="showPage('events')">Browse Events</button>` : ''}</div>`;
   }
@@ -125,7 +110,12 @@ function regList(evs, past, isPendingTab = false) {
     const confirmedCount = userTeam ? (userTeam.memberIds || []).length : 1;
     const totalTeam = confirmedCount + pendingCount;
 
+    const prog = typeof getEventRegistrationProgress === 'function' ? getEventRegistrationProgress(e, STATE.user) : null;
+    const status = prog?.status || 'registered';
+
     let tagHtml = '';
+    let actionBtnHtml = '';
+
     if (past) {
       const attended = e.attendedStudents?.includes(userId);
       tagHtml = `
@@ -133,64 +123,77 @@ function regList(evs, past, isPendingTab = false) {
           ${attended ? '✓ Attended' : '❌ Not Attended'}
         </span>
       `;
-    } else if (e.isTeamEvent && userTeam) {
-      if (isPendingInvite) {
-        tagHtml = `
-          <span class="att-tag" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;">
-            ⏳ Invite Pending Acceptance
-          </span>
-        `;
-      } else if (pendingCount > 0) {
-        tagHtml = `
-          <span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
-            ⏳ Pending Teammates (${confirmedCount}/${totalTeam})
-          </span>
-        `;
-      } else {
-        tagHtml = `
-          <span class="att-tag" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-weight:700;">
-            ✓ Confirmed (${totalTeam} Members)
-          </span>
-        `;
+    } else if (status === 'registered') {
+      tagHtml = `<span class="att-tag" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-weight:700;">✓ Registered</span>`;
+    } else if (status === 'pending_team') {
+      tagHtml = isPendingInvite
+        ? `<span class="att-tag" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;">⏳ Invite Pending</span>`
+        : `<span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;">⏳ Team Confirmation (${confirmedCount}/${totalTeam})</span>`;
+    } else if (status === 'pending_payment') {
+      tagHtml = `<span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;">💳 Payment Proof Needed</span>`;
+    } else if (status === 'pending_approval') {
+      tagHtml = `<span class="att-tag" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700;">⏳ Pending Organizer Approval</span>`;
+    } else if (status === 'rejected') {
+      tagHtml = `<span class="att-tag" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:700;">❌ Rejected</span>`;
+    }
+
+    if (!past) {
+      if (isPendingInvite && userTeam) {
+        actionBtnHtml += `
+          <button onclick="event.stopPropagation();window._pendingTeamInvite={teamId:'${userTeam.id}',eventId:'${e.id}',token:'${userTeam.inviteToken||''}'};acceptTeamInvite(this);" style="padding:4px 10px;background:#15803d;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-top:2px;">
+            ✅ Accept &amp; Join
+          </button>`;
       }
-    } else {
-      tagHtml = `<span class="att-tag att-reg">Registered</span>`;
+      if ((status === 'pending_payment' || status === 'rejected') && (!userTeam || isLeader)) {
+        const payLabel = status === 'rejected'
+          ? (prog?.requiresPayment ? '🔄 Re-upload Payment Proof' : '🔄 Resubmit Registration')
+          : '💳 Upload Payment Proof';
+        actionBtnHtml += `
+          <button onclick="event.stopPropagation();reopenRegistrationPayment('${e.id}')" style="padding:4px 10px;background:#f59e0b;color:#0f172a;border:none;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer;margin-top:2px;">
+            ${payLabel}
+          </button>`;
+      }
+      if (isLeader && userTeam) {
+        actionBtnHtml += `
+          <button onclick="event.stopPropagation();openManageTeamModal('${e.id}','${userTeam.id}')" style="padding:4px 10px;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-top:2px;">
+            ✏️ Alter Team
+          </button>`;
+      }
     }
 
     return `
-      <div class="sched-row" style="margin-bottom:8px;cursor:pointer;" onclick="openEventModal('${e.id}')">
-        <span class="sched-emoji" style="font-size:32px;">${e.emoji||'🎓'}</span>
-        <div class="sched-info">
-          <div class="sched-name" style="font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            ${e.name}
-            ${e.isTeamEvent && userTeam ? `
-              <span style="font-size:11px;font-weight:700;background:#f5f3ff;color:#7c3aed;padding:2px 8px;border-radius:12px;border:1px solid #ddd6fe;">
-                👥 ${userTeam.name} ${isLeader ? '👑 (Leader)' : (isPendingInvite ? '⏳ (Invited)' : '👤 (Member)')}
-              </span>
+      <div class="sched-row" style="margin-bottom:10px;cursor:pointer;flex-direction:column;align-items:stretch;gap:8px;" onclick="openEventModal('${e.id}')">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span class="sched-emoji" style="font-size:32px;">${e.emoji||'🎓'}</span>
+          <div class="sched-info" style="flex:1;min-width:200px;">
+            <div class="sched-name" style="font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              ${e.name}
+              ${e.isTeamEvent && userTeam ? `
+                <span style="font-size:11px;font-weight:700;background:#f5f3ff;color:#7c3aed;padding:2px 8px;border-radius:12px;border:1px solid #ddd6fe;">
+                  👥 ${userTeam.name} ${isLeader ? '👑 (Leader)' : (isPendingInvite ? '⏳ (Invited)' : '👤 (Member)')}
+                </span>
+              ` : ''}
+            </div>
+            <div class="sched-meta">${e.club} &bull; ${formatDate(e.date)} • ${formatTime(e.time)} • ${e.venue}</div>
+            ${status === 'rejected' && prog?.rejectionReason ? `
+              <div style="font-size:11.5px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;padding:4px 8px;border-radius:6px;margin-top:4px;font-weight:600;">
+                ❌ Rejected: ${prog.rejectionReason}
+              </div>` : ''}
+            ${e.isTeamEvent && userTeam && pendingCount > 0 ? `
+              <div style="font-size:11.5px;color:#d97706;font-weight:600;margin-top:3px;">
+                ⚠️ Waiting for invite confirmation from: ${(userTeam.pendingEmails || []).map(email => {
+                  const det = (userTeam.pendingMembers || userTeam.memberDetails || []).find(d => (typeof d === 'object' ? d.email : d).toLowerCase() === email.toLowerCase());
+                  return det?.name ? `${det.name} (${email})` : email;
+                }).join(', ')}
+              </div>
             ` : ''}
           </div>
-          <div class="sched-meta">${e.club} &bull; ${formatDate(e.date)} • ${formatTime(e.time)} • ${e.venue}</div>
-          ${e.isTeamEvent && userTeam && pendingCount > 0 ? `
-            <div style="font-size:11.5px;color:#d97706;font-weight:600;margin-top:3px;">
-              ⚠️ Waiting for email verification from: ${(userTeam.pendingEmails || []).map(email => {
-                const det = (userTeam.pendingMembers || userTeam.memberDetails || []).find(d => (typeof d === 'object' ? d.email : d).toLowerCase() === email.toLowerCase());
-                return det?.name ? `${det.name} (${email})` : email;
-              }).join(', ')}
-            </div>
-          ` : ''}
+          <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+            ${tagHtml}
+            ${actionBtnHtml}
+          </div>
         </div>
-        <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-          ${tagHtml}
-          ${isPendingInvite ? `
-            <button onclick="event.stopPropagation();window._pendingTeamInvite={teamId:'${userTeam.id}',eventId:'${e.id}'};acceptTeamInvite();" style="padding:4px 10px;background:#15803d;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-top:2px;">
-              ✅ Accept & Join
-            </button>
-          ` : (isLeader ? `
-            <button onclick="event.stopPropagation();openManageTeamModal('${e.id}','${userTeam.id}')" style="padding:4px 10px;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-top:2px;">
-              ✏️ Alter Team
-            </button>
-          ` : '')}
-        </div>
+        ${!past && typeof renderRegistrationStepper === 'function' ? renderRegistrationStepper(e, prog) : ''}
       </div>
     `;
   }).join('');
