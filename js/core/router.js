@@ -37,6 +37,11 @@ function launchApp(user) {
 
 function logout() {
   if (!confirm('Sign out of VVCE Events Hub?')) return;
+  try {
+    sessionStorage.removeItem('vvce_oauth_flow');
+    const sb = typeof getSupabaseClient === 'function' ? getSupabaseClient() : null;
+    if (sb && sb.auth) sb.auth.signOut().catch(() => {});
+  } catch (e) {}
   STATE.user = null;
   STATE.deanUnlocked = false;
   STATE.principalUnlocked = false;

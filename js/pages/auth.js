@@ -59,12 +59,50 @@ function clearAuthMsg() {
   if (el) { el.style.display = 'none'; el.textContent = ''; }
 }
 
+function isValidVvceEmail(email) {
+  return /^[a-z0-9._%+-]+@vvce\.ac\.in$/i.test(String(email || '').trim());
+}
+
+function cleanAuthUrlParams() {
+  try {
+    const url = new URL(window.location.href);
+    let changed = false;
+    ['code', 'error', 'error_code', 'error_description'].forEach(param => {
+      if (url.searchParams.has(param)) {
+        url.searchParams.delete(param);
+        changed = true;
+      }
+    });
+    const hash = url.hash || '';
+    if (hash && /(access_token|refresh_token|provider_token|expires_in|token_type|type=|error=)/i.test(hash)) {
+      url.hash = '';
+      changed = true;
+    }
+    if (changed) {
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    }
+  } catch (e) {}
+}
+
+async function cleanupSupabaseAuthSession() {
+  try { sessionStorage.removeItem('vvce_oauth_flow'); } catch (e) {}
+  try {
+    const sb = getSupabaseClient();
+    if (sb && sb.auth) {
+      await sb.auth.signOut();
+    }
+  } catch (e) {
+    console.warn('Supabase signOut cleanup warning:', e);
+  }
+  cleanAuthUrlParams();
+}
+
 /* ── Login ── */
 async function handleLogin() {
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   const pass  = document.getElementById('login-pass').value;
   if (!email || !pass) { showAuthMsg('Please enter your email and password.'); return; }
-  if (!email.endsWith('@vvce.ac.in')) {
+  if (!isValidVvceEmail(email)) {
     showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed to sign in.', 'error'); return;
   }
 
@@ -212,8 +250,10 @@ function quickLogin(role) {
 
 
 /* ─────────────────────────────────────────────────────────────
-   SUPABASE EMAIL VERIFICATION (MAGIC LINK SIGNUP)
+   SUPABASE EMAIL VERIFICATION & GOOGLE OAUTH SESSION HANDLER
 ───────────────────────────────────────────────────────────────*/
+let _activeAuthSessionPromise = null;
+
 async function finalizeRegistration(role, userPayload) {
   const sb = getSupabaseClient();
   if (!sb || !sb.auth) {
@@ -221,50 +261,96 @@ async function finalizeRegistration(role, userPayload) {
     return;
   }
 
+  const cleanEmail = (userPayload.email || '').trim().toLowerCase();
+  if (!isValidVvceEmail(cleanEmail)) {
+    showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error');
+    return;
+  }
+
+  try {
+    sessionStorage.setItem('vvce_oauth_flow', 'signup');
+    sessionStorage.setItem('vvce_pending_reg_' + cleanEmail, JSON.stringify(userPayload));
+  } catch (e) {}
+
   toast('Sending verification email...', 'info');
+  const redirectTo = window.location.origin + window.location.pathname;
 
   // Supabase Auth SignUp
   const { data, error } = await sb.auth.signUp({
-    email: userPayload.email,
+    email: cleanEmail,
     password: userPayload.pass,
     options: {
+      emailRedirectTo: redirectTo,
       data: userPayload // Store all user details in metadata so we can access them after email verification
     }
   });
 
   if (error) {
-    // Handle rate limit error specifically with a clear explanation
+    // If an auth.users record exists from an aborted Google OAuth attempt (not yet in public.users),
+    // dispatch a verification magic link so ownership is still verified via @vvce.ac.in email.
+    if (error.message?.toLowerCase().includes('already registered')) {
+      const { error: otpErr } = await sb.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: redirectTo
+        }
+      });
+      if (otpErr) {
+        try { sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail); } catch (e) {}
+        showAuthMsg('This email is already registered. Please sign in instead.', 'warning');
+        return;
+      }
+      showAuthMsg(
+        `🎉 Verification email sent to ${cleanEmail}! Please check your inbox (and spam folder) and click the verification link. Once verified, you can sign in.`,
+        'success'
+      );
+      ['s-pass', 'a-pass', 'f-pass'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      switchMainTab('signin');
+      return;
+    }
+
+    try { sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail); } catch (e) {}
     if (error.status === 429 || error.message?.includes('rate limit') || error.message?.includes('over_email_send_rate_limit')) {
       showAuthMsg(
         '⚠️ Email sending is temporarily limited (Supabase free tier allows ~3 emails/hour). ' +
         'Please wait a few minutes and try again, or ask your administrator to connect a custom SMTP provider (e.g. Resend) in Supabase settings.',
         'warning'
       );
-    } else if (error.message?.includes('already registered')) {
-      showAuthMsg('This email is already registered. Please sign in instead.', 'warning');
     } else {
       showAuthMsg('❌ Signup error: ' + error.message, 'error');
     }
     return;
   }
 
-  // If the user already exists in Supabase Auth (but maybe didn't verify yet), Supabase returns success but DOES NOT send an email!
-  // We can detect this because data.user.identities will be empty.
+  // If the user already exists in Supabase Auth (unverified signup), resend confirmation email
   if (data?.user?.identities?.length === 0) {
-    // Force Supabase to resend the verification email for this existing unverified account
-    const { error: resendErr } = await sb.auth.resend({ type: 'signup', email: userPayload.email });
+    const { error: resendErr } = await sb.auth.resend({
+      type: 'signup',
+      email: cleanEmail,
+      options: { emailRedirectTo: redirectTo }
+    });
     if (resendErr) {
-      showAuthMsg(
-        `⚠️ Account already exists but re-sending verification email failed: ${resendErr.message}. ` +
-        'Please check your spam folder or try again later.',
-        'warning'
-      );
-      return;
+      const { error: otpErr } = await sb.auth.signInWithOtp({
+        email: cleanEmail,
+        options: { shouldCreateUser: false, emailRedirectTo: redirectTo }
+      });
+      if (otpErr) {
+        showAuthMsg(
+          `⚠️ Account already exists but re-sending verification email failed: ${resendErr.message}. ` +
+          'Please check your spam folder or try again later.',
+          'warning'
+        );
+        return;
+      }
     }
   }
 
   showAuthMsg(
-    `🎉 Verification email sent to ${userPayload.email}! Please check your inbox (and spam folder) and click the "Verify" button. Once verified, you can sign in.`,
+    `🎉 Verification email sent to ${cleanEmail}! Please check your inbox (and spam folder) and click the "Verify" button. Once verified, you can sign in.`,
     'success'
   );
 
@@ -278,17 +364,29 @@ async function finalizeRegistration(role, userPayload) {
   switchMainTab('signin');
 }
 
-// Function to handle the redirect back from email verification
+// Function to handle the redirect back from email verification or Google OAuth
 async function checkSupabaseEmailVerification() {
   const sb = getSupabaseClient();
   if (!sb || !sb.auth) return;
 
-  // ── Listen for auth state changes (fires immediately when email link is clicked) ──
-  // This handles the case where the user is redirected back to the site after clicking
-  // the verification email link — Supabase fires SIGNED_IN with the verified session.
+  // Surface any OAuth redirect errors (e.g., cancelled or domain-restricted Google sign-in)
+  try {
+    const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+    const searchParams = new URLSearchParams(window.location.search || '');
+    const oauthErr = searchParams.get('error_description') || hashParams.get('error_description')
+      || searchParams.get('error') || hashParams.get('error');
+    if (oauthErr) {
+      cleanAuthUrlParams();
+      try { sessionStorage.removeItem('vvce_oauth_flow'); } catch (e) {}
+      showAuthMsg('❌ Sign-in could not be completed: ' + oauthErr, 'error');
+    }
+  } catch (e) {}
+
+  // Listen for auth state changes (fires on email verification link click or Google OAuth redirect)
   if (!window._authListenerSetup) {
     window._authListenerSetup = true;
     sb.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') return;
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) {
         await handleVerifiedSession(session, event);
       }
@@ -296,7 +394,6 @@ async function checkSupabaseEmailVerification() {
   }
 
   try {
-    // Also check immediately on page load (handles page reload after email click)
     const { data: { session } } = await sb.auth.getSession();
     if (session && session.user) {
       await handleVerifiedSession(session, 'PAGE_LOAD');
@@ -307,75 +404,166 @@ async function checkSupabaseEmailVerification() {
 }
 
 async function handleVerifiedSession(session, trigger) {
-  const sb = getSupabaseClient();
-  if (!sb) return;
+  if (_activeAuthSessionPromise) {
+    return _activeAuthSessionPromise;
+  }
+  _activeAuthSessionPromise = (async () => {
+    const sb = getSupabaseClient();
+    if (!sb || !session?.user) return;
 
-  const supaUser = session.user;
-  const meta = supaUser.user_metadata || {};
+    const supaUser = session.user;
+    const cleanEmail = (supaUser.email || '').trim().toLowerCase();
+    const meta = supaUser.user_metadata || {};
 
-  // Only process if the user has verified their email
-  if (!supaUser.email_confirmed_at && !supaUser.confirmed_at) return;
+    if (STATE.user && (STATE.user.email || '').toLowerCase() === cleanEmail) {
+      return;
+    }
 
-  // If meta has our custom type/email (set during signUp), use it to build the profile
-  if (meta && meta.type && meta.email) {
-    let users = getDB('vvce_users');
-    let existing = users.find(u => u.email.toLowerCase() === supaUser.email.toLowerCase());
+    // Enforce @vvce.ac.in on all authenticated sessions (Google OAuth & Email)
+    if (!isValidVvceEmail(cleanEmail)) {
+      await cleanupSupabaseAuthSession();
+      switchMainTab('signin');
+      showAuthMsg('❌ Only @vvce.ac.in Google accounts are permitted.', 'error');
+      return;
+    }
 
-    if (!existing) {
-      // Brand new verified user — save their full profile
-      const newUser = { ...meta };
-      users.push(newUser);
-      setDB('vvce_users', users);
+    let pendingReg = null;
+    try {
+      const rawPending = sessionStorage.getItem('vvce_pending_reg_' + cleanEmail);
+      if (rawPending) pendingReg = JSON.parse(rawPending);
+    } catch (e) {}
 
-      const mapped = {
-        id: meta.id, type: meta.type, name: meta.name, email: meta.email, pass: meta.pass,
-        usn: meta.usn, branch: meta.branch, section: meta.section, year: meta.year,
-        sem: meta.sem, admission_year: meta.admissionYear, dept: meta.dept, phone: meta.phone,
-        interests: meta.interests, skills: meta.skills, bio: meta.bio, linkedin: meta.linkedin,
-        github: meta.github, achievements: meta.achievements, profile_photo: meta.profilePhoto,
-        resume: meta.resume, points: meta.points, points_by_sem: meta.pointsBySem,
-        notifs: meta.notifs, club_name: meta.clubName, club_email: meta.clubEmail,
-        domain: meta.domain, faculty: meta.faculty, approved: meta.approved, desc: meta.desc,
-        designation: meta.designation,
-        authority_id: meta.authorityId || meta.authority_id || null,
-        authority_name: meta.authorityName || meta.authority_name || null,
-        approval_history: meta.approvalHistory || meta.approval_history || []
-      };
-      await sb.from('users').upsert([mapped]);
-      if (newUser.type === 'student') {
-        await sb.from('registered_students').upsert([mapped]).catch(() => {});
+    let oauthFlow = null;
+    try { oauthFlow = sessionStorage.getItem('vvce_oauth_flow'); } catch (e) {}
+
+    const provider = supaUser.app_metadata?.provider;
+    const providers = supaUser.app_metadata?.providers || [];
+    const isGoogleProvider = provider === 'google'
+      || providers.includes('google')
+      || (Array.isArray(supaUser.identities) && supaUser.identities.some(i => i.provider === 'google'));
+
+    // Route Google OAuth sessions to pre-registration enforcement check
+    if (oauthFlow === 'google' || (isGoogleProvider && (!meta || !meta.type) && !pendingReg)) {
+      try { sessionStorage.removeItem('vvce_oauth_flow'); } catch (e) {}
+      await googleLoginByEmail(
+        cleanEmail,
+        meta.full_name || meta.name || '',
+        meta.avatar_url || meta.picture || null,
+        supaUser.id
+      );
+      return;
+    }
+
+    // Only process email signup if email is verified
+    if (!supaUser.email_confirmed_at && !supaUser.confirmed_at) return;
+
+    const regMeta = (meta && meta.type && meta.email) ? meta : pendingReg;
+
+    if (regMeta && regMeta.type && regMeta.email) {
+      let existing = null;
+      try {
+        const { data: remoteRows } = await sb.from('users').select('*').ilike('email', cleanEmail).limit(1);
+        if (remoteRows && remoteRows.length > 0) {
+          existing = mapUser(remoteRows[0]);
+        }
+      } catch (e) {}
+
+      let users = getDB('vvce_users');
+      if (!existing) {
+        existing = users.find(u => (u.email || '').toLowerCase() === cleanEmail) || null;
       }
 
-      // Clean URL hash so it doesn't re-trigger on refresh
-      if (window.location.hash) {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      }
+      if (!existing) {
+        // Brand new verified user — save full profile to Supabase & local cache
+        const newUser = {
+          ...regMeta,
+          email: cleanEmail,
+          points: null,
+          pointsBySem: null
+        };
 
-      if (newUser.type === 'admin') {
-        const authLabel = newUser.authorityName || 'your Approving Authority';
-        showAuthMsg(`🎉 Email verified! Club registration submitted. Awaiting ${authLabel} approval.`, 'success');
-        toast('✅ Email verified! Club account submitted for approval.', 'success');
+        const mapped = {
+          id: newUser.id, type: newUser.type, name: newUser.name, email: cleanEmail, pass: newUser.pass,
+          usn: newUser.usn, branch: newUser.branch, section: newUser.section, year: newUser.year,
+          sem: newUser.sem, admission_year: newUser.admissionYear, dept: newUser.dept, phone: newUser.phone,
+          interests: newUser.interests, skills: newUser.skills, bio: newUser.bio, linkedin: newUser.linkedin,
+          github: newUser.github, achievements: newUser.achievements, profile_photo: newUser.profilePhoto,
+          resume: newUser.resume, points: null, points_by_sem: null,
+          notifs: newUser.notifs, club_name: newUser.clubName, club_email: newUser.clubEmail,
+          domain: newUser.domain, faculty: newUser.faculty, approved: newUser.approved, desc: newUser.desc,
+          designation: newUser.designation,
+          authority_id: newUser.authorityId || newUser.authority_id || null,
+          authority_name: newUser.authorityName || newUser.authority_name || null,
+          approval_history: newUser.approvalHistory || newUser.approval_history || []
+        };
+
+        const { error: upsertErr } = await sb.from('users').upsert([mapped]);
+        if (upsertErr) {
+          showAuthMsg('❌ Could not complete registration: ' + upsertErr.message, 'error');
+          return;
+        }
+        if (newUser.type === 'student') {
+          await sb.from('registered_students').upsert([mapped]).catch(() => {});
+        }
+        if (pendingReg && newUser.pass) {
+          await sb.auth.updateUser({ password: newUser.pass }).catch(() => {});
+        }
+
+        if (!users.some(u => u.id === newUser.id || (u.email || '').toLowerCase() === cleanEmail)) {
+          users.push(newUser);
+          SUPABASE_CACHE.vvce_users = users;
+          try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch (e) {}
+        }
+
+        try {
+          sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail);
+          sessionStorage.removeItem('vvce_oauth_flow');
+        } catch (e) {}
+        cleanAuthUrlParams();
+
+        if (newUser.type === 'admin') {
+          const authLabel = newUser.authorityName || 'your Approving Authority';
+          showAuthMsg(`🎉 Email verified! Club registration submitted. Awaiting ${authLabel} approval.`, 'success');
+          toast('✅ Email verified! Club account submitted for approval.', 'success');
+        } else {
+          toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
+          launchApp(newUser);
+        }
       } else {
-        toast('🎉 Email verified! Welcome to VVCE Events Hub!', 'success');
-        // Open the app immediately — no delay needed
-        launchApp(newUser);
+        try {
+          sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail);
+          sessionStorage.removeItem('vvce_oauth_flow');
+        } catch (e) {}
+        cleanAuthUrlParams();
+        if (trigger !== 'PAGE_LOAD' && !STATE.user) {
+          if (existing.type === 'admin' && !existing.approved) {
+            await cleanupSupabaseAuthSession();
+            showAuthMsg('Your club account is pending Approving Authority approval.', 'warning');
+            return;
+          }
+          launchApp(existing);
+        }
       }
-    } else if (existing && trigger !== 'PAGE_LOAD') {
-      // Returning verified user — already in DB, just launch immediately
-      if (!STATE.user) {
+    } else {
+      // Verified Supabase session without signup metadata (e.g. email-only fallback)
+      const users = getDB('vvce_users');
+      let existing = users.find(u => (u.email || '').toLowerCase() === cleanEmail) || null;
+      if (!existing) {
+        try {
+          const { data: remoteRows } = await sb.from('users').select('*').ilike('email', cleanEmail).limit(1);
+          if (remoteRows && remoteRows.length > 0) existing = mapUser(remoteRows[0]);
+        } catch (e) {}
+      }
+      if (existing && !STATE.user && trigger !== 'PAGE_LOAD') {
+        cleanAuthUrlParams();
+        toast('🎉 Email verified! Welcome back!', 'success');
         launchApp(existing);
       }
     }
-  } else {
-    // Supabase verified session but no custom metadata (direct Supabase Auth signup)
-    // Try to find them in local DB by email
-    const users = getDB('vvce_users');
-    const existing = users.find(u => u.email.toLowerCase() === supaUser.email.toLowerCase());
-    if (existing && !STATE.user && trigger !== 'PAGE_LOAD') {
-      toast('🎉 Email verified! Welcome back!', 'success');
-      launchApp(existing);
-    }
-  }
+  })().finally(() => {
+    _activeAuthSessionPromise = null;
+  });
+  return _activeAuthSessionPromise;
 }
 
 /* ── Student Signup ── */
@@ -399,25 +587,30 @@ async function handleStudentSignup() {
     showAuthMsg('❌ Invalid USN format (e.g. 4EV25CS053 or 4VV25CS047).', 'error');
     return;
   }
-  if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
-  if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
+  if (pass.length < 8) { showAuthMsg('Password must be at least 8 characters.'); return; }
+  if (!isValidVvceEmail(email)) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
   let users = getDB('vvce_users');
-  let existingUser = users.find(u => u.email.toLowerCase() === email || (usn && u.usn === usn));
-  if (existingUser) {
-    const sb = getSupabaseClient();
-    if (sb && typeof sb.from === 'function') {
-      try {
-        const { data, error } = await sb.from('users').select('id, email, usn').or(`email.ilike.${email},usn.eq.${usn}`);
-        if (!error && (!data || data.length === 0)) {
-          // Stale local entry! Purge it from cache and localStorage
-          users = users.filter(u => u.email.toLowerCase() !== email && u.usn !== usn);
-          SUPABASE_CACHE.vvce_users = users;
-          try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
-          existingUser = null;
-        }
-      } catch(e) {}
-    }
+  let existingUser = users.find(u => (u.email || '').toLowerCase() === email || (usn && (u.usn || '').toUpperCase() === usn));
+  const sb = getSupabaseClient();
+  if (sb && typeof sb.from === 'function') {
+    try {
+      const [{ data: uData, error: uErr }, { data: rData, error: rErr }] = await Promise.all([
+        sb.from('users').select('id, email, usn').or(`email.ilike.${email},usn.ilike.${usn}`).limit(1),
+        sb.from('registered_students').select('id, email, usn').or(`email.ilike.${email},usn.ilike.${usn}`).limit(1).catch(() => ({ data: [], error: null }))
+      ]);
+      const remoteFound = (uData && uData.length > 0) || (rData && rData.length > 0);
+      if (remoteFound) {
+        existingUser = (uData && uData[0]) || (rData && rData[0]);
+      } else if (!uErr && existingUser) {
+        // Stale non-demo local entry! Purge it from cache and localStorage
+        const DEMO_IDS = ['u1', 'u2', 'u3', 'u4'];
+        users = users.filter(u => DEMO_IDS.includes(u.id) || ((u.email || '').toLowerCase() !== email && (u.usn || '').toUpperCase() !== usn));
+        SUPABASE_CACHE.vvce_users = users;
+        try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
+        existingUser = users.find(u => (u.email || '').toLowerCase() === email || (usn && (u.usn || '').toUpperCase() === usn)) || null;
+      }
+    } catch(e) {}
   }
 
   if (existingUser) {
@@ -492,7 +685,7 @@ function handleAdminSignup() {
 
   if (!name || !club || !email || !pass || !usn) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 6) { showAuthMsg('Password must be at least 6 characters.'); return; }
-  if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
+  if (!isValidVvceEmail(email)) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
   const users = getDB('vvce_users');
   if (users.find(u => u.email.toLowerCase() === email)) { showAuthMsg('This email is already registered.', 'warning'); return; }
@@ -527,7 +720,7 @@ function handleAuthoritySignup() {
 
   if (!name || !email || !pass) { showAuthMsg('Please fill all required fields.'); return; }
   if (pass.length < 8) { showAuthMsg('Password must be at least 8 characters.'); return; }
-  if (!email.endsWith('@vvce.ac.in')) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
+  if (!isValidVvceEmail(email)) { showAuthMsg('❌ Only @vvce.ac.in email addresses are allowed.', 'error'); return; }
 
   const users = getDB('vvce_users');
   if (users.find(u => u.email.toLowerCase() === email)) { showAuthMsg('This email is already registered.', 'warning'); return; }
@@ -602,7 +795,7 @@ async function sendResetVerificationCode() {
     }
     return;
   }
-  if (!email.endsWith('@vvce.ac.in')) {
+  if (!isValidVvceEmail(email)) {
     if (msgEl) {
       msgEl.textContent = '❌ Only @vvce.ac.in institutional email addresses are permitted.';
       msgEl.className = 'auth-msg error';
@@ -915,7 +1108,7 @@ function togglePass(inputId, btn) {
 
 
 /* ─────────────────────────────────────────────────────────────
-   GOOGLE SIGN-IN (GIS)
+   GOOGLE SIGN-IN (GIS / SUPABASE OAUTH — RETURNING USERS ONLY)
 ───────────────────────────────────────────────────────────────*/
 function initGoogleAuth() {
   if (typeof google === 'undefined' || !GOOGLE_CLIENT_ID) return;
@@ -927,87 +1120,195 @@ function initGoogleAuth() {
       auto_select: false,
       cancel_on_tap_outside: true,
     });
-    /* Update the hidden GIS element with real client_id */
     const el = document.getElementById('g_id_onload');
     if (el) el.setAttribute('data-client_id', GOOGLE_CLIENT_ID);
   } catch(e) { /* GIS not available */ }
 }
 
+async function startSupabaseGoogleOAuth() {
+  const sb = getSupabaseClient();
+  if (!sb || !sb.auth) {
+    showAuthMsg('Google Sign-In is unavailable because authentication service is not initialized.', 'error');
+    return;
+  }
+  try { sessionStorage.setItem('vvce_oauth_flow', 'google'); } catch (e) {}
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: {
+        hd: 'vvce.ac.in',
+        prompt: 'select_account'
+      }
+    }
+  });
+  if (error) {
+    try { sessionStorage.removeItem('vvce_oauth_flow'); } catch (e) {}
+    showAuthMsg('❌ Google sign-in error: ' + error.message, 'error');
+  }
+}
+
 /* Called when user clicks the Google button */
-window.triggerGoogleSignIn = function() {
+window.triggerGoogleSignIn = async function() {
+  clearAuthMsg();
   if (typeof google !== 'undefined' && GOOGLE_CLIENT_ID) {
-    /* Use real Google OAuth popup */
     google.accounts.id.prompt((notification) => {
       if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        /* Fallback to manual entry if popup blocked */
-        manualGoogleEmailEntry();
+        startSupabaseGoogleOAuth();
       }
     });
     return;
   }
-  /* No Client ID configured — use manual email entry fallback */
-  manualGoogleEmailEntry();
+  await startSupabaseGoogleOAuth();
 };
 
-function manualGoogleEmailEntry() {
-  const email = prompt('Enter your VVCE Google email address:\n(Must end with @vvce.ac.in)');
-  if (!email) return;
-  const clean = email.trim().toLowerCase();
-  if (!clean.endsWith('@vvce.ac.in')) {
-    showAuthMsg('❌ Only @vvce.ac.in Google accounts are allowed to sign in.', 'error');
-    return;
-  }
-  googleLoginByEmail(clean);
-}
-
-/* Called by GIS with JWT credential after real Google OAuth */
-window.handleGoogleSignIn = function(response) {
+/* Called by GIS with JWT credential after Google Identity Services popup */
+window.handleGoogleSignIn = async function(response) {
   try {
-    const parts   = response.credential.split('.');
-    const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
-    const email   = (payload.email || '').toLowerCase();
-    const name    = payload.name  || '';
+    const parts = response.credential.split('.');
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+    const payload = JSON.parse(jsonPayload);
+    const email   = (payload.email || '').trim().toLowerCase();
+    const name    = payload.name || '';
     const photo   = payload.picture || null;
-    if (!email.endsWith('@vvce.ac.in')) {
-      showAuthMsg('❌ Only @vvce.ac.in Google accounts are permitted.', 'error'); return;
+    const googleId = payload.sub || null;
+
+    if (payload.email_verified === false || !isValidVvceEmail(email)) {
+      await cleanupSupabaseAuthSession();
+      showAuthMsg('❌ Only @vvce.ac.in Google accounts are permitted.', 'error');
+      return;
     }
-    googleLoginByEmail(email, name, photo);
+    await googleLoginByEmail(email, name, photo, googleId);
   } catch(e) {
     showAuthMsg('Google sign-in failed. Please try again.', 'error');
   }
 };
 
-/* Find or auto-create user, then launch app */
-function googleLoginByEmail(email, name, photo) {
-  const users = getDB('vvce_users');
-  let user = users.find(u => u.email.toLowerCase() === email);
+/* Pre-registration check & login for verified Google OAuth users (NEVER auto-create) */
+async function googleLoginByEmail(email, name = '', photo = null, googleId = null) {
+  const cleanEmail = String(email || '').trim().toLowerCase();
 
+  if (!isValidVvceEmail(cleanEmail)) {
+    await cleanupSupabaseAuthSession();
+    switchMainTab('signin');
+    showAuthMsg('❌ Only @vvce.ac.in Google accounts are permitted.', 'error');
+    return;
+  }
+
+  const sb = getSupabaseClient();
+  let user = null;
+  let remoteLookupSucceeded = false;
+
+  // Query Supabase registered profiles directly (users first, then registered_students)
+  if (sb && typeof sb.from === 'function') {
+    try {
+      const { data: uData, error: uErr } = await sb
+        .from('users')
+        .select('*')
+        .ilike('email', cleanEmail)
+        .limit(1);
+
+      if (!uErr) {
+        remoteLookupSucceeded = true;
+        if (uData && uData.length > 0) {
+          user = mapUser(uData[0]);
+        }
+      }
+
+      if (!user) {
+        const { data: rData, error: rErr } = await sb
+          .from('registered_students')
+          .select('*')
+          .ilike('email', cleanEmail)
+          .limit(1);
+        if (!rErr) {
+          remoteLookupSucceeded = true;
+          if (rData && rData.length > 0) {
+            user = mapUser(rData[0]);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase pre-registration check error:', err);
+    }
+  }
+
+  // Only check local cache if Supabase was unavailable/offline
+  if (!user && !remoteLookupSucceeded) {
+    const localUsers = getDB('vvce_users');
+    user = localUsers.find(u => (u.email || '').toLowerCase() === cleanEmail) || null;
+  }
+
+  // Enforce two-step flow: unregistered users MUST register first
   if (!user) {
-    /* Auto-create student account for first-time @vvce.ac.in sign-in */
-    const displayName = name
-      || email.split('@')[0].replace(/[._]/g,' ')
-          .replace(/\b\w/g, c => c.toUpperCase());
-    user = {
-      id: genId('u'), type: 'student',
-      name: displayName.toUpperCase(), email, pass: null,
-      profilePhoto: photo || null,
-      usn: '', branch: 'CS', section: 'A',
-      year: '1st Year', sem: 'Sem 1',
-      dept: 'Computer Science', phone: '',
-      interests: [], skills: [], bio: '',
-      linkedin: '', github: '', achievements: [],
-      points: null,
-      pointsBySem: null,
-      notifs: [{ id:genId('n'), msg:'Welcome to VVCE Events Hub! 🎉 Please complete your profile.', time:'Just now', read:false, icon:'🎉' }]
-    };
-    users.push(user);
-    setDB('vvce_users', users);
-    toast('Account created via Google Sign-In! Please complete your profile. 🎓', 'success');
+    await cleanupSupabaseAuthSession();
+
+    // Remove any stale non-demo local entry for this email
+    const DEMO_IDS = ['u1', 'u2', 'u3', 'u4'];
+    if (Array.isArray(SUPABASE_CACHE.vvce_users)) {
+      SUPABASE_CACHE.vvce_users = SUPABASE_CACHE.vvce_users.filter(
+        u => DEMO_IDS.includes(u.id) || (u.email || '').toLowerCase() !== cleanEmail
+      );
+      try { localStorage.setItem('vvce_users', JSON.stringify(SUPABASE_CACHE.vvce_users)); } catch (e) {}
+    }
+
+    switchMainTab('register');
+    selectRegRole('student');
+    const sEmailInp = document.getElementById('s-email');
+    if (sEmailInp) sEmailInp.value = cleanEmail;
+    const sNameInp = document.getElementById('s-name');
+    if (sNameInp && !sNameInp.value && name) sNameInp.value = name.toUpperCase();
+
+    showAuthMsg(
+      'Account not found. Please complete the registration form first using your @vvce.ac.in email.',
+      'error'
+    );
+    return;
   }
 
   if (user.type === 'admin' && !user.approved) {
-    showAuthMsg('Your club account is pending Dean SW approval.', 'warning'); return;
+    await cleanupSupabaseAuthSession();
+    switchMainTab('signin');
+    showAuthMsg('Your club account is pending Approving Authority approval. Please wait.', 'warning');
+    return;
   }
+
+  // Link google_id and initial profile photo if available
+  const profileUpdates = {};
+  if (googleId && !user.googleId) {
+    user.googleId = googleId;
+    profileUpdates.google_id = googleId;
+  }
+  if (photo && !user.profilePhoto) {
+    user.profilePhoto = photo;
+    profileUpdates.profile_photo = photo;
+  }
+
+  // Keep local cache synchronized with remote user row
+  const users = getDB('vvce_users');
+  const existingIdx = users.findIndex(u => u.id === user.id || (u.email || '').toLowerCase() === cleanEmail);
+  if (existingIdx > -1) {
+    users[existingIdx] = user;
+  } else {
+    users.push(user);
+  }
+  SUPABASE_CACHE.vvce_users = users;
+  try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch (e) {}
+
+  if (sb && typeof sb.from === 'function' && Object.keys(profileUpdates).length > 0) {
+    try {
+      const { error: updErr } = await sb.from('users').update(profileUpdates).eq('id', user.id);
+      // Graceful fallback if google_id migration hasn't been executed in Supabase yet
+      if (updErr && profileUpdates.profile_photo) {
+        await sb.from('users').update({ profile_photo: profileUpdates.profile_photo }).eq('id', user.id).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
+  cleanAuthUrlParams();
   launchApp(user);
 }
 

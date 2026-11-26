@@ -295,7 +295,7 @@ function isBranchMatch(eventBranches, userBranch) {
 /* Realtime Sync Helpers */
 function mapUser(u) {
   return {
-    id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points ?? null, pointsBySem: u.points_by_sem ?? null, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation, authorityId: u.authority_id || u.authorityId || null, authorityName: u.authority_name || u.authorityName || null, approvalHistory: u.approval_history || u.approvalHistory || []
+    id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points ?? null, pointsBySem: u.points_by_sem ?? null, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation, googleId: u.google_id || u.googleId || null, authorityId: u.authority_id || u.authorityId || null, authorityName: u.authority_name || u.authorityName || null, approvalHistory: u.approval_history || u.approvalHistory || []
   };
 }
 
