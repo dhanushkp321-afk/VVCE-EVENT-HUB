@@ -1670,6 +1670,38 @@ async function handleLogin() {
   const sb = getSupabaseClient();
 
   if (sb && sb.auth) {
+    window._loginInProgress = true;
+    try {
+      const { data: authData, error: authErr } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (authErr) {
+        const errText = `${authErr.code || ''} ${authErr.message || ''}`;
+        if (/email.*not.*confirmed|email_not_confirmed|confirm.*email/i.test(errText)) {
+          showAuthMsg('⚠️ Please verify your email first. Check your @vvce.ac.in inbox (and spam folder) and click the verification link before signing in.', 'warning');
+          return;
+        }
+      } else if (authData?.user) {
+        if (!authData.user.email_confirmed_at && !authData.user.confirmed_at) {
+          await sb.auth.signOut().catch(() => {});
+          showAuthMsg('⚠️ Please verify your email first. Check your @vvce.ac.in inbox (and spam folder) and click the verification link before signing in.', 'warning');
+          return;
+        }
+        const { data: rows } = await sb.from('users').select('*').ilike('email', email).limit(1);
+        if (rows && rows.length > 0) {
+          user = mapUser(rows[0]);
+          try { localStorage.removeItem('vvce_pending_verify_email'); } catch (e) {}
+        } else {
+          window._loginInProgress = false;
+          await handleVerifiedSession({ user: authData.user }, 'LOGIN_SYNC');
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase Auth password check failed, checking RPC fallback:', err);
+    } finally {
+      window._loginInProgress = false;
+    }
+  }
+  if (false) {
     try {
       const { data: authData, error: authErr } = await sb.auth.signInWithPassword({ email, password: pass });
       if (!authErr && authData?.user) {
@@ -1888,7 +1920,7 @@ function resolveSignInPrefillEmail(searchParams, hashParams) { const fromUrl = (
     }
   } catch (e) {}
 
-  if (!window._authListenerSetup) { window._authListenerSetup = true; sb.auth.onAuthStateChange(async (event, session) => { if (event === 'PASSWORD_RECOVERY') { window._isPasswordRecoveryActive = true; if (session && session.user) await openRecoveryResetView(session); return; } if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) { if (window._isPasswordRecoveryActive) return; await handleVerifiedSession(session, event); } }); } if (urlAuthNotice) { switchMainTab('signin'); if (prefillSignInEmail) { const loginEmailInp = document.getElementById('login-email'); if (loginEmailInp && !loginEmailInp.value) loginEmailInp.value = prefillSignInEmail; } showAuthMsg(urlAuthNotice.msg, urlAuthNotice.type); return; } if (recoveryLinkError) {
+  if (!window._authListenerSetup) { window._authListenerSetup = true; sb.auth.onAuthStateChange(async (event, session) => { if (event === 'PASSWORD_RECOVERY') { window._isPasswordRecoveryActive = true; if (session && session.user) await openRecoveryResetView(session); return; } if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) { if (window._isPasswordRecoveryActive || window._loginInProgress) return; await handleVerifiedSession(session, event); } }); } if (urlAuthNotice) { switchMainTab('signin'); if (prefillSignInEmail) { const loginEmailInp = document.getElementById('login-email'); if (loginEmailInp && !loginEmailInp.value) loginEmailInp.value = prefillSignInEmail; } showAuthMsg(urlAuthNotice.msg, urlAuthNotice.type); return; } if (recoveryLinkError) {
     handleForgotPassword();
     const step1Msg = document.getElementById('reset-step1-msg');
     if (step1Msg) {
@@ -1912,7 +1944,7 @@ function resolveSignInPrefillEmail(searchParams, hashParams) { const fromUrl = (
         return;
       }
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && session.user) {
-        if (window._isPasswordRecoveryActive) return;
+        if (window._isPasswordRecoveryActive || window._loginInProgress) return;
         await handleVerifiedSession(session, event);
       }
     });
@@ -2025,7 +2057,7 @@ async function handleVerifiedSession(session, trigger) {
         };
 
         const mapped = {
-          id: newUser.id, type: newUser.type, name: newUser.name, email: cleanEmail, pass: newUser.pass,
+          id: newUser.id, type: newUser.type, name: newUser.name, email: cleanEmail,
           usn: newUser.usn, branch: newUser.branch, section: newUser.section, year: newUser.year,
           sem: newUser.sem, admission_year: newUser.admissionYear, dept: newUser.dept, phone: newUser.phone,
           interests: newUser.interests, skills: newUser.skills, bio: newUser.bio, linkedin: newUser.linkedin,
@@ -2051,6 +2083,7 @@ async function handleVerifiedSession(session, trigger) {
           await sb.auth.updateUser({ password: newUser.pass }).catch(() => {});
         }
 
+        newUser.pass = null;
         if (!users.some(u => u.id === newUser.id || (u.email || '').toLowerCase() === cleanEmail)) {
           users.push(newUser);
           SUPABASE_CACHE.vvce_users = users;
@@ -2697,23 +2730,23 @@ async function executePasswordReset() {
         u => (targetId && u.id === targetId) || (u.email && u.email.toLowerCase() === recoveryEmail)
       );
       if (uIdx > -1) {
-        users[uIdx].pass = newPass;
+        users[uIdx].pass = null;
         SUPABASE_CACHE.vvce_users = users;
         try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch (e) {}
       }
       if (typeof sb.from === 'function') {
-        await sb.from('users').update({ pass: newPass }).ilike('email', recoveryEmail).catch(() => {});
+        // Authority credentials live strictly in approving_authorities / auth.users; do not write pass to public.users
       }
     } else {
       // Regular user password sync (Student, Club Admin, Faculty)
       if (typeof sb.from === 'function') {
-        const updQuery = sb.from('users').update({ pass: newPass });
-        const { error: uUpdErr } = targetId
-          ? await updQuery.eq('id', targetId)
-          : await updQuery.ilike('email', recoveryEmail);
-        if (uUpdErr) console.warn('Supabase users update warning:', uUpdErr.message);
+        // Regular user passwords rely strictly on Supabase Auth (auth.users); do not update pass in public.users
 
-        await sb.from('registered_students').update({ pass: newPass }).ilike('email', recoveryEmail).catch(() => {});
+
+
+
+
+
       }
 
       const users = getDB('vvce_users');
@@ -2721,7 +2754,7 @@ async function executePasswordReset() {
         u => (targetId && u.id === targetId) || (u.email && u.email.toLowerCase() === recoveryEmail)
       );
       if (uIdx > -1) {
-        users[uIdx].pass = newPass;
+        users[uIdx].pass = null;
         SUPABASE_CACHE.vvce_users = users;
         try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch (e) {}
       }
