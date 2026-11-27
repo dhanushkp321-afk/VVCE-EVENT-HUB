@@ -100,7 +100,7 @@ function renderCreateEventPage(explicitEditId = null) {
           <div class="form-group">
             <label>Venue *</label>
             <select id="ev-venue">
-              ${venueOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
+              ${venueOptions.map(v => `<option value="${escapeHTML(v)}">${escapeHTML(v)}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -353,11 +353,11 @@ function renderClashBannerState(state, payload = null) {
           ${payload.map(c => `
             <div style="background:#ffffff; border:1px solid #fca5a5; border-radius:8px; padding:10px 12px; font-size:12.5px; color:#1e293b;">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
-                <strong style="font-size:13.5px; color:#991b1b;">${c.name || 'Untitled Event'}</strong>
-                <span class="badge ${c.status === 'approved' ? 'badge-green' : 'badge-amber'}">${String(c.status || 'pending').toUpperCase()}</span>
+                <strong style="font-size:13.5px; color:#991b1b;">${escapeHTML(c.name || 'Untitled Event')}</strong>
+                <span class="badge ${c.status === 'approved' ? 'badge-green' : 'badge-amber'}">${escapeHTML(String(c.status || 'pending').toUpperCase())}</span>
               </div>
-              <div style="color:#475569; margin-bottom:3px;">🏛️ <strong>Organizing Club:</strong> ${c.club || 'Unknown Club'}</div>
-              <div style="color:#475569;">📅 <strong>Booked Slot:</strong> ${formatDate(c.date)} &bull; 📍 ${c.venue} &bull; 🕐 ${formatEventTimeSlot(c)}</div>
+              <div style="color:#475569; margin-bottom:3px;">🏛️ <strong>Organizing Club:</strong> ${escapeHTML(c.club || 'Unknown Club')}</div>
+              <div style="color:#475569;">📅 <strong>Booked Slot:</strong> ${escapeHTML(formatDate(c.date))} &bull; 📍 ${escapeHTML(c.venue)} &bull; 🕐 ${escapeHTML(formatEventTimeSlot(c))}</div>
             </div>
           `).join('')}
         </div>
@@ -373,7 +373,7 @@ function renderClashBannerState(state, payload = null) {
     banner.innerHTML = `
       <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:10px 14px; border-radius:10px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
         <span>✅</span>
-        <span>Venue slot is available (${formatDate(payload.date)} • ${payload.venue} • ${formatTime(payload.time)} – ${formatTime(payload.endTime)}).</span>
+        <span>Venue slot is available (${escapeHTML(formatDate(payload.date))} • ${escapeHTML(payload.venue)} • ${escapeHTML(formatTime(payload.time))} – ${escapeHTML(formatTime(payload.endTime))}).</span>
       </div>`;
   }
 }

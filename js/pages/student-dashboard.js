@@ -43,7 +43,7 @@ function renderStudentDashboard() {
 
   const themeGreetingHTML = (window.currentTheme && window.currentTheme.showGreeting && window.currentTheme.greeting) 
     ? `<div class="dashboard-festive-ribbon" style="background: linear-gradient(90deg, ${window.currentTheme.primary || '#f59e0b'}, ${window.currentTheme.secondary || '#fbbf24'}); color: #ffffff; padding: 12px 20px; text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.02em; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 8px;">
-         <span>${window.currentTheme.greeting}</span>
+         <span>${escapeHTML(window.currentTheme.greeting)}</span>
        </div>`
     : '';
 
@@ -53,15 +53,15 @@ function renderStudentDashboard() {
     <!-- Welcome Banner -->
     <div class="welcome-banner">
       <div class="welcome-big-avatar" id="wb-avatar">
-        ${user.profilePhoto ? `<img src="${user.profilePhoto}">` : avatar(user.name)}
+        ${user.profilePhoto ? `<img src="${sanitizeUrl(user.profilePhoto)}">` : escapeHTML(avatar(user.name))}
       </div>
       <div class="welcome-info">
-        <div class="welcome-greeting">Good ${getGreeting()},</div>
-        <div class="welcome-name">${titleCase(user.name.split(' ')[0])} 👋</div>
+        <div class="welcome-greeting">Good ${escapeHTML(getGreeting())},</div>
+        <div class="welcome-name">${escapeHTML(titleCase(user.name.split(' ')[0]))} 👋</div>
         <div class="welcome-chips">
-          <span class="welcome-chip">📍 ${user.branch||'—'} • ${computeStudentYearSem(user).sem}</span>
-          <span class="welcome-chip">🏫 Sec ${user.section||'—'}</span>
-          ${(user.interests||[]).map(i=>`<span class="welcome-chip">${i}</span>`).join('')}
+          <span class="welcome-chip">📍 ${escapeHTML(user.branch||'—')} • ${escapeHTML(computeStudentYearSem(user).sem)}</span>
+          <span class="welcome-chip">🏫 Sec ${escapeHTML(user.section||'—')}</span>
+          ${(user.interests||[]).map(i=>`<span class="welcome-chip">${escapeHTML(i)}</span>`).join('')}
         </div>
       </div>
       <div class="welcome-acts">
@@ -110,11 +110,11 @@ function renderStudentDashboard() {
               const prog = typeof getEventRegistrationProgress === 'function' ? getEventRegistrationProgress(e, user) : { status: 'registered' };
               const statusBadgeHtml = prog.status === 'pending_team' ? `<span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;">⏳ Team Pending</span>` : prog.status === 'pending_payment' ? `<span class="att-tag" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-weight:700;">💳 Pay Proof</span>` : prog.status === 'pending_approval' ? `<span class="att-tag" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700;">⏳ Approval</span>` : prog.status === 'rejected' ? `<span class="att-tag" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:700;">❌ Rejected</span>` : `<span class="att-tag att-reg">✓ Reg.</span>`;
               return `
-                <div class="sched-row" onclick="openEventModal('${e.id}')">
-                  <span class="sched-emoji">${e.emoji||'🎓'}</span>
+                <div class="sched-row" onclick="openEventModal('${escapeHTML(e.id)}')">
+                  <span class="sched-emoji">${escapeHTML(e.emoji||'🎓')}</span>
                   <div class="sched-info">
-                    <div class="sched-name">${e.name}</div>
-                    <div class="sched-meta">${formatDate(e.date)} • ${e.venue}${userTeam ? ` &bull; 👥 ${userTeam.name}` : ''}</div>
+                    <div class="sched-name">${escapeHTML(e.name)}</div>
+                    <div class="sched-meta">${escapeHTML(formatDate(e.date))} • ${escapeHTML(e.venue)}${userTeam ? ` &bull; 👥 ${escapeHTML(userTeam.name)}` : ''}</div>
                   </div>
                   ${statusBadgeHtml}
                 </div>`;

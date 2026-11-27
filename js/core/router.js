@@ -18,6 +18,8 @@ function launchApp(user) {
   renderSidebar();
   renderTopbarUser();
   checkTeamInviteUrl();
+  if (typeof fetchUserOwnDetails === 'function') fetchUserOwnDetails(user.id);
+  if (typeof setupRealtimeSync === 'function') setupRealtimeSync(true);
 
   if (user.type === 'student') {
     showPage('dashboard');
@@ -298,18 +300,18 @@ function renderNotifs() {
 
   if (!notifs.length) { list.innerHTML = `<div style="padding:2rem;text-align:center;color:#9ca3af;font-size:13px;">No notifications</div>`; return; }
   list.innerHTML = notifs.slice().reverse().map(n => `
-    <div class="notif-item ${n.read?'':'unread'}" onclick="readNotif('${n.id}')">
-      <span class="notif-item-icon">${n.icon || '🔔'}</span>
+    <div class="notif-item ${n.read?'':'unread'}" onclick="readNotif('${escapeHTML(n.id)}')">
+      <span class="notif-item-icon">${escapeHTML(n.icon || '🔔')}</span>
         <div style="flex:1">
-          <div class="notif-item-text">${n.msg}</div>
-          <div class="notif-item-time">${getRelativeTime(n.timestamp, n.time)}</div>
+          <div class="notif-item-text">${escapeHTML(n.msg)}</div>
+          <div class="notif-item-time">${escapeHTML(getRelativeTime(n.timestamp, n.time))}</div>
         </div>
       ${!n.read ? '<span class="notif-item-dot"></span>' : ''}
     </div>
   `).join('');
 }
 
-function readNotif(id) {
+async function readNotif(id) { if (!STATE.user) return; const users = getDB('vvce_users'); const u = users.find(x => x.id === STATE.user.id); const notifs = (u?.notifs || STATE.user.notifs || []).map(n => n.id === id ? { ...n, read: true } : n); if (u) u.notifs = notifs; STATE.user.notifs = notifs; renderNotifs(); if (typeof markUserNotifsReadAtomic === 'function') await markUserNotifsReadAtomic(STATE.user.id, id); return;
   const users = getDB('vvce_users');
   const u = users.find(x => x.id === STATE.user.id);
   if (u) {
@@ -321,17 +323,17 @@ function readNotif(id) {
   }
 }
 
-function markAllRead() {
+async function markAllRead() { if (!STATE.user) return; const users = getDB('vvce_users'); const u = users.find(x => x.id === STATE.user.id); const notifs = (u?.notifs || STATE.user.notifs || []).map(n => ({ ...n, read: true })); if (u) u.notifs = notifs; STATE.user.notifs = notifs; renderNotifs(); if (typeof markUserNotifsReadAtomic === 'function') await markUserNotifsReadAtomic(STATE.user.id, null); return;
   const users = getDB('vvce_users');
   const u = users.find(x => x.id === STATE.user.id);
-  if (u) { (u.notifs||[]).forEach(n => n.read = true); setDB('vvce_users', users); STATE.user = u; renderNotifs(); }
+  if (u) { (u.notifs||[]).forEach(n => n.read = true); STATE.user = u; renderNotifs(); }
 }
 
 function addNotif(msg, icon = '🔔') {
   addNotifToUser(STATE.user.id, msg, icon);
 }
 
-function addNotifToUser(userId, msg, icon = '🔔') {
+function addNotifToUser(userId, msg, icon = '🔔') { const notifObj = { id: genId('n'), msg, icon, time: 'Just now', timestamp: Date.now(), read: false }; if (typeof pushUserNotifAtomic === 'function') { pushUserNotifAtomic(userId, notifObj); if (STATE.user && STATE.user.id === userId) { const badge = document.getElementById('notif-badge'); if (badge) badge.style.display = ''; } return; }
   const users = getDB('vvce_users');
   const u = users.find(x => x.id === userId);
   if (u) {

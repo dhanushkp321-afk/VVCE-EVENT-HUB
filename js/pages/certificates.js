@@ -47,11 +47,11 @@ function renderCertificatesPage() {
                 ${c.verified ? `<span class="badge badge-green">✓ Verified</span>` : `<span class="badge badge-amber">⏳ Pending</span>`}
               </div>
             </div>
-            <div class="cert-title">${c.title}</div>
-            <div class="cert-issuer">${c.issuer}</div>
-            <div style="font-size:12px;color:#9ca3af;margin-bottom:8px;">${formatDate(c.date)} • ${c.position}</div>
+            <div class="cert-title">${escapeHTML(c.title)}</div>
+            <div class="cert-issuer">${escapeHTML(c.issuer)}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-bottom:8px;">${escapeHTML(formatDate(c.date))} • ${escapeHTML(c.position)}</div>
             <div class="cert-foot" style="justify-content:flex-end;">
-              <button class="cert-dl-btn" onclick="downloadCertPDF('${c.id}')">Download PDF</button>
+              <button class="cert-dl-btn" onclick="downloadCertPDF('${escapeHTML(c.id)}')">Download PDF</button>
             </div>
           </div>`).join('')
         : `<div class="empty-state" style="grid-column:1/-1"><div class="ei">📜</div><div class="et">No certificates yet</div><div class="es">Participate in events to earn certificates</div><button class="btn btn-gold" style="margin-top:12px;" onclick="showPage('events')">Browse Events</button></div>`
@@ -60,7 +60,7 @@ function renderCertificatesPage() {
   `;
 }
 
-function submitCertificate() {
+async function submitCertificate() {
   const title  = document.getElementById('cert-title').value.trim();
   const issuer = document.getElementById('cert-issuer').value.trim();
   const date   = document.getElementById('cert-date').value;
@@ -68,9 +68,17 @@ function submitCertificate() {
 
   if (!title||!issuer||!date) { toast('Please fill all required fields.','error'); return; }
 
-  const certs = getDB('vvce_certs');
-  certs.push({ id:genId('c'), userId:STATE.user.id, title, issuer, date, position:pos, type:['Winner','Runner-up'].includes(pos)?'achievement':'participation', verified:false });
-  setDB('vvce_certs', certs);
+  const newCert = {
+    id: genId('c'),
+    userId: STATE.user.id,
+    title,
+    issuer,
+    date,
+    position: pos,
+    type: ['Winner','Runner-up'].includes(pos) ? 'achievement' : 'participation',
+    verified: false
+  };
+  await syncSingleCertToSupabase(newCert, false);
   closeModal('modal-cert-upload');
   toast('Certificate submitted for verification! ⏳','success');
   if (STATE.page==='certificates') renderCertificatesPage();
@@ -86,7 +94,7 @@ window.downloadCertPDF = function(certId) {
   const dateStr = new Date(cert.date).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Certificate – ${cert.title}</title>
+  <title>Certificate – ${escapeHTML(cert.title)}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Outfit:wght@300;400;600&display=swap');
     *{margin:0;padding:0;box-sizing:border-box;}
@@ -124,11 +132,11 @@ window.downloadCertPDF = function(certId) {
     <div class="logo">Visvesvaraya Vidyavardhaka College of Engineering, Mysuru</div>
     <div class="badge">${isAchievement?'🏆':'🎓'}</div>
     <div class="head">Certificate of ${isAchievement?'Achievement':'Participation'}</div>
-    <div class="name">${user.name || 'Student'}</div>
+    <div class="name">${escapeHTML(user.name || 'Student')}</div>
     <div class="body">
-      has successfully ${isAchievement?'won the <strong>'+cert.position+'</strong> position in':'participated in'}
-      the event <span class="event">${cert.title}</span><br>
-      organised by <strong>${cert.issuer}</strong>
+      has successfully ${isAchievement?'won the <strong>'+escapeHTML(cert.position)+'</strong> position in':'participated in'}
+      the event <span class="event">${escapeHTML(cert.title)}</span><br>
+      organised by <strong>${escapeHTML(cert.issuer)}</strong>
     </div>
     <div class="footer">
       <div class="sig"><div class="sig-line"></div><div class="sig-name">Club Coordinator</div></div>

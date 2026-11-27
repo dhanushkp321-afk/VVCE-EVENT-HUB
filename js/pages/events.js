@@ -249,32 +249,32 @@ function eventCard(ev) {
   }
 
   return `
-    <div class="event-card ${isCancelled ? 'ev-cancelled-card' : ''}" onclick="openEventModal('${ev.id}')">
+    <div class="event-card ${isCancelled ? 'ev-cancelled-card' : ''}" onclick="openEventModal('${escapeHTML(ev.id)}')">
       <div class="event-poster">
-        ${ev.poster?`<img src="${ev.poster}">`:`<span style="position:relative;z-index:1;">${ev.emoji||'🎓'}</span>`}
-        <span class="ev-cat-badge ${catCls}">${ev.category}</span>
+        ${ev.poster?`<img src="${sanitizeUrl(ev.poster)}">`:`<span style="position:relative;z-index:1;">${escapeHTML(ev.emoji||'🎓')}</span>`}
+        <span class="ev-cat-badge ${catCls}">${escapeHTML(ev.category)}</span>
         ${isCancelled ? `<span class="ev-cat-badge" style="top:10px;right:10px;left:auto;background:#ef4444;color:#fff;font-weight:800;">🚫 CANCELLED</span>` : ''}
         ${isRescheduled ? `<span class="ev-cat-badge" style="top:10px;right:10px;left:auto;background:#f59e0b;color:#fff;font-weight:800;">⚠️ RESCHEDULED</span>` : ''}
       </div>
       <div class="ev-body">
-        <div class="ev-title">${ev.name}</div>
-        <div class="ev-club">${ev.club}</div>
-        ${isCancelled ? `<div style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0;">🚫 <strong>Event Cancelled:</strong> ${ev.rejReason || 'Due to administrative schedule changes.'}</div>` : ''}
-        ${isRescheduled ? `<div style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0;">⚠️ <strong>Rescheduled:</strong> Now on ${formatDate(ev.date)} @ ${formatTime(ev.time)}</div>` : ''}
-        ${prog.status === 'rejected' && prog.rejectionReason ? `<div style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:6px 10px; border-radius:6px; font-size:11.5px; font-weight:600; margin:6px 0;">❌ <strong>Rejected:</strong> ${prog.rejectionReason}</div>` : ''}
+        <div class="ev-title">${escapeHTML(ev.name)}</div>
+        <div class="ev-club">${escapeHTML(ev.club)}</div>
+        ${isCancelled ? `<div style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0;">🚫 <strong>Event Cancelled:</strong> ${escapeHTML(ev.rejReason || 'Due to administrative schedule changes.')}</div>` : ''}
+        ${isRescheduled ? `<div style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0;">⚠️ <strong>Rescheduled:</strong> Now on ${escapeHTML(formatDate(ev.date))} @ ${escapeHTML(formatTime(ev.time))}</div>` : ''}
+        ${prog.status === 'rejected' && prog.rejectionReason ? `<div style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:6px 10px; border-radius:6px; font-size:11.5px; font-weight:600; margin:6px 0;">❌ <strong>Rejected:</strong> ${escapeHTML(prog.rejectionReason)}</div>` : ''}
         <div class="ev-metas">
-          <div class="ev-meta">📅 ${formatDate(ev.date)}</div>
-          <div class="ev-meta">🕐 ${formatEventTimeSlot(ev)} &nbsp;|&nbsp; 📍 ${ev.venue}</div>
-          <div class="ev-meta">💰 ${ev.fee>0?`<span style="color:#b45309;">₹${ev.fee}</span>`:(ev.needsPayment ? `<span style="color:#b45309;">Proof Required</span>` : `<span style="color:#15803d;">FREE</span>`)}</div>
-          <div class="ev-meta" style="color:#6366f1;font-weight:600;">🎓 Open to: ${(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.join(', ')) : 'All Branches'}</div>
-          ${prog.isGroup ? `<div class="ev-meta" style="color:#7c3aed;font-weight:700;">👥 Group Event &nbsp;|&nbsp; ${ev.minTeamSize || 2}–${ev.maxTeamSize || 4} members</div>` : `<div class="ev-meta" style="color:#0369a1;font-weight:600;">👤 Solo Participation</div>`}
+          <div class="ev-meta">📅 ${escapeHTML(formatDate(ev.date))}</div>
+          <div class="ev-meta">🕐 ${escapeHTML(formatEventTimeSlot(ev))} &nbsp;|&nbsp; 📍 ${escapeHTML(ev.venue)}</div>
+          <div class="ev-meta">💰 ${ev.fee>0?`<span style="color:#b45309;">₹${escapeHTML(ev.fee)}</span>`:(ev.needsPayment ? `<span style="color:#b45309;">Proof Required</span>` : `<span style="color:#15803d;">FREE</span>`)}</div>
+          <div class="ev-meta" style="color:#6366f1;font-weight:600;">🎓 Open to: ${(ev.branches && ev.branches.length > 0) ? (ev.branches.includes('All') ? 'All Branches' : ev.branches.map(b => escapeHTML(b)).join(', ')) : 'All Branches'}</div>
+          ${prog.isGroup ? `<div class="ev-meta" style="color:#7c3aed;font-weight:700;">👥 Group Event &nbsp;|&nbsp; ${escapeHTML(ev.minTeamSize || 2)}–${escapeHTML(ev.maxTeamSize || 4)} members</div>` : `<div class="ev-meta" style="color:#0369a1;font-weight:600;">👤 Solo Participation</div>`}
           ${ev.desc ? `
             <div style="background:#fffdf5;border-left:3px solid #f59e0b;padding:6px 9px;border-radius:6px;font-size:11.5px;color:#78350f;line-height:1.45;margin-top:7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
-              <strong style="color:#b45309;">📝 Description:</strong> ${ev.desc}
+              <strong style="color:#b45309;">📝 Description:</strong> ${escapeHTML(ev.desc)}
             </div>` : ''}
           ${ev.rules ? `
             <div style="background:#fef2f2;border-left:3px solid #ef4444;padding:6px 9px;border-radius:6px;font-size:11px;color:#7f1d1d;line-height:1.4;margin-top:5px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">
-              <strong style="color:#b91c1c;">⚖️ Rules:</strong> ${ev.rules}
+              <strong style="color:#b91c1c;">⚖️ Rules:</strong> ${escapeHTML(ev.rules)}
             </div>` : ''}
         </div>
         <div class="ev-foot">
@@ -1034,12 +1034,12 @@ function openManageTeamModal(eventId, teamId) {
       statusBanner.style.background = '#fef2f2';
       statusBanner.style.border = '1px solid #fecaca';
       statusBanner.style.color = '#991b1b';
-      statusBanner.innerHTML = `<strong>❌ Rejected:</strong> ${prog.rejectionReason || 'Verification rejected.'} Please re-upload your payment proof.`;
+      statusBanner.innerHTML = `<strong>❌ Rejected:</strong> ${escapeHTML(prog.rejectionReason || 'Verification rejected.')} Please re-upload your payment proof.`;
     } else {
       statusBanner.style.background = '#f0fdf4';
       statusBanner.style.border = '1px solid #bbf7d0';
       statusBanner.style.color = '#15803d';
-      statusBanner.innerHTML = `<strong>✅ Step 5 — Registered:</strong> Team "${team.name}" (${totalEnrolled} members) is officially confirmed!`;
+      statusBanner.innerHTML = `<strong>✅ Step 5 — Registered:</strong> Team "${escapeHTML(team.name)}" (${totalEnrolled} members) is officially confirmed!`;
     }
   }
 
@@ -1059,13 +1059,13 @@ function openManageTeamModal(eventId, teamId) {
           <div style="display:flex; align-items:center; gap:8px;">
             <span>👤</span>
             <div>
-              <div style="font-weight:700; color:#1e293b;">${m.name}</div>
-              <div style="font-size:11px; color:#64748b;">${m.email} ${m.usn ? `• ${m.usn}` : ''}</div>
+              <div style="font-weight:700; color:#1e293b;">${escapeHTML(m.name)}</div>
+              <div style="font-size:11px; color:#64748b;">${escapeHTML(m.email)} ${m.usn ? `• ${escapeHTML(m.usn)}` : ''}</div>
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-size:11px; font-weight:700; color:#15803d; background:#dcfce7; border:1px solid #86efac; padding:3px 10px; border-radius:12px;">✓ Confirmed</span>
-            ${isLeader && prog.status !== 'registered' ? `<button type="button" onclick="removeConfirmedTeamMember('${m.id}', this)" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">Remove</button>` : ''}
+            ${isLeader && prog.status !== 'registered' ? `<button type="button" onclick="removeConfirmedTeamMember('${escapeHTML(m.id)}', this)" style="padding:4px 8px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">Remove</button>` : ''}
           </div>
         </div>
       `).join('');
@@ -1088,17 +1088,17 @@ function openManageTeamModal(eventId, teamId) {
             <span>✉️</span>
             <div>
               <div style="font-weight:600; color:#374151;">
-                ${memName ? `<span style="color:#1e293b; font-weight:700;">${memName}</span> • ` : ''}<span>${email}</span>
+                ${memName ? `<span style="color:#1e293b; font-weight:700;">${escapeHTML(memName)}</span> • ` : ''}<span>${escapeHTML(email)}</span>
               </div>
               <div style="font-size:11px; color:#b45309;">⏳ Awaiting Teammate Confirmation</div>
             </div>
           </div>
           ${isLeader ? `
             <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-              <button type="button" onclick="resendTeamInviteEmail('${email}', this)" style="padding:4px 9px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔁 Resend Invite</button>
-              <button type="button" onclick="copyTeamInviteLink('${team.id}','${ev.id}','${escapeStr(memName||email)}','${escapeStr(memTok)}')" style="padding:4px 9px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">📋 Copy Link</button>
-              <button type="button" onclick="replaceTeamInvitePrompt('${email}', this)" style="padding:4px 9px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Replace</button>
-              <button type="button" onclick="removePendingTeamInvite('${email}', this)" style="padding:4px 9px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🗑️ Remove</button>
+              <button type="button" onclick="resendTeamInviteEmail('${escapeHTML(email)}', this)" style="padding:4px 9px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔁 Resend Invite</button>
+              <button type="button" onclick="copyTeamInviteLink('${escapeHTML(team.id)}','${escapeHTML(ev.id)}','${escapeHTML(escapeStr(memName||email))}','${escapeHTML(escapeStr(memTok))}')" style="padding:4px 9px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">📋 Copy Link</button>
+              <button type="button" onclick="replaceTeamInvitePrompt('${escapeHTML(email)}', this)" style="padding:4px 9px; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Replace</button>
+              <button type="button" onclick="removePendingTeamInvite('${escapeHTML(email)}', this)" style="padding:4px 9px; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🗑️ Remove</button>
             </div>
           ` : `<span style="font-size:10.5px; font-weight:700; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px;">⏳ Pending</span>`}
         </div>
@@ -1460,7 +1460,7 @@ function openPaymentModal(ev, teamObj = null, rejectionReason = null) {
   if (rejBanner) {
     if (rejectionReason) {
       rejBanner.style.display = 'block';
-      rejBanner.innerHTML = `<strong>❌ Previous Submission Rejected:</strong> ${rejectionReason}<br><span style="font-size:11.5px;">Please enter a valid Transaction ID / UTR and upload a clear payment screenshot.</span>`;
+      rejBanner.innerHTML = `<strong>❌ Previous Submission Rejected:</strong> ${escapeHTML(rejectionReason)}<br><span style="font-size:11.5px;">Please enter a valid Transaction ID / UTR and upload a clear payment screenshot.</span>`;
     } else {
       rejBanner.style.display = 'none';
       rejBanner.innerHTML = '';
@@ -1666,7 +1666,7 @@ function simulatePayment(method) {
     if (method === 'GPay') appLink = `gpay://upi/pay?pa=${upiId}&pn=${name}&am=${amount}&cu=INR`;
     else if (method === 'PhonePe') appLink = `phonepe://pay?pa=${upiId}&pn=${name}&am=${amount}&cu=INR`;
     window.location.href = appLink;
-    statusEl.innerHTML = `<div style="font-size:12.5px;color:#1d4ed8;background:#eff6ff;padding:8px 10px;border-radius:8px;border:1px solid #bfdbfe;">Opening ${method}... After paying, enter your Transaction ID / UTR and attach the screenshot below.</div>`;
+    statusEl.innerHTML = `<div style="font-size:12.5px;color:#1d4ed8;background:#eff6ff;padding:8px 10px;border-radius:8px;border:1px solid #bfdbfe;">Opening ${escapeHTML(method)}... After paying, enter your Transaction ID / UTR and attach the screenshot below.</div>`;
   } else {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiLink)}`;
     statusEl.innerHTML = `
@@ -1852,24 +1852,24 @@ function openEventModal(id) {
     teamInfoHtml = `
       <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:12px;padding:14px 16px;margin-bottom:1rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <span style="font-weight:800;color:#6d28d9;font-size:14px;">👥 Team: ${myTeam.name}</span>
+          <span style="font-weight:800;color:#6d28d9;font-size:14px;">👥 Team: ${escapeHTML(myTeam.name)}</span>
           <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;background:${isLeader ? '#7c3aed;color:#fff;' : '#ede9fe;color:#6d28d9;'}">${isLeader ? '👑 Team Leader' : (isConfirmed ? '👤 Confirmed Member' : '⏳ Invited Member')}</span>
         </div>
 
         <div style="font-size:12px;color:#4b5563;margin-bottom:10px;">
-          Leader: <strong>${myTeam.leaderName}</strong> &bull; Roster Status:
+          Leader: <strong>${escapeHTML(myTeam.leaderName)}</strong> &bull; Roster Status:
           <span style="font-weight:700;color:${pendingCount === 0 ? '#10b981' : '#f59e0b'}">${pendingCount === 0 ? `✅ All ${totalTeam} Members Confirmed` : `⏳ ${confirmedCount}/${totalTeam} Confirmed (${pendingCount} Pending)`}</span>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">
           <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e2e8f0;padding:6px 10px;border-radius:8px;font-size:12px;">
-            <span style="font-weight:600;color:#1e293b;">👑 ${myTeam.leaderName} <span style="font-size:11px;color:#64748b;">(${myTeam.leaderEmail})</span></span>
+            <span style="font-weight:600;color:#1e293b;">👑 ${escapeHTML(myTeam.leaderName)} <span style="font-size:11px;color:#64748b;">(${escapeHTML(myTeam.leaderEmail)})</span></span>
             <span style="font-size:10.5px;font-weight:700;color:#15803d;background:#dcfce7;border:1px solid #86efac;padding:2px 8px;border-radius:10px;">✓ Leader</span>
           </div>
 
           ${confirmedUsers.filter(u => u.id !== myTeam.leaderId).map(u => `
             <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e2e8f0;padding:6px 10px;border-radius:8px;font-size:12px;">
-              <span style="font-weight:600;color:#1e293b;">👤 ${u.name} <span style="font-size:11px;color:#64748b;">(${u.email})</span></span>
+              <span style="font-weight:600;color:#1e293b;">👤 ${escapeHTML(u.name)} <span style="font-size:11px;color:#64748b;">(${escapeHTML(u.email)})</span></span>
               <span style="font-size:10.5px;font-weight:700;color:#15803d;background:#dcfce7;border:1px solid #86efac;padding:2px 8px;border-radius:10px;">✓ Confirmed</span>
             </div>
           `).join('')}
@@ -1879,7 +1879,7 @@ function openEventModal(id) {
             const name = det?.name || '';
             return `
               <div style="display:flex;align-items:center;justify-content:space-between;background:#fffdf5;border:1px solid #fef08a;padding:6px 10px;border-radius:8px;font-size:12px;">
-                <span style="font-weight:500;color:#78350f;">✉️ ${name ? `<strong style="color:#1e293b;">${name}</strong> • ` : ''}${email}</span>
+                <span style="font-weight:500;color:#78350f;">✉️ ${name ? `<strong style="color:#1e293b;">${escapeHTML(name)}</strong> • ` : ''}${escapeHTML(email)}</span>
                 <span style="font-size:10.5px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fde68a;padding:2px 8px;border-radius:10px;">⏳ Invite Pending</span>
               </div>
             `;
@@ -1888,13 +1888,13 @@ function openEventModal(id) {
 
         ${isLeader ? `
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-            <button onclick="closeModal('modal-event-detail');openManageTeamModal('${ev.id}','${myTeam.id}')" style="padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11.5px;cursor:pointer;">
+            <button onclick="closeModal('modal-event-detail');openManageTeamModal('${escapeHTML(ev.id)}','${escapeHTML(myTeam.id)}')" style="padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:11.5px;cursor:pointer;">
               ✏️ Manage / Resend / Replace Team
             </button>
           </div>
         ` : (prog.isPendingInvite ? `
           <div style="margin-top:10px;">
-            <button onclick="window._pendingTeamInvite={teamId:'${myTeam.id}',eventId:'${ev.id}',token:'${myTeam.inviteToken||''}'};acceptTeamInvite(this);" style="padding:8px 14px;background:#15803d;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">
+            <button onclick="window._pendingTeamInvite={teamId:'${escapeHTML(myTeam.id)}',eventId:'${escapeHTML(ev.id)}',token:'${escapeHTML(myTeam.inviteToken||'')}'};acceptTeamInvite(this);" style="padding:8px 14px;background:#15803d;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">
               ✅ Confirm Attendance / Accept Invite
             </button>
           </div>
@@ -1940,12 +1940,12 @@ function openEventModal(id) {
   document.getElementById('modal-event-title').textContent = ev.name;
   document.getElementById('modal-event-body').innerHTML = `
     <div style="background:linear-gradient(135deg,#1e2a3d,#0f172a);border-radius:12px;height:160px;display:flex;align-items:center;justify-content:center;font-size:80px;margin-bottom:1.25rem;position:relative;overflow:hidden;">
-      ${ev.poster?`<img src="${ev.poster}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">`:`<span>${ev.emoji||'🎓'}</span>`}
+      ${ev.poster?`<img src="${sanitizeUrl(ev.poster)}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">`:`<span>${escapeHTML(ev.emoji||'🎓')}</span>`}
     </div>
     ${user?.type === 'student' ? `<div style="margin-bottom:1rem;">${renderRegistrationStepper(ev, prog)}</div>` : ''}
     ${prog.status === 'rejected' && prog.rejectionReason ? `
       <div style="background:#fef2f2;border:1.5px solid #fecaca;color:#991b1b;padding:10px 14px;border-radius:10px;font-size:12.5px;margin-bottom:1rem;">
-        <strong>❌ Registration / Payment Rejected:</strong> ${prog.rejectionReason}
+        <strong>❌ Registration / Payment Rejected:</strong> ${escapeHTML(prog.rejectionReason)}
       </div>` : ''}
     ${teamInfoHtml}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem;">
@@ -1962,17 +1962,17 @@ function openEventModal(id) {
         <div style="font-size:11.5px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
           📝 Event Description
         </div>
-        <p style="font-size:13.5px;color:#1e293b;line-height:1.75;white-space:pre-line;margin:0;font-weight:500;">${ev.desc}</p>
+        <p style="font-size:13.5px;color:#1e293b;line-height:1.75;white-space:pre-line;margin:0;font-weight:500;">${escapeHTML(ev.desc)}</p>
       </div>`:''}
-    ${ev.speakers?`<div style="font-size:12px;color:#6b7280;margin-bottom:10px;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;">🎙️ Speakers: <strong style="color:#111827;">${ev.speakers}</strong></div>`:''}
+    ${ev.speakers?`<div style="font-size:12px;color:#6b7280;margin-bottom:10px;background:#f8fafc;padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;">🎙️ Speakers: <strong style="color:#111827;">${escapeHTML(ev.speakers)}</strong></div>`:''}
     ${ev.rules?`
       <div style="background:#fef2f2;border:1.5px solid #fecaca;border-left:5px solid #ef4444;border-radius:10px;padding:14px 16px;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
         <div style="font-size:11.5px;font-weight:800;color:#b91c1c;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
           ⚖️ Important Rules &amp; Guidelines
         </div>
-        <p style="font-size:13.5px;color:#1e293b;line-height:1.75;white-space:pre-line;margin:0;font-weight:500;">${ev.rules}</p>
+        <p style="font-size:13.5px;color:#1e293b;line-height:1.75;white-space:pre-line;margin:0;font-weight:500;">${escapeHTML(ev.rules)}</p>
       </div>`:''}
-    <div style="font-size:12px;color:#6b7280;margin-bottom:1rem;">Organized by: <strong style="color:#111827;">${ev.club}</strong></div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:1rem;">Organized by: <strong style="color:#111827;">${escapeHTML(ev.club)}</strong></div>
     ${user?.type === 'student' ? `<div style="display:flex;gap:10px;margin-top:6px;">${modalActionHtml}</div>` : ''}
   `;
   openModal('modal-event-detail');
@@ -1980,7 +1980,7 @@ function openEventModal(id) {
 
 function detailChip(icon, label, val) {
   return `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;">
-    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;font-weight:700;margin-bottom:3px;">${icon} ${label}</div>
-    <div style="font-size:13px;color:#111827;font-weight:600;">${val}</div>
+    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;font-weight:700;margin-bottom:3px;">${escapeHTML(icon)} ${escapeHTML(label)}</div>
+    <div style="font-size:13px;color:#111827;font-weight:600;">${escapeHTML(val)}</div>
   </div>`;
 }

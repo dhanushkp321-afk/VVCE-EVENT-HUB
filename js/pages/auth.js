@@ -115,14 +115,9 @@ async function handleLogin() {
     let isValid = false;
     if (matchedAuthority.password_hash && matchedAuthority.salt) {
       isValid = await verifyPasswordWithSalt(pass, matchedAuthority.password_hash, matchedAuthority.salt);
-    } else if (matchedAuthority.pass) {
-      isValid = (pass === matchedAuthority.pass);
-    } else if (matchedAuthority.id === 'auth_dean_sw' && (pass === 'deanwellfair@vvce' || pass === 'demo1234')) {
-      isValid = true;
     }
 
     if (isValid) {
-      // Find or build an authority user object for state
       let users = getDB('vvce_users');
       let authUser = users.find(u => u.email.toLowerCase() === email && u.type === 'authority');
       if (!authUser) {
@@ -131,14 +126,12 @@ async function handleLogin() {
           type: 'authority',
           name: matchedAuthority.name,
           email: matchedAuthority.email,
-          pass: pass,
+          pass: null,
           designation: matchedAuthority.designation || 'Approving Authority',
           dept: 'Administration',
           phone: '',
           notifs: []
         };
-        users.push(authUser);
-        setDB('vvce_users', users);
       }
 
       // Unlock authority portal session directly
@@ -159,31 +152,58 @@ async function handleLogin() {
     }
   }
 
-  // 2. Standard user login check (Students, Club Admins, Faculty)
+  // 2. Standard user login check via Supabase Auth / server-side RPC (never bulk-download passwords)
   let users = getDB('vvce_users');
-  let user = users.find(u => u.email.toLowerCase() === email && u.pass === pass);
+  let user = null;
+  const sb = getSupabaseClient();
 
-  // Fallback to direct Supabase lookup
-  if (!user) {
-    const sb = getSupabaseClient();
-    if (sb && typeof sb.from === 'function') {
-      try {
-        const { data } = await sb.from('users').select('*').ilike('email', email);
-        if (data && data.length > 0) {
-          const remoteUser = mapUser(data[0]);
-          if (remoteUser.pass === pass) {
-            user = remoteUser;
-            if (!users.some(u => u.id === user.id)) {
-              users.push(user);
-              SUPABASE_CACHE.vvce_users = users;
-              try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch(e){}
-            }
-          }
+  if (sb && sb.auth) {
+    try {
+      const { data: authData, error: authErr } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (!authErr && authData?.user) {
+        const { data: rows } = await sb.from('users').select('*').ilike('email', email).limit(1);
+        if (rows && rows.length > 0) {
+          user = mapUser(rows[0]);
         }
-      } catch (err) {
-        console.error('Supabase direct login check failed:', err);
       }
+    } catch (err) {
+      console.warn('Supabase Auth password check failed, checking RPC fallback:', err);
     }
+  }
+
+  // Fallback for Club Admins / Faculty / legacy accounts verified via secure RPC or single-row check
+  if (!user && sb && typeof sb.rpc === 'function') {
+    try {
+      const { data: rpcRows, error: rpcErr } = await sb.rpc('verify_user_credentials', {
+        p_email: email,
+        p_pass: pass
+      });
+      if (!rpcErr && Array.isArray(rpcRows) && rpcRows.length > 0) {
+        user = mapUser(rpcRows[0]);
+      } else if (rpcErr && (rpcErr.code === '42883' || rpcErr.code === 'PGRST202' || String(rpcErr.message || '').includes('verify_user_credentials'))) {
+        // Pre-migration compatibility fallback while migration_phase3 SQL is pending
+        const { data: rows } = await sb.from('users').select('*').ilike('email', email).limit(1);
+        if (rows && rows.length > 0) {
+          const candidate = rows[0];
+          const ok = (candidate.password_hash && candidate.salt)
+            ? await verifyPasswordWithSalt(pass, candidate.password_hash, candidate.salt)
+            : (candidate.pass && candidate.pass === pass);
+          if (ok) user = mapUser(candidate);
+        }
+      }
+    } catch (err) {
+      console.error('Credential verification lookup failed:', err);
+    }
+  }
+
+  if (user) {
+    if (!users.some(u => u.id === user.id)) {
+      users.push(user);
+    } else {
+      users = users.map(u => u.id === user.id ? user : u);
+    }
+    SUPABASE_CACHE.vvce_users = users;
+    if (typeof safeLocalStorageSet === 'function') safeLocalStorageSet('vvce_users', users);
   }
 
   if (!user) {
@@ -196,56 +216,12 @@ async function handleLogin() {
     return;
   }
 
-  launchApp(user);
+  await launchApp(user);
 }
 
-/* Quick demo login */
+/* Quick demo login disabled in hardened production mode */
 function quickLogin(role) {
-  const maps = {
-    student:   { email: 'akash@vvce.ac.in', pass: 'demo1234' },
-    admin:     { email: 'harshill@vvce.ac.in', pass: 'demo1234' },
-    authority: { email: 'dean.sw@vvce.ac.in', pass: 'demo1234' },
-    dean:      { email: 'dean.sw@vvce.ac.in', pass: 'demo1234' }
-  };
-
-  const target = maps[role] || maps.student;
-  const emailInput = document.getElementById('login-email');
-  const passInput  = document.getElementById('login-pass');
-  if (emailInput) emailInput.value = target.email;
-  if (passInput) passInput.value  = target.pass;
-
-  // If logging in as Approving Authority demo, directly authenticate & unlock authority portal
-  if (role === 'authority' || role === 'dean') {
-    let users = getDB('vvce_users');
-    let authUser = users.find(u => u.email.toLowerCase() === target.email.toLowerCase() && u.type === 'authority');
-    if (!authUser) {
-      authUser = {
-        id: 'u3',
-        type: 'authority',
-        name: 'Dr. Priya Nair',
-        email: 'dean.sw@vvce.ac.in',
-        pass: 'demo1234',
-        designation: 'Dean Student Welfare',
-        dept: 'Student Welfare',
-        phone: '+91 98765 43212',
-        notifs: []
-      };
-      users.push(authUser);
-      setDB('vvce_users', users);
-    }
-
-    // Auto-unlock demo authority credentials
-    STATE.authorityUnlocked = true;
-    STATE.currentAuthorityId = 'auth_dean_sw';
-    STATE.currentAuthorityName = 'Dean Student Welfare';
-
-    launchApp(authUser);
-    showPage('authority-portal');
-    toast('Logged in as Approving Authority (Dean Student Welfare) ✓', 'success');
-    return;
-  }
-
-  handleLogin();
+  showAuthMsg('Quick demo bypass is disabled for security. Please sign in with your @vvce.ac.in credentials.', 'warning');
 }
 
 
@@ -1473,7 +1449,7 @@ async function googleLoginByEmail(email, name = '', photo = null, googleId = nul
     users.push(user);
   }
   SUPABASE_CACHE.vvce_users = users;
-  try { localStorage.setItem('vvce_users', JSON.stringify(users)); } catch (e) {}
+  if (typeof safeLocalStorageSet === 'function') safeLocalStorageSet('vvce_users', users);
 
   if (sb && typeof sb.from === 'function' && Object.keys(profileUpdates).length > 0) {
     try {
@@ -1486,7 +1462,7 @@ async function googleLoginByEmail(email, name = '', photo = null, googleId = nul
   }
 
   cleanAuthUrlParams();
-  launchApp(user);
+  await launchApp(user);
 }
 
 

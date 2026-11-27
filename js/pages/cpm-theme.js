@@ -56,7 +56,7 @@ async function initDynamicSiteConfig() {
       };
       bannerEl.style.background = bgMap[cfg.banner.type] || bgMap.warning;
       bannerEl.style.color = '#ffffff';
-      bannerEl.innerHTML = `<span>${cfg.banner.text}</span>`;
+      bannerEl.innerHTML = `<span>${escapeHTML(cfg.banner.text)}</span>`;
       bannerEl.style.display = 'flex';
     } else if (bannerEl) {
       bannerEl.style.display = 'none';
@@ -67,12 +67,12 @@ async function initDynamicSiteConfig() {
 
     // 5. Dynamic Media Assets
     if (cfg.media && cfg.media.signinBgUrl) {
-      document.body.style.backgroundImage = `url("${cfg.media.signinBgUrl}")`;
+      document.body.style.backgroundImage = `url("${sanitizeUrl(cfg.media.signinBgUrl)}")`;
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundAttachment = 'fixed';
       document.body.classList.add('has-theme-bg');
     } else if (cfg.media && cfg.media.bgUrl) {
-      document.body.style.backgroundImage = `url("${cfg.media.bgUrl}")`;
+      document.body.style.backgroundImage = `url("${sanitizeUrl(cfg.media.bgUrl)}")`;
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundAttachment = 'fixed';
       document.body.classList.add('has-theme-bg');
@@ -207,7 +207,7 @@ function applyCelebrationTheme(theme) {
     if (theme.showGreeting && theme.greeting) {
       authRibbon.style.background = `linear-gradient(90deg, ${primary}, ${secondary})`;
       authRibbon.style.color = '#ffffff';
-      authRibbon.innerHTML = `<span>${theme.greeting}</span>`;
+      authRibbon.innerHTML = `<span>${escapeHTML(theme.greeting)}</span>`;
       authRibbon.style.display = 'flex';
     } else {
       authRibbon.style.display = 'none';

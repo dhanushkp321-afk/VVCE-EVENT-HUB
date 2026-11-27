@@ -27,14 +27,14 @@ function renderClubsDirectoryPage(selectedClubName = null) {
         </button>
         <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.5rem; display:flex; gap:1.5rem; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex-wrap:wrap;">
           <div style="width:64px; height:64px; border-radius:12px; background:linear-gradient(135deg, #4f46e5, #7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700;">
-            ${clubUser?.clubLogo ? `<img src="${clubUser.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '🏛️'}
+            ${clubUser?.clubLogo ? `<img src="${sanitizeUrl(clubUser.clubLogo)}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : '🏛️'}
           </div>
           <div style="flex:1;">
-            <h2 style="font-family:'Outfit',sans-serif; font-size:1.5rem; color:#1e293b; margin-bottom:4px;">${selectedClubName}</h2>
+            <h2 style="font-family:'Outfit',sans-serif; font-size:1.5rem; color:#1e293b; margin-bottom:4px;">${escapeHTML(selectedClubName)}</h2>
             <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:#64748b;">
-              <span><strong>Domain:</strong> ${clubUser?.domain || 'Multi-disciplinary'}</span>
+              <span><strong>Domain:</strong> ${escapeHTML(clubUser?.domain || 'Multi-disciplinary')}</span>
               <span>•</span>
-              <span><strong>Faculty Coordinator:</strong> ${clubUser?.faculty || 'Faculty in Charge'}</span>
+              <span><strong>Faculty Coordinator:</strong> ${escapeHTML(clubUser?.faculty || 'Faculty in Charge')}</span>
               <span>•</span>
               <span><strong>Total Events:</strong> ${clubEvents.length}</span>
             </div>
@@ -43,12 +43,12 @@ function renderClubsDirectoryPage(selectedClubName = null) {
       </div>
 
       <div style="display:flex; gap:10px; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
-        <button id="tab-club-up" class="btn" style="background:#4f46e5; color:#fff; padding:6px 14px; font-size:13px;" onclick="switchClubTab('upcoming', '${selectedClubName.replace(/'/g, "\\'")}')">Upcoming Events (${upcoming.length})</button>
-        <button id="tab-club-past" class="btn" style="background:#f1f5f9; color:#475569; padding:6px 14px; font-size:13px;" onclick="switchClubTab('past', '${selectedClubName.replace(/'/g, "\\'")}')">Past & Completed (${past.length})</button>
+        <button id="tab-club-up" class="btn" style="background:#4f46e5; color:#fff; padding:6px 14px; font-size:13px;" onclick="switchClubTab('upcoming', '${escapeHTML(selectedClubName.replace(/'/g, "\\'"))}')">Upcoming Events (${upcoming.length})</button>
+        <button id="tab-club-past" class="btn" style="background:#f1f5f9; color:#475569; padding:6px 14px; font-size:13px;" onclick="switchClubTab('past', '${escapeHTML(selectedClubName.replace(/'/g, "\\'"))}')">Past & Completed (${past.length})</button>
       </div>
 
       <div class="event-grid" id="club-events-grid">
-        ${upcoming.length > 0 ? upcoming.map(e => eventCard(e)).join('') : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><div style="font-size:32px;">🗓️</div><p style="color:#64748b; margin-top:8px;">No upcoming events scheduled for ${selectedClubName}.</p></div>`}
+        ${upcoming.length > 0 ? upcoming.map(e => eventCard(e)).join('') : `<div class="empty-state" style="grid-column:1/-1; padding:3rem; text-align:center;"><div style="font-size:32px;">🗓️</div><p style="color:#64748b; margin-top:8px;">No upcoming events scheduled for ${escapeHTML(selectedClubName)}.</p></div>`}
       </div>
     `;
     return;
@@ -80,19 +80,19 @@ function renderClubsDirectoryPage(selectedClubName = null) {
       ${clubAdmins.map(c => {
         const cEvents = allEvents.filter(e => (e.club || '').toLowerCase() === c.clubName.toLowerCase());
         return `
-          <div class="event-card" style="cursor:pointer;" onclick="renderClubsDirectoryPage('${c.clubName.replace(/'/g, "\\'")}')">
+          <div class="event-card" style="cursor:pointer;" onclick="renderClubsDirectoryPage('${escapeHTML(c.clubName.replace(/'/g, "\\'"))}')">
             <div style="padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; height:100%;">
               <div>
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
                   <div style="width:48px; height:48px; border-radius:10px; background:linear-gradient(135deg,#e0e7ff,#c7d2fe); color:#4338ca; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700;">
-                    ${c.clubLogo ? `<img src="${c.clubLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">` : '🏛️'}
+                    ${c.clubLogo ? `<img src="${sanitizeUrl(c.clubLogo)}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">` : '🏛️'}
                   </div>
-                  <span class="badge" style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; font-size:11px; padding:3px 8px; border-radius:6px; font-weight:600;">${c.domain || 'Club'}</span>
+                  <span class="badge" style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; font-size:11px; padding:3px 8px; border-radius:6px; font-weight:600;">${escapeHTML(c.domain || 'Club')}</span>
                 </div>
-                <h3 style="font-family:'Outfit',sans-serif; font-size:1.15rem; color:#0f172a; margin-bottom:6px;">${c.clubName}</h3>
-                <p style="font-size:12px; color:#64748b; margin-bottom:12px;">${c.desc ? c.desc.slice(0, 95) + '...' : 'Official student chapter at Vidyavardhaka College of Engineering.'}</p>
+                <h3 style="font-family:'Outfit',sans-serif; font-size:1.15rem; color:#0f172a; margin-bottom:6px;">${escapeHTML(c.clubName)}</h3>
+                <p style="font-size:12px; color:#64748b; margin-bottom:12px;">${c.desc ? escapeHTML(c.desc.slice(0, 95)) + '...' : 'Official student chapter at Vidyavardhaka College of Engineering.'}</p>
                 <div style="font-size:12px; color:#475569; display:flex; flex-direction:column; gap:4px; margin-bottom:14px;">
-                  <span>👤 <strong>Coordinator:</strong> ${c.faculty || 'Faculty in Charge'}</span>
+                  <span>👤 <strong>Coordinator:</strong> ${escapeHTML(c.faculty || 'Faculty in Charge')}</span>
                   <span>📅 <strong>Events Hosted:</strong> ${cEvents.length} events</span>
                 </div>
               </div>

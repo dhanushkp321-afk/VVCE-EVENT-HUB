@@ -21,20 +21,20 @@ function renderManageEventsPage() {
         const clash = isSlotBlockingEvent(e) ? allScheduled.find(o => doEventSlotsOverlap(e, o)) : null;
         return `
         <div class="ev-row" style="${clash ? 'border-left: 4.5px solid #ef4444; background: #fff8f8; box-shadow: 0 2px 8px rgba(239,68,68,0.1);' : ''}">
-          <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
+          <span class="ev-row-emoji">${escapeHTML(e.emoji||'🎓')}</span>
           <div class="ev-row-info">
             <div class="ev-row-name">
-              ${clash ? '<span style="color:#ef4444; font-weight:800;">⚠️ </span>' : ''}${e.name}
+              ${clash ? '<span style="color:#ef4444; font-weight:800;">⚠️ </span>' : ''}${escapeHTML(e.name)}
             </div>
-            <div class="ev-row-meta">${formatDate(e.date)} • ${formatEventTimeSlot(e)} • ${e.venue} • ${e.isTeamEvent ? `👥 ${(e.teams||[]).length} teams (${e.regCount||0}/${e.maxParticipants})` : `👤 ${e.regCount||0}/${e.maxParticipants} registered`}</div>
-            ${clash ? `<div style="font-size:11px;font-weight:700;color:#dc2626;background:#fee2e2;border:1px solid #fca5a5;padding:3px 8px;border-radius:6px;display:inline-block;margin-top:4px;">⚡ Slot Clash with "${clash.name}" (${clash.club}) on ${formatDate(e.date)} (${formatEventTimeSlot(clash)}) at ${e.venue}</div>` : ''}
-            ${e.rejReason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">Rejected: ${e.rejReason}</div>`:''}
+            <div class="ev-row-meta">${escapeHTML(formatDate(e.date))} • ${escapeHTML(formatEventTimeSlot(e))} • ${escapeHTML(e.venue)} • ${e.isTeamEvent ? `👥 ${(e.teams||[]).length} teams (${e.regCount||0}/${e.maxParticipants})` : `👤 ${e.regCount||0}/${e.maxParticipants} registered`}</div>
+            ${clash ? `<div style="font-size:11px;font-weight:700;color:#dc2626;background:#fee2e2;border:1px solid #fca5a5;padding:3px 8px;border-radius:6px;display:inline-block;margin-top:4px;">⚡ Slot Clash with "${escapeHTML(clash.name)}" (${escapeHTML(clash.club)}) on ${escapeHTML(formatDate(e.date))} (${escapeHTML(formatEventTimeSlot(clash))}) at ${escapeHTML(e.venue)}</div>` : ''}
+            ${e.rejReason?`<div style="font-size:11px;color:#dc2626;margin-top:3px;">Rejected: ${escapeHTML(e.rejReason)}</div>`:''}
           </div>
-          <span class="badge ${clash ? 'badge-red' : (e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red')}">${clash ? '⚠️ CLASH' : e.status}</span>
+          <span class="badge ${clash ? 'badge-red' : (e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':e.status==='draft'?'badge-gray':'badge-red')}">${clash ? '⚠️ CLASH' : escapeHTML(e.status)}</span>
           <div class="ev-row-acts">
-            <button class="btn btn-outline" onclick="openEventModal('${e.id}')">View</button>
-            ${(e.status==='draft'||e.status==='pending'||e.status==='rejected')?`<button class="btn btn-outline" onclick="editClubEvent('${e.id}')">Edit</button>`:''}
-            ${e.status==='draft'?`<button class="btn btn-gold" onclick="submitDraftEvent('${e.id}')">Submit</button>`:''}
+            <button class="btn btn-outline" onclick="openEventModal('${escapeHTML(e.id)}')">View</button>
+            ${(e.status==='draft'||e.status==='pending'||e.status==='rejected')?`<button class="btn btn-outline" onclick="editClubEvent('${escapeHTML(e.id)}')">Edit</button>`:''}
+            ${e.status==='draft'?`<button class="btn btn-gold" onclick="submitDraftEvent('${escapeHTML(e.id)}')">Submit</button>`:''}
           </div>
         </div>`;
       }).join('')
@@ -88,10 +88,9 @@ async function submitDraftEvent(id) {
   users.filter(u => u.type === 'authority' && (
     !authorityId || u.id === authorityId || (authEmail && (u.email || '').toLowerCase() === authEmail)
   )).forEach(u => {
-    if (!u.notifs) u.notifs = [];
-    u.notifs.push({ id: genId('n'), msg: `New event "${ev.name}" by ${ev.club} needs your approval.`, icon: '📋', time: 'Just now', timestamp: Date.now(), read: false });
+    const nObj = { id: genId('n'), msg: `New event "${ev.name}" by ${ev.club} needs your approval.`, icon: '📋', time: 'Just now', timestamp: Date.now(), read: false };
+    if (typeof pushUserNotifAtomic === 'function') pushUserNotifAtomic(u.id, nObj);
   });
-  await setDB('vvce_users', users);
 
   toast(`Event "${ev.name}" submitted to ${authorityName} for approval! ✅`, 'success');
   showPage('admin-dashboard');

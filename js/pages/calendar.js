@@ -151,20 +151,20 @@ function showCalDateEvents(ds) {
     html += acad.map(a => `
       <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:${a.type==='holiday'?'#fef2f2':'#fffbeb'};border:1px solid ${a.type==='holiday'?'#fecaca':'#fde68a'};border-radius:8px;margin-bottom:8px;font-size:13px;font-weight:700;color:${a.type==='holiday'?'#dc2626':'#b45309'};">
         <span>${a.type==='holiday'?'🏖️ Holiday:':'📝 Exam:'}</span>
-        <span>${a.desc || a.type}</span>
+        <span>${escapeHTML(a.desc || a.type)}</span>
       </div>
     `).join('');
   }
 
   if (events.length) {
     html += events.map(e=>`
-      <div class="sched-row" onclick="openEventModal('${e.id}')" style="cursor:pointer; margin-bottom:8px;">
-        <span class="sched-emoji">${e.emoji||'🎓'}</span>
+      <div class="sched-row" onclick="openEventModal('${escapeHTML(e.id)}')" style="cursor:pointer; margin-bottom:8px;">
+        <span class="sched-emoji">${escapeHTML(e.emoji||'🎓')}</span>
         <div class="sched-info">
-          <div class="sched-name">${e.name}</div>
-          <div class="sched-meta">${formatTime(e.time)} • ${e.venue} • ${e.club}</div>
+          <div class="sched-name">${escapeHTML(e.name)}</div>
+          <div class="sched-meta">${escapeHTML(formatTime(e.time))} • ${escapeHTML(e.venue)} • ${escapeHTML(e.club)}</div>
         </div>
-        <span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${e.status}</span>
+        <span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${escapeHTML(e.status)}</span>
       </div>`).join('');
   }
 
@@ -190,8 +190,8 @@ function renderAcadSchedule() {
   panel.innerHTML = upcoming.map(s=>`
     <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;">
       <div style="font-size:18px;">${s.type==='holiday'?'🏖️':s.type==='exam'?'📝':'🎓'}</div>
-      <div style="flex:1;font-size:13px;font-weight:700;color:#111827;">${s.label}</div>
-      <div style="font-size:11px;color:#6b7280;">${formatDate(s.date)}</div>
+      <div style="flex:1;font-size:13px;font-weight:700;color:#111827;">${escapeHTML(s.label)}</div>
+      <div style="font-size:11px;color:#6b7280;">${escapeHTML(formatDate(s.date))}</div>
     </div>`).join('');
 }
 

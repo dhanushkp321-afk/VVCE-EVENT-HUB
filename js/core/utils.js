@@ -7,6 +7,22 @@
    UTILITY FUNCTIONS
 ───────────────────────────────────────────────────────────────*/
 function genId(prefix = 'id') { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
+function escapeHTML(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function sanitizeUrl(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  if (/^(javascript|vbscript):/i.test(raw)) return '';
+  if (/^data:/i.test(raw) && !/^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(raw)) return '';
+  return raw;
+}
 function titleCase(str) { if (!str) return ''; return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()); }
 function formatDate(d) {
   if (!d) return '—';

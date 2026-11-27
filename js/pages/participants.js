@@ -55,36 +55,36 @@ function renderParticipantsPage() {
           <div style="flex:1;min-width:220px;">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
               <span style="font-weight:800;color:#fbbf24;font-size:14px;">
-                ${isGroup ? `👥 Team: ${team?.name || p.teamName || p.teamData?.teamName || 'Team'}` : `👤 ${titleCase(displayName)}`}
+                ${isGroup ? `👥 Team: ${escapeHTML(team?.name || p.teamName || p.teamData?.teamName || 'Team')}` : `👤 ${escapeHTML(titleCase(displayName))}`}
               </span>
               <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:${isGroup ? 'rgba(139,92,246,0.22)' : 'rgba(59,130,246,0.22)'};color:${isGroup ? '#ddd6fe' : '#bfdbfe'};">
                 ${isGroup ? `Group (${rosterMembers.length} members)` : 'Solo'}
               </span>
               ${(ev.fee > 0 || ev.needsPayment)
-                ? `<span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.2);color:#fde68a;">💳 ₹${ev.fee || 0}</span>`
+                ? `<span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.2);color:#fde68a;">💳 ₹${escapeHTML(ev.fee || 0)}</span>`
                 : `<span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,0.2);color:#a7f3d0;">🆓 Free Entry</span>`
               }
             </div>
             <div style="font-size:12px;color:#e2e8f0;margin-bottom:3px;">
-              <strong>${ev.name}</strong> &bull; Lead / Registrant: ${titleCase(displayName)} (${displayId})
+              <strong>${escapeHTML(ev.name)}</strong> &bull; Lead / Registrant: ${escapeHTML(titleCase(displayName))} (${escapeHTML(displayId)})
             </div>
             ${isGroup ? `
               <div style="font-size:11.5px;color:#cbd5e1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 10px;margin:6px 0;">
-                <strong style="color:#a5b4fc;">Confirmed Team Roster:</strong> ${rosterMembers.join(', ')}
+                <strong style="color:#a5b4fc;">Confirmed Team Roster:</strong> ${rosterMembers.map(r => escapeHTML(r)).join(', ')}
               </div>` : ''}
-            ${utrText ? `<div style="font-size:11.5px;color:#93c5fd;margin-top:3px;">🔢 <strong>UTR / Transaction ID:</strong> <code style="background:rgba(15,23,42,0.7);padding:2px 6px;border-radius:4px;color:#f8fafc;">${utrText}</code></div>` : ''}
-            <div style="font-size:11px;color:#9ca3af;margin-top:3px;">Submitted: ${formatDate(submittedStr.split('T')[0])}</div>
+            ${utrText ? `<div style="font-size:11.5px;color:#93c5fd;margin-top:3px;">🔢 <strong>UTR / Transaction ID:</strong> <code style="background:rgba(15,23,42,0.7);padding:2px 6px;border-radius:4px;color:#f8fafc;">${escapeHTML(utrText)}</code></div>` : ''}
+            <div style="font-size:11px;color:#9ca3af;margin-top:3px;">Submitted: ${escapeHTML(formatDate(submittedStr.split('T')[0]))}</div>
           </div>
 
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;align-self:center;">
             ${hasScreenshot
-              ? `<button type="button" onclick="viewScreenshot('${screenshotKey}')" style="padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+              ? `<button type="button" onclick="viewScreenshot('${escapeHTML(screenshotKey)}')" style="padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
                   📸 View Payment Proof
                  </button>`
               : ((ev.fee > 0 || ev.needsPayment) ? `<span style="padding:8px 12px;background:#374151;color:#9ca3af;border-radius:8px;font-size:11px;">No screenshot</span>` : '')
             }
-            <button type="button" onclick="approvePayment('${ev.id}','${p.uid}','${teamIdArg}',this)" style="padding:8px 14px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;">✅ Approve &amp; Confirm Registration</button>
-            <button type="button" onclick="rejectPayment('${ev.id}','${p.uid}','${teamIdArg}',this)" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;">✕ Reject</button>
+            <button type="button" onclick="approvePayment('${escapeHTML(ev.id)}','${escapeHTML(p.uid)}','${escapeHTML(teamIdArg)}',this)" style="padding:8px 14px;background:#10b981;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;">✅ Approve &amp; Confirm Registration</button>
+            <button type="button" onclick="rejectPayment('${escapeHTML(ev.id)}','${escapeHTML(p.uid)}','${escapeHTML(teamIdArg)}',this)" style="padding:8px 12px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:11.5px;cursor:pointer;">✕ Reject</button>
           </div>
         </div>`;
     });
@@ -100,7 +100,7 @@ function renderParticipantsPage() {
     </div>
     <div class="filter-row">
       <select class="filter-sel" id="part-ev-filter" onchange="renderParticipantTable()">
-        ${myEvents.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
+        ${myEvents.map(e => `<option value="${escapeHTML(e.id)}">${escapeHTML(e.name)}</option>`).join('')}
       </select>
       <input class="search-inp" id="part-search" placeholder="🔍 Search participant…" oninput="renderParticipantTable()">
     </div>
@@ -320,16 +320,16 @@ function renderParticipantTable() {
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
               <span style="font-size:20px;">🏆</span>
               <div style="flex:1;">
-                <div style="font-weight:800; color:#e2e8f0; font-size:15px;">${team.name}</div>
-                <div style="font-size:11px; color:#6b7280;">Lead: ${team.leaderName} &bull; ${members.length} confirmed, ${team.pendingEmails.length} pending</div>
+                <div style="font-weight:800; color:#e2e8f0; font-size:15px;">${escapeHTML(team.name)}</div>
+                <div style="font-size:11px; color:#6b7280;">Lead: ${escapeHTML(team.leaderName)} &bull; ${members.length} confirmed, ${team.pendingEmails.length} pending</div>
               </div>
               <span style="font-size:11px; font-weight:600; color:#10b981; background:rgba(16,185,129,0.1); padding:3px 10px; border-radius:20px;">Team ${ti+1}</span>
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:8px;">
               ${members.map(m => `
                 <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:5px 10px; font-size:12px; color:#cbd5e1;">
-                  ${m.id === team.leaderId ? '⭐' : '👤'} <span>${titleCase(m.name)}</span>
-                  <span style="color:#6b7280; font-size:11px;">${m.usn||m.email}</span>
+                  ${m.id === team.leaderId ? '⭐' : '👤'} <span>${escapeHTML(titleCase(m.name))}</span>
+                  <span style="color:#6b7280; font-size:11px;">${escapeHTML(m.usn||m.email)}</span>
                   <span style="font-size:10px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); padding:1px 6px; border-radius:10px;">✓ Added</span>
                 </div>`).join('')}
               ${team.pendingEmails.map(email => {
@@ -337,7 +337,7 @@ function renderParticipantTable() {
                 const name = det?.name || '';
                 return `
                 <div style="display:flex; align-items:center; gap:6px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); border-radius:8px; padding:5px 10px; font-size:12px; color:#fbbf24;">
-                  ✉️ <span>${name ? `<strong>${name}</strong> • ` : ''}${email}</span>
+                  ✉️ <span>${name ? `<strong>${escapeHTML(name)}</strong> • ` : ''}${escapeHTML(email)}</span>
                   <span style="font-size:10px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); padding:1px 6px; border-radius:10px;">⏳ Pending</span>
                 </div>`;
               }).join('')}
@@ -396,14 +396,14 @@ function renderParticipantTable() {
             return `
             <tr>
               <td>${i+1}</td>
-              <td><div class="td-name">${titleCase(p.name)}</div></td>
-              <td>${p.usn||'—'}</td>
-              <td>${p.branch||'—'} • ${p.sem||'—'}</td>
-              <td>${p.phone||'—'}</td>
-              <td>${p.email}</td>
+              <td><div class="td-name">${escapeHTML(titleCase(p.name))}</div></td>
+              <td>${escapeHTML(p.usn||'—')}</td>
+              <td>${escapeHTML(p.branch||'—')} • ${escapeHTML(p.sem||'—')}</td>
+              <td>${escapeHTML(p.phone||'—')}</td>
+              <td>${escapeHTML(p.email)}</td>
               <td>
                 <button
-                  onclick="toggleAttendance('${evId}','${p.id}')"
+                  onclick="toggleAttendance('${escapeHTML(evId)}','${escapeHTML(p.id)}')"
                   style="padding:5px 14px;border-radius:20px;border:1px solid ${isAtt?'rgba(16,185,129,0.35)':'rgba(239,68,68,0.3)'};
                   background:${isAtt?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.1)'};
                   color:${isAtt?'#10b981':'#ef4444'};cursor:pointer;font-size:12px;font-weight:700;
@@ -453,25 +453,33 @@ window.toggleAttendance = async function(eventId, userId) {
 };
 
 async function applyAttendanceRewards(eventId, userId, attended, ev) {
-  let certs = getDB('vvce_certs');
-  /* Remove any existing auto-cert for this user + event first (deduplication) */
   const targetCertId = `ac_${eventId}_${userId}`;
-  certs = certs.filter(c => c.id !== targetCertId);
-  if (attended) {
-    certs.push({
-      id: `ac_${eventId}_${userId}`,  // Deterministic ID prevents duplicates on re-award
-      userId,
-      title: ev.name,
-      issuer: ev.club || 'VVCE',
-      date: ev.date,
-      position: 'Participant',
-      type: 'participation',
-      verified: true,
-      autoGenerated: true,
-      eventId
-    });
+  const certObj = {
+    id: targetCertId,
+    userId,
+    title: ev.name,
+    issuer: ev.club || 'VVCE',
+    date: ev.date,
+    position: 'Participant',
+    type: 'participation',
+    verified: true,
+    autoGenerated: true,
+    eventId
+  };
+
+  if (typeof syncSingleCertToSupabase === 'function') {
+    await syncSingleCertToSupabase(certObj, !attended);
   }
-  await setDB('vvce_certs', certs); // Save cert changes
+  const sb = getSupabaseClient();
+  if (sb && typeof sb.rpc === 'function') {
+    try {
+      await sb.rpc('toggle_attendance_atomic', {
+        p_event_id: eventId,
+        p_user_id: userId,
+        p_attended: Boolean(attended)
+      });
+    } catch (_) {}
+  }
 }
 
 

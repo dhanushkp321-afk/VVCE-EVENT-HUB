@@ -91,24 +91,24 @@ function renderApprovals() {
         <div class="white-card" style="margin-bottom:10px;">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
             <div style="display:flex;gap:12px;align-items:flex-start;">
-              <span style="font-size:36px;">${e.emoji||'🎓'}</span>
+              <span style="font-size:36px;">${escapeHTML(e.emoji||'🎓')}</span>
               <div>
-                <div style="font-weight:800;font-size:16px;color:#111827;">${e.name}</div>
-                <div style="font-size:12px;color:#6b7280;margin-top:3px;">${e.club}</div>
+                <div style="font-weight:800;font-size:16px;color:#111827;">${escapeHTML(e.name)}</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:3px;">${escapeHTML(e.club)}</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:12px;color:#374151;">
-                  <span>📅 ${formatDate(e.date)}</span>
-                  <span>🕐 ${formatTime(e.time)}</span>
-                  <span>📍 ${e.venue}</span>
-                  <span>👥 Max: ${e.maxParticipants}</span>
-                  <span>💰 ${e.fee>0?`₹${e.fee}`:'Free'}</span>
+                  <span>📅 ${escapeHTML(formatDate(e.date))}</span>
+                  <span>🕐 ${escapeHTML(formatTime(e.time))}</span>
+                  <span>📍 ${escapeHTML(e.venue)}</span>
+                  <span>👥 Max: ${escapeHTML(e.maxParticipants)}</span>
+                  <span>💰 ${e.fee>0?`₹${escapeHTML(e.fee)}`:'Free'}</span>
                 </div>
-                ${e.desc?`<div style="font-size:12px;color:#374151;margin-top:8px;line-height:1.5;max-width:500px;">${e.desc}</div>`:''}
+                ${e.desc?`<div style="font-size:12px;color:#374151;margin-top:8px;line-height:1.5;max-width:500px;">${escapeHTML(e.desc)}</div>`:''}
               </div>
             </div>
             ${canAct ? `
               <div style="display:flex;gap:8px;flex-shrink:0;">
-                <button class="btn btn-green" onclick="authorityApproveEvent('${e.id}')">✓ Approve</button>
-                <button class="btn btn-red" onclick="authorityRejectEventPrompt('${e.id}')">✕ Reject</button>
+                <button class="btn btn-green" onclick="authorityApproveEvent('${escapeHTML(e.id)}')">✓ Approve</button>
+                <button class="btn btn-red" onclick="authorityRejectEventPrompt('${escapeHTML(e.id)}')">✕ Reject</button>
               </div>
             ` : `
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
@@ -126,9 +126,9 @@ function renderApprovals() {
       <div class="sec-title" style="margin-bottom:10px;">Recently Processed</div>
       ${events.filter(e=>e.status==='approved'||e.status==='rejected').slice(0,5).map(e=>`
         <div class="ev-row">
-          <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
-          <div class="ev-row-info"><div class="ev-row-name">${e.name}</div><div class="ev-row-meta">${e.club} • ${formatDate(e.date)}</div></div>
-          <span class="badge ${e.status==='approved'?'badge-green':'badge-red'}">${e.status}</span>
+          <span class="ev-row-emoji">${escapeHTML(e.emoji||'🎓')}</span>
+          <div class="ev-row-info"><div class="ev-row-name">${escapeHTML(e.name)}</div><div class="ev-row-meta">${escapeHTML(e.club)} • ${escapeHTML(formatDate(e.date))}</div></div>
+          <span class="badge ${e.status==='approved'?'badge-green':'badge-red'}">${escapeHTML(e.status)}</span>
         </div>`).join('') || `<p style="color:#9ca3af;font-size:13px;">None yet.</p>`}
     </div>
   `;
@@ -171,37 +171,41 @@ function renderClubCards(clubs) {
     <div class="cpcard ${c.approved?'':'cpcard-pending'}">
       <div class="cpcard-head">
         <div>
-          <div class="cpcard-name">${c.clubName||c.name}</div>
-          <div class="cpcard-domain">${c.domain||'—'} • ${c.dept||'—'}</div>
+          <div class="cpcard-name">${escapeHTML(c.clubName||c.name)}</div>
+          <div class="cpcard-domain">${escapeHTML(c.domain||'—')} • ${escapeHTML(c.dept||'—')}</div>
         </div>
         ${statusBadge}
       </div>
       <div class="cpcard-info">
-        <span>👤 Rep: ${titleCase(c.name)}</span>
-        <span>👩‍🏫 Faculty: ${c.faculty||'—'}</span>
-        <span>📧 ${c.clubEmail||c.email}</span>
-        <span>📞 ${c.phone||'—'}</span>
+        <span>👤 Rep: ${escapeHTML(titleCase(c.name))}</span>
+        <span>👩‍🏫 Faculty: ${escapeHTML(c.faculty||'—')}</span>
+        <span>📧 ${escapeHTML(c.clubEmail||c.email)}</span>
+        <span>📞 ${escapeHTML(c.phone||'—')}</span>
       </div>
       <div class="cpcard-acts">
-        <button class="btn btn-outline" onclick="viewClubDetail('${c.id}')">View Details</button>
+        <button class="btn btn-outline" onclick="viewClubDetail('${escapeHTML(c.id)}')">View Details</button>
       </div>
     </div>`;
   }).join('');
 }
 
-function approveClub(id) {
+async function approveClub(id) {
   const users=getDB('vvce_users'); const club=users.find(u=>u.id===id);
   if(!club) return;
-  club.approved=true; setDB('vvce_users',users);
+  club.approved=true;
+  if (typeof updateSingleUserRow === 'function') await updateSingleUserRow(id, { approved: true });
+  else setDB('vvce_users',users);
   if(club.id===STATE.user.id) STATE.user=club;
   toast(`${club.clubName} approved! ✅`,'success');
   renderClubMonitor();
 }
-function revokeClub(id) {
+async function revokeClub(id) {
   if(!confirm("Revoke this club's access?")) return;
   const users=getDB('vvce_users'); const club=users.find(u=>u.id===id);
   if(!club) return;
-  club.approved=false; setDB('vvce_users',users);
+  club.approved=false;
+  if (typeof updateSingleUserRow === 'function') await updateSingleUserRow(id, { approved: false });
+  else setDB('vvce_users',users);
   toast('Club access revoked.','warning'); renderClubMonitor();
 }
 function viewClubDetail(id) {
@@ -209,23 +213,23 @@ function viewClubDetail(id) {
   const evs = getDB('vvce_events').filter(e=>e.adminId===id);
   document.getElementById('modal-club-body').innerHTML=`
     <div style="margin-bottom:1rem;">
-      <div style="font-size:20px;font-weight:900;color:#111827;margin-bottom:4px;">${club.clubName}</div>
+      <div style="font-size:20px;font-weight:900;color:#111827;margin-bottom:4px;">${escapeHTML(club.clubName)}</div>
       <span class="badge ${club.approved?'badge-green':'badge-amber'}">${club.approved?'Active':'Pending'}</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;margin-bottom:1rem;">
-      <div><strong>Representative:</strong> ${titleCase(club.name)}</div>
-      <div><strong>Faculty:</strong> ${club.faculty||'—'}</div>
-      <div><strong>Domain:</strong> ${club.domain||'—'}</div>
-      <div><strong>Phone:</strong> ${club.phone||'—'}</div>
-      <div><strong>Club Email:</strong> ${club.clubEmail||'—'}</div>
-      <div><strong>Rep Email:</strong> ${club.email}</div>
+      <div><strong>Representative:</strong> ${escapeHTML(titleCase(club.name))}</div>
+      <div><strong>Faculty:</strong> ${escapeHTML(club.faculty||'—')}</div>
+      <div><strong>Domain:</strong> ${escapeHTML(club.domain||'—')}</div>
+      <div><strong>Phone:</strong> ${escapeHTML(club.phone||'—')}</div>
+      <div><strong>Club Email:</strong> ${escapeHTML(club.clubEmail||'—')}</div>
+      <div><strong>Rep Email:</strong> ${escapeHTML(club.email)}</div>
     </div>
-    ${club.desc?`<div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:1rem;font-size:13px;color:#374151;">${club.desc}</div>`:''}
+    ${club.desc?`<div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:1rem;font-size:13px;color:#374151;">${escapeHTML(club.desc)}</div>`:''}
     <div><strong style="font-size:13px;">Events (${evs.length})</strong></div>
     ${evs.slice(0,5).map(e=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
-      <span>${e.emoji||'🎓'}</span>
-      <span style="flex:1;">${e.name}</span>
-      <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">${e.status}</span>
+      <span>${escapeHTML(e.emoji||'🎓')}</span>
+      <span style="flex:1;">${escapeHTML(e.name)}</span>
+      <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">${escapeHTML(e.status)}</span>
     </div>`).join('')||'<p style="color:#9ca3af;font-size:13px;">No events yet.</p>'}
   `;
   openModal('modal-club-detail');
@@ -278,17 +282,17 @@ function renderClashDetect() {
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px;">
             <div style="background:#ffffff;border:1px solid #fca5a5;padding:10px;border-radius:8px;">
-              <div style="font-weight:800;color:#0f172a;">${a.name}</div>
-              <div style="color:#64748b;margin-top:2px;">🏛️ ${a.club} • ⏰ ${formatEventTimeSlot(a)}</div>
-              <div style="margin-top:4px;"><span class="badge ${a.status==='approved'?'badge-green':'badge-amber'}">${a.status.toUpperCase()}</span></div>
+              <div style="font-weight:800;color:#0f172a;">${escapeHTML(a.name)}</div>
+              <div style="color:#64748b;margin-top:2px;">🏛️ ${escapeHTML(a.club)} • ⏰ ${escapeHTML(formatEventTimeSlot(a))}</div>
+              <div style="margin-top:4px;"><span class="badge ${a.status==='approved'?'badge-green':'badge-amber'}">${escapeHTML(a.status.toUpperCase())}</span></div>
             </div>
             <div style="background:#ffffff;border:1px solid #fca5a5;padding:10px;border-radius:8px;">
-              <div style="font-weight:800;color:#0f172a;">${b.name}</div>
-              <div style="color:#64748b;margin-top:2px;">🏛️ ${b.club} • ⏰ ${formatEventTimeSlot(b)}</div>
-              <div style="margin-top:4px;"><span class="badge ${b.status==='approved'?'badge-green':'badge-amber'}">${b.status.toUpperCase()}</span></div>
+              <div style="font-weight:800;color:#0f172a;">${escapeHTML(b.name)}</div>
+              <div style="color:#64748b;margin-top:2px;">🏛️ ${escapeHTML(b.club)} • ⏰ ${escapeHTML(formatEventTimeSlot(b))}</div>
+              <div style="margin-top:4px;"><span class="badge ${b.status==='approved'?'badge-green':'badge-amber'}">${escapeHTML(b.status.toUpperCase())}</span></div>
             </div>
           </div>
-          <div style="font-size:12px;font-weight:700;color:#991b1b;margin-top:8px;">📍 Venue: ${a.venue} &bull; 📅 Date: ${formatDate(a.date)}</div>
+          <div style="font-size:12px;font-weight:700;color:#991b1b;margin-top:8px;">📍 Venue: ${escapeHTML(a.venue)} &bull; 📅 Date: ${escapeHTML(formatDate(a.date))}</div>
         </div>`).join('')
       : `<div class="clash-chip clash-ok" style="border:1.5px solid #86efac;background:#f0fdf4;border-radius:12px;padding:14px;"><div style="font-weight:700;color:#15803d;">✓ No venue clashes detected!</div><div style="font-size:12px;color:#059669;margin-top:4px;">All events have distinct dates or separate venues.</div></div>`
     }
@@ -311,18 +315,18 @@ function renderClashDetect() {
                   <td class="td-name">
                     <div style="display:flex; align-items:center; gap:6px;">
                       ${hasClash ? '<span style="color:#dc2626; font-size:16px;">⚠️</span>' : ''}
-                      <span style="${hasClash ? 'color:#991b1b; font-weight:800;' : ''}">${e.name}</span>
+                      <span style="${hasClash ? 'color:#991b1b; font-weight:800;' : ''}">${escapeHTML(e.name)}</span>
                     </div>
-                    ${hasClash ? `<div style="font-size:11px; font-weight:700; color:#b91c1c; margin-top:2px;">⚡ Clashes with: "${otherNames}"</div>` : ''}
+                    ${hasClash ? `<div style="font-size:11px; font-weight:700; color:#b91c1c; margin-top:2px;">⚡ Clashes with: "${escapeHTML(otherNames)}"</div>` : ''}
                   </td>
-                  <td>${e.club}</td>
-                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">${formatDate(e.date)}</td>
-                  <td>${formatTime(e.time)}</td>
-                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">📍 ${e.venue}</td>
+                  <td>${escapeHTML(e.club)}</td>
+                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">${escapeHTML(formatDate(e.date))}</td>
+                  <td>${escapeHTML(formatTime(e.time))}</td>
+                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">📍 ${escapeHTML(e.venue)}</td>
                   <td>
                     ${hasClash
                       ? `<span class="badge" style="background:#fecaca; color:#991b1b; border:1px solid #ef4444; font-weight:800;">⚠️ CLASH</span>`
-                      : `<span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${e.status}</span>`
+                      : `<span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${escapeHTML(e.status)}</span>`
                     }
                   </td>
                 </tr>
@@ -369,7 +373,7 @@ window.showAuthStudents = function(eventId) {
               const badge = isAtt
                 ? `<span style="padding:3px 10px;border-radius:12px;background:rgba(16,185,129,0.12);color:#10b981;font-size:11px;font-weight:700;border:1px solid rgba(16,185,129,0.3);">✅ Attended</span>`
                 : `<span style="padding:3px 10px;border-radius:12px;background:rgba(239,68,68,0.1);color:#ef4444;font-size:11px;font-weight:700;border:1px solid rgba(239,68,68,0.3);">❌ Not Attended</span>`;
-              return `<tr><td style="font-weight:600;">${u.name}</td><td>${u.usn||'N/A'}</td><td>${u.branch||'N/A'}</td><td>${badge}</td></tr>`;
+              return `<tr><td style="font-weight:600;">${escapeHTML(u.name)}</td><td>${escapeHTML(u.usn||'N/A')}</td><td>${escapeHTML(u.branch||'N/A')}</td><td>${badge}</td></tr>`;
             }).join('')}
           </tbody>
         </table>
@@ -399,11 +403,11 @@ function renderAttendancePage() {
           ${events.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
             const fillPct=Math.round((e.regCount||0)/e.maxParticipants*100);
             return `<tr>
-              <td class="td-name">${e.name}</td>
-              <td>${e.club}</td>
-              <td>${formatDate(e.date)}</td>
-              <td>${e.venue}</td>
-              <td style="cursor:pointer; color:#2563eb; text-decoration:underline;" onclick="showAuthStudents('${e.id}')" title="View Registered Students"><strong>${e.regCount||0}</strong></td>
+              <td class="td-name">${escapeHTML(e.name)}</td>
+              <td>${escapeHTML(e.club)}</td>
+              <td>${escapeHTML(formatDate(e.date))}</td>
+              <td>${escapeHTML(e.venue)}</td>
+              <td style="cursor:pointer; color:#2563eb; text-decoration:underline;" onclick="showAuthStudents('${escapeHTML(e.id)}')" title="View Registered Students"><strong>${e.regCount||0}</strong></td>
               <td>${e.maxParticipants}</td>
               <td>
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -458,17 +462,17 @@ function deanClashContent(events) {
     ${clashes.length
       ? clashes.map(([a,b])=>`
         <div class="clash-chip clash-error" style="border: 1.5px solid #ef4444; background: #fef2f2; box-shadow: 0 4px 12px rgba(239,68,68,0.12); margin-bottom: 12px; border-radius: 12px; padding: 14px;">
-          <div style="font-weight:800;font-size:13.5px;color:#b91c1c;margin-bottom:8px;">⚡ Conflict at ${a.venue} on ${formatDate(a.date)}</div>
+          <div style="font-weight:800;font-size:13.5px;color:#b91c1c;margin-bottom:8px;">⚡ Conflict at ${escapeHTML(a.venue)} on ${escapeHTML(formatDate(a.date))}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
             <div style="background:rgba(255,255,255,0.85);padding:10px;border-radius:8px;border:1px solid #fca5a5;">
-              <strong style="color:#0f172a;">${a.name}</strong><br>
-              <span style="color:#64748b;">${a.club} • ${formatEventTimeSlot(a)}</span>
-              <div style="margin-top:4px;"><span class="badge ${a.status==='approved'?'badge-green':'badge-amber'}">${a.status.toUpperCase()}</span></div>
+              <strong style="color:#0f172a;">${escapeHTML(a.name)}</strong><br>
+              <span style="color:#64748b;">${escapeHTML(a.club)} • ${escapeHTML(formatEventTimeSlot(a))}</span>
+              <div style="margin-top:4px;"><span class="badge ${a.status==='approved'?'badge-green':'badge-amber'}">${escapeHTML(a.status.toUpperCase())}</span></div>
             </div>
             <div style="background:rgba(255,255,255,0.85);padding:10px;border-radius:8px;border:1px solid #fca5a5;">
-              <strong style="color:#0f172a;">${b.name}</strong><br>
-              <span style="color:#64748b;">${b.club} • ${formatEventTimeSlot(b)}</span>
-              <div style="margin-top:4px;"><span class="badge ${b.status==='approved'?'badge-green':'badge-amber'}">${b.status.toUpperCase()}</span></div>
+              <strong style="color:#0f172a;">${escapeHTML(b.name)}</strong><br>
+              <span style="color:#64748b;">${escapeHTML(b.club)} • ${escapeHTML(formatEventTimeSlot(b))}</span>
+              <div style="margin-top:4px;"><span class="badge ${b.status==='approved'?'badge-green':'badge-amber'}">${escapeHTML(b.status.toUpperCase())}</span></div>
             </div>
           </div>
         </div>`).join('')
@@ -493,18 +497,18 @@ function deanClashContent(events) {
                   <td class="td-name">
                     <div style="display:flex; align-items:center; gap:6px;">
                       ${hasClash ? '<span style="color:#dc2626; font-size:16px;">⚠️</span>' : ''}
-                      <span style="${hasClash ? 'color:#991b1b; font-weight:800;' : ''}">${e.name}</span>
+                      <span style="${hasClash ? 'color:#991b1b; font-weight:800;' : ''}">${escapeHTML(e.name)}</span>
                     </div>
-                    ${hasClash ? `<div style="font-size:11px; font-weight:700; color:#b91c1c; margin-top:2px;">⚡ Clashes with: "${otherNames}"</div>` : ''}
+                    ${hasClash ? `<div style="font-size:11px; font-weight:700; color:#b91c1c; margin-top:2px;">⚡ Clashes with: "${escapeHTML(otherNames)}"</div>` : ''}
                   </td>
-                  <td>${e.club}</td>
-                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">${formatDate(e.date)}</td>
-                  <td>${formatTime(e.time)}</td>
-                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">📍 ${e.venue}</td>
+                  <td>${escapeHTML(e.club)}</td>
+                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">${escapeHTML(formatDate(e.date))}</td>
+                  <td>${escapeHTML(formatTime(e.time))}</td>
+                  <td style="${hasClash ? 'color:#991b1b; font-weight:700;' : ''}">📍 ${escapeHTML(e.venue)}</td>
                   <td>
                     ${hasClash
                       ? `<span class="badge" style="background:#fecaca; color:#991b1b; border:1px solid #ef4444; font-weight:800;">⚠️ CLASH</span>`
-                      : `<span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${e.status}</span>`
+                      : `<span class="badge ${e.status==='approved'?'badge-green':'badge-amber'}">${escapeHTML(e.status)}</span>`
                     }
                   </td>
                 </tr>

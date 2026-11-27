@@ -79,12 +79,12 @@ function renderAdminDashboard() {
         <div class="sec-title" style="margin:1rem 0 10px;">Recent Events</div>
         ${events.slice(0,3).map(e=>`
           <div class="ev-row" onclick="showPage('manage-events')">
-            <span class="ev-row-emoji">${e.emoji||'🎓'}</span>
+            <span class="ev-row-emoji">${escapeHTML(e.emoji||'🎓')}</span>
             <div class="ev-row-info">
-              <div class="ev-row-name">${e.name}</div>
-              <div class="ev-row-meta">${formatDate(e.date)} • ${e.venue}</div>
+              <div class="ev-row-name">${escapeHTML(e.name)}</div>
+              <div class="ev-row-meta">${escapeHTML(formatDate(e.date))} • ${escapeHTML(e.venue)}</div>
             </div>
-            <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">${e.status}</span>
+            <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">${escapeHTML(e.status)}</span>
           </div>`).join('') || `<div class="empty-state" style="padding:1.5rem;"><div class="ei">📅</div><div class="et">No events yet</div></div>`}
       </div>
     </div>

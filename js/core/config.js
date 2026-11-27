@@ -3,24 +3,14 @@
    Path: js/core/config.js
    ═══════════════════════════════════════════════════════════════ */
 
-/* ═══════════════════════════════════════════════════════════════
-   VVCE Events Hub — Complete Application Logic
-   Author: Antigravity AI
-   Version: 3.0
-═══════════════════════════════════════════════════════════════ */
-
 'use strict';
 
 /* ─────────────────────────────────────────────────────────────
    GOOGLE OAUTH CONFIGURATION
-   To enable real Google Sign-In:
-   1. Go to https://console.cloud.google.com/
-   2. Create a project → APIs & Services → Credentials
-   3. Create OAuth 2.0 Client ID (Web Application type)
-   4. Add http://localhost:8000 to Authorized JavaScript Origins
-   5. Paste the Client ID string below
+   To enable GIS One-Tap in addition to Supabase Google OAuth:
+   Paste your Google Web OAuth Client ID below.
 ───────────────────────────────────────────────────────────────*/
-const GOOGLE_CLIENT_ID = ''; /* ← Paste your Google Client ID here */
+const GOOGLE_CLIENT_ID = '';
 
 /* ─────────────────────────────────────────────────────────────
    STATE & DATABASE LAYER
@@ -34,8 +24,12 @@ const STATE = {
   selectedDate: null,
   deanUnlocked: false,
   principalUnlocked: false,
+  authorityUnlocked: false,
+  currentAuthorityId: null,
+  currentAuthorityName: null,
   regRole: 'student',
   rejectEventId: null,
+  registrationLocked: false
 };
 
 const supabaseUrl = 'https://nkugbdencpvhhvgqybgi.supabase.co';
@@ -56,11 +50,12 @@ function getSupabaseClient() {
   return null;
 }
 
+/* Offline fallback roster skeletons (zero plaintext passwords) */
 const DEFAULT_USERS = [
-  { id: 'u1', type: 'student', name: 'Akash Sharma', email: 'akash@vvce.ac.in', pass: 'demo1234', usn: '4VV21CS001', branch: 'CS', section: 'A', year: '4th Year', sem: 'Sem 8', admissionYear: 2021, dept: 'Computer Science', phone: '+91 98765 43210', interests: ['Technical', 'Workshop'], skills: [], bio: '', linkedin: '', github: '', achievements: [], profilePhoto: null, resume: null, points: 120, pointsBySem: { 'Sem 1': 20, 'Sem 2': 20, 'Sem 3': 20, 'Sem 4': 20, 'Sem 5': 20, 'Sem 6': 20, 'Sem 7': 0, 'Sem 8': 0 }, notifs: [] },
-  { id: 'u2', type: 'admin', name: 'Harshill M Gowda', email: 'harshill@vvce.ac.in', pass: 'demo1234', clubName: 'CSE Club', clubEmail: 'cseclub@vvce.ac.in', domain: 'Technical', branch: 'CSE', usn: '4VV21CS045', faculty: 'Dr. Ramesh Kumar', phone: '+91 98765 43211', desc: 'Official Computer Science Club of VVCE', approved: true, notifs: [] },
-  { id: 'u3', type: 'authority', name: 'Dr. Priya Nair', email: 'dean.sw@vvce.ac.in', pass: 'demo1234', designation: 'dean', dept: 'Student Welfare', phone: '+91 98765 43212', notifs: [] },
-  { id: 'u4', type: 'authority', name: 'Prof. Vijay Rao', email: 'principal@vvce.ac.in', pass: 'demo1234', designation: 'principal', dept: 'Administration', phone: '+91 98765 43213', notifs: [] }
+  { id: 'u1', type: 'student', name: 'Akash Sharma', email: 'akash@vvce.ac.in', pass: null, isDemo: true, usn: '4VV21CS001', branch: 'CS', section: 'A', year: '4th Year', sem: 'Sem 8', admissionYear: 2021, dept: 'Computer Science', phone: '+91 98765 43210', interests: ['Technical', 'Workshop'], skills: [], bio: '', linkedin: '', github: '', achievements: [], profilePhoto: null, resume: null, points: null, pointsBySem: null, notifs: [] },
+  { id: 'u2', type: 'admin', name: 'Harshill M Gowda', email: 'harshill@vvce.ac.in', pass: null, isDemo: true, clubName: 'CSE Club', clubEmail: 'cseclub@vvce.ac.in', domain: 'Technical', branch: 'CSE', usn: '4VV21CS045', faculty: 'Dr. Ramesh Kumar', phone: '+91 98765 43211', desc: 'Official Computer Science Club of VVCE', approved: true, notifs: [] },
+  { id: 'u3', type: 'authority', name: 'Dr. Priya Nair', email: 'dean.sw@vvce.ac.in', pass: null, isDemo: true, designation: 'dean', dept: 'Student Welfare', phone: '+91 98765 43212', notifs: [] },
+  { id: 'u4', type: 'authority', name: 'Prof. Vijay Rao', email: 'principal@vvce.ac.in', pass: null, isDemo: true, designation: 'principal', dept: 'Administration', phone: '+91 98765 43213', notifs: [] }
 ];
 
 const SUPABASE_CACHE = {

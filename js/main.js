@@ -7,29 +7,25 @@
    BOOT
 ───────────────────────────────────────────────────────────────*/
 document.addEventListener('DOMContentLoaded', function() {
-  bootApp();
-  // Set default register role (student form visible)
+  bootApp(true);
   selectRegRole('student');
-  // Init Google Sign-In after GIS script finishes loading
   if (typeof google !== 'undefined') {
     initGoogleAuth();
   } else {
     window.addEventListener('load', initGoogleAuth);
   }
-  // Init live CPM config sync (banners, themes, maintenance)
-  // Small delay to ensure Supabase client is ready after bootApp
   setTimeout(initDynamicSiteConfig, 500);
 });
 
-// Auto-sync when navigating back via browser Back button (bfcache) or switching tabs
+// Lightweight foreground sync on bfcache restore / tab focus (avoids 6,000-row boot storms)
 window.addEventListener('pageshow', function(e) {
-  bootApp();
-});
-
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'visible') {
-    bootApp();
+  if (e.persisted && typeof refreshActivePortalState === 'function') {
+    refreshActivePortalState();
   }
 });
 
-// Expose all functions to window for inline onclick handlers in HTML
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && typeof refreshActivePortalState === 'function') {
+    refreshActivePortalState();
+  }
+});

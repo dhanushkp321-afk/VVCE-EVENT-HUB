@@ -46,7 +46,7 @@ window.openAuthoritySelectionModal = function() {
       sel.innerHTML = '<option value="">-- No Active Authorities Found --</option>';
     } else {
       sel.innerHTML = '<option value="">-- Select Authority to Access --</option>' +
-        active.map(a => `<option value="${a.id}">${a.name} (${a.designation || 'Approving Authority'})</option>`).join('');
+        active.map(a => `<option value="${escapeHTML(a.id)}">${escapeHTML(a.name)} (${escapeHTML(a.designation || 'Approving Authority')})</option>`).join('');
       if (STATE.currentAuthorityId && active.some(a => a.id === STATE.currentAuthorityId)) {
         sel.value = STATE.currentAuthorityId;
       }
@@ -87,14 +87,9 @@ window.verifyAuthorityPassword = async function() {
   }
 
   let isValid = false;
-  // If target has stored salt and password_hash
+  // Target must have stored salt and password_hash
   if (target.password_hash && target.salt) {
     isValid = await verifyPasswordWithSalt(pass, target.password_hash, target.salt);
-  } else if (target.pass) {
-    // Backward compatibility for raw test records
-    isValid = (pass === target.pass);
-  } else if (target.id === 'auth_dean_sw' && pass === 'deanwellfair@vvce') {
-    isValid = true;
   }
 
   if (isValid) {
@@ -242,24 +237,24 @@ function renderAuthorityClubApprovalsTab(pending, approved) {
       <div class="white-card" style="margin-bottom:12px; border-left:4px solid #f59e0b;">
         <div class="cpcard-head">
           <div>
-            <div class="cpcard-name" style="font-size:18px;">${c.clubName || c.name}</div>
-            <div class="cpcard-domain">${c.domain || 'General'} • ${c.branch || 'VVCE'} • ${c.email}</div>
+            <div class="cpcard-name" style="font-size:18px;">${escapeHTML(c.clubName || c.name)}</div>
+            <div class="cpcard-domain">${escapeHTML(c.domain || 'General')} • ${escapeHTML(c.branch || 'VVCE')} • ${escapeHTML(c.email)}</div>
           </div>
           <span class="badge badge-amber">Pending Registration</span>
         </div>
         <div class="cpcard-info" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:8px; font-size:13px; color:#374151; margin:12px 0;">
-          <span>👤 <strong>Lead Rep:</strong> ${titleCase(c.name)} (${c.usn || '-'})</span>
-          <span>👩‍🏫 <strong>Faculty Coord:</strong> ${c.faculty || '-'}</span>
-          <span>📧 <strong>Club Email:</strong> ${c.clubEmail || '-'}</span>
-          <span>📞 <strong>Contact Phone:</strong> ${c.phone || '-'}</span>
+          <span>👤 <strong>Lead Rep:</strong> ${escapeHTML(titleCase(c.name))} (${escapeHTML(c.usn || '-')})</span>
+          <span>👩‍🏫 <strong>Faculty Coord:</strong> ${escapeHTML(c.faculty || '-')}</span>
+          <span>📧 <strong>Club Email:</strong> ${escapeHTML(c.clubEmail || '-')}</span>
+          <span>📞 <strong>Contact Phone:</strong> ${escapeHTML(c.phone || '-')}</span>
         </div>
-        ${c.desc ? `<div style="font-size:13px; color:#334155; background:#f8fafc; padding:10px 14px; border-radius:8px; margin-bottom:12px; border:1px solid #e2e8f0;">${c.desc}</div>` : ''}
+        ${c.desc ? `<div style="font-size:13px; color:#334155; background:#f8fafc; padding:10px 14px; border-radius:8px; margin-bottom:12px; border:1px solid #e2e8f0;">${escapeHTML(c.desc)}</div>` : ''}
         
         <!-- Decision Actions -->
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <button class="btn btn-green" onclick="authorityApproveClub('${c.id}')">✓ Approve Club Registration</button>
-          <button class="btn btn-red" onclick="authorityRejectClubPrompt('${c.id}')">✕ Reject with Reason</button>
-          <button class="btn btn-outline" onclick="viewClubDetail('${c.id}')">View Full Dossier</button>
+          <button class="btn btn-green" onclick="authorityApproveClub('${escapeHTML(c.id)}')">✓ Approve Club Registration</button>
+          <button class="btn btn-red" onclick="authorityRejectClubPrompt('${escapeHTML(c.id)}')">✕ Reject with Reason</button>
+          <button class="btn btn-outline" onclick="viewClubDetail('${escapeHTML(c.id)}')">View Full Dossier</button>
         </div>
       </div>
     `).join('') : `
@@ -277,12 +272,12 @@ function renderAuthorityClubApprovalsTab(pending, approved) {
           <div class="ev-row" style="margin-bottom:8px;">
             <span class="ev-row-emoji">🏛️</span>
             <div class="ev-row-info">
-              <div class="ev-row-name">${c.clubName || c.name}</div>
-              <div class="ev-row-meta">${c.domain || 'General'} • Rep: ${titleCase(c.name)} • Coord: ${c.faculty || '-'}</div>
+              <div class="ev-row-name">${escapeHTML(c.clubName || c.name)}</div>
+              <div class="ev-row-meta">${escapeHTML(c.domain || 'General')} • Rep: ${escapeHTML(titleCase(c.name))} • Coord: ${escapeHTML(c.faculty || '-')}</div>
             </div>
             <span class="badge badge-green">Active</span>
-            <button class="btn btn-outline btn-sm" onclick="viewClubDetail('${c.id}')">Dossier</button>
-            <button class="btn btn-red btn-sm" onclick="authorityRevokeClub('${c.id}')">Revoke Access</button>
+            <button class="btn btn-outline btn-sm" onclick="viewClubDetail('${escapeHTML(c.id)}')">Dossier</button>
+            <button class="btn btn-red btn-sm" onclick="authorityRevokeClub('${escapeHTML(c.id)}')">Revoke Access</button>
           </div>
         `).join('')}
       </div>
@@ -309,25 +304,25 @@ function renderAuthorityEventApprovalsTab(pending) {
             <div style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:10px 14px; border-radius:8px; margin-bottom:12px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
               <span style="font-size:18px;">⚠️</span>
               <div>
-                GLOBAL VENUE CLASH WARNING: Conflicting approved event "${conflict.name}" (${conflict.club}) is already booked at ${e.venue} on ${formatDate(e.date)} (${formatEventTimeSlot(conflict)}). Approval is blocked.
+                GLOBAL VENUE CLASH WARNING: Conflicting approved event "${escapeHTML(conflict.name)}" (${escapeHTML(conflict.club)}) is already booked at ${escapeHTML(e.venue)} on ${escapeHTML(formatDate(e.date))} (${escapeHTML(formatEventTimeSlot(conflict))}). Approval is blocked.
               </div>
             </div>
           ` : ''}
 
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
             <div style="display:flex; gap:14px; align-items:flex-start;">
-              <span style="font-size:40px;">${e.emoji || '🎓'}</span>
+              <span style="font-size:40px;">${escapeHTML(e.emoji || '🎓')}</span>
               <div>
-                <div style="font-weight:800; font-size:18px; color:#0f172a;">${e.name}</div>
-                <div style="font-size:13px; color:#64748b; margin-top:2px;">Organized by <strong>${e.club}</strong></div>
+                <div style="font-weight:800; font-size:18px; color:#0f172a;">${escapeHTML(e.name)}</div>
+                <div style="font-size:13px; color:#64748b; margin-top:2px;">Organized by <strong>${escapeHTML(e.club)}</strong></div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:6px 16px; margin-top:10px; font-size:12.5px; color:#334155;">
-                  <span>📅 <strong>Date:</strong> ${formatDate(e.date)}</span>
-                  <span>🕐 <strong>Time:</strong> ${formatTime(e.time)}</span>
-                  <span>📍 <strong>Venue:</strong> ${e.venue}</span>
-                  <span>👥 <strong>Max Part:</strong> ${e.maxParticipants}</span>
-                  <span>💰 <strong>Fee:</strong> ${e.fee > 0 ? '₹' + e.fee : 'Free'}</span>
+                  <span>📅 <strong>Date:</strong> ${escapeHTML(formatDate(e.date))}</span>
+                  <span>🕐 <strong>Time:</strong> ${escapeHTML(formatTime(e.time))}</span>
+                  <span>📍 <strong>Venue:</strong> ${escapeHTML(e.venue)}</span>
+                  <span>👥 <strong>Max Part:</strong> ${escapeHTML(e.maxParticipants)}</span>
+                  <span>💰 <strong>Fee:</strong> ${e.fee > 0 ? '₹' + escapeHTML(e.fee) : 'Free'}</span>
                 </div>
-                ${e.desc ? `<div style="font-size:13px; color:#475569; margin-top:10px; line-height:1.5; background:#f8fafc; padding:10px 12px; border-radius:8px;">${e.desc}</div>` : ''}
+                ${e.desc ? `<div style="font-size:13px; color:#475569; margin-top:10px; line-height:1.5; background:#f8fafc; padding:10px 12px; border-radius:8px;">${escapeHTML(e.desc)}</div>` : ''}
               </div>
             </div>
 
@@ -382,18 +377,18 @@ function renderAuthorityEventRows(evList) {
 
   return evList.map(e => `
     <div class="ev-row" style="margin-bottom:8px;">
-      <span class="ev-row-emoji">${e.emoji || '🎓'}</span>
+      <span class="ev-row-emoji">${escapeHTML(e.emoji || '🎓')}</span>
       <div class="ev-row-info">
-        <div class="ev-row-name" style="font-weight:700;">${e.name}</div>
-        <div class="ev-row-meta">${e.club} • ${formatDate(e.date)} • 📍 ${e.venue}</div>
-        ${e.rejReason ? `<div style="font-size:11px; color:#dc2626; margin-top:2px;">Rejection Note: ${e.rejReason}</div>` : ''}
+        <div class="ev-row-name" style="font-weight:700;">${escapeHTML(e.name)}</div>
+        <div class="ev-row-meta">${escapeHTML(e.club)} • ${escapeHTML(formatDate(e.date))} • 📍 ${escapeHTML(e.venue)}</div>
+        ${e.rejReason ? `<div style="font-size:11px; color:#dc2626; margin-top:2px;">Rejection Note: ${escapeHTML(e.rejReason)}</div>` : ''}
       </div>
       <span class="badge ${e.status==='approved'?'badge-green':e.status==='pending'?'badge-amber':'badge-red'}">
-        ${e.status.toUpperCase()}
+        ${escapeHTML(e.status.toUpperCase())}
       </span>
       ${e.status==='pending' ? `
-        <button class="btn btn-green btn-sm" onclick="authorityApproveEvent('${e.id}')">Approve</button>
-        <button class="btn btn-red btn-sm" onclick="authorityRejectEventPrompt('${e.id}')">Reject</button>
+        <button class="btn btn-green btn-sm" onclick="authorityApproveEvent('${escapeHTML(e.id)}')">Approve</button>
+        <button class="btn btn-red btn-sm" onclick="authorityRejectEventPrompt('${escapeHTML(e.id)}')">Reject</button>
       ` : ''}
     </div>
   `).join('');
@@ -428,8 +423,8 @@ function renderAuthorityClubRecordsTab(clubs, allEvents) {
           <div class="white-card" style="box-shadow:0 2px 8px rgba(0,0,0,0.04);">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
               <div>
-                <h4 style="font-size:16px; font-weight:800; margin:0; color:#0f172a;">${c.clubName || c.name}</h4>
-                <div style="font-size:12px; color:#64748b;">${c.domain || 'Technical'} • Coord: ${c.faculty || '-'}</div>
+                <h4 style="font-size:16px; font-weight:800; margin:0; color:#0f172a;">${escapeHTML(c.clubName || c.name)}</h4>
+                <div style="font-size:12px; color:#64748b;">${escapeHTML(c.domain || 'Technical')} • Coord: ${escapeHTML(c.faculty || '-')}</div>
               </div>
               <span class="badge ${c.approved ? 'badge-green' : 'badge-amber'}">${c.approved ? 'Approved' : 'Pending'}</span>
             </div>
@@ -439,10 +434,10 @@ function renderAuthorityClubRecordsTab(clubs, allEvents) {
               <div><strong style="color:#ef4444; font-size:14px;">${rejCount}</strong><br>Rejected</div>
             </div>
             <div style="font-size:12px; color:#475569; margin-bottom:10px;">
-              <div>👤 <strong>Representative:</strong> ${titleCase(c.name)} (${c.usn || '-'})</div>
-              <div>📧 <strong>Contact:</strong> ${c.clubEmail || c.email}</div>
+              <div>👤 <strong>Representative:</strong> ${escapeHTML(titleCase(c.name))} (${escapeHTML(c.usn || '-')})</div>
+              <div>📧 <strong>Contact:</strong> ${escapeHTML(c.clubEmail || c.email)}</div>
             </div>
-            <button class="btn btn-outline btn-sm" style="width:100%;" onclick="viewClubDetail('${c.id}')">View Club Details & History</button>
+            <button class="btn btn-outline btn-sm" style="width:100%;" onclick="viewClubDetail('${escapeHTML(c.id)}')">View Club Details & History</button>
           </div>
         `;
       }).join('') || '<div class="empty-state"><div class="ei">🏛️</div><div class="et">No assigned clubs</div></div>'}
@@ -636,7 +631,11 @@ window.authorityApproveClub = async function(id) {
     timestamp: new Date().toISOString()
   });
 
-  await setDB('vvce_users', users);
+  if (typeof updateSingleUserRow === 'function') {
+    await updateSingleUserRow(club.id, { approved: true, approvalHistory: club.approvalHistory });
+  } else {
+    await setDB('vvce_users', users);
+  }
 
   if (club.id === STATE.user.id) STATE.user = club;
   toast(`Club "${club.clubName || club.name}" approved successfully! ✓`, 'success');
@@ -665,7 +664,11 @@ window.authorityRejectClubPrompt = async function(id) {
     timestamp: new Date().toISOString()
   });
 
-  await setDB('vvce_users', users);
+  if (typeof updateSingleUserRow === 'function') {
+    await updateSingleUserRow(club.id, { approved: false, rejectionReason: club.rejectionReason, approvalHistory: club.approvalHistory });
+  } else {
+    await setDB('vvce_users', users);
+  }
   toast('Club registration rejected.', 'warning');
   renderAuthorityPortal('club-approvals');
 };
@@ -677,7 +680,11 @@ window.authorityRevokeClub = async function(id) {
   if (!club) return;
 
   club.approved = false;
-  await setDB('vvce_users', users);
+  if (typeof updateSingleUserRow === 'function') {
+    await updateSingleUserRow(club.id, { approved: false });
+  } else {
+    await setDB('vvce_users', users);
+  }
   toast('Club access revoked.', 'warning');
   renderAuthorityPortal('club-approvals');
 };

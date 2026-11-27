@@ -1,13 +1,29 @@
 /* ═══════════════════════════════════════════════════════════════
-   VVCE Events Hub — Database Layer, Supabase Sync & Cryptography
+   VVCE Events Hub — Database Layer, Paginated Sync & Atomic Mutations
    Path: js/core/database.js
    ═══════════════════════════════════════════════════════════════ */
+
+let APPROVING_AUTHORITIES_CACHE = [];
+let _bootLastRunMs = 0;
+let _bootInFlightPromise = null;
+let _refreshLastRunMs = 0;
+
+const SAFE_USER_BULK_COLUMNS = 'id,type,name,email,usn,branch,section,year,sem,admission_year,dept,phone,interests,skills,bio,linkedin,github,achievements,profile_photo,club_name,club_email,domain,faculty,approved,"desc",designation,authority_id,authority_name,approval_history';
+
+function safeLocalStorageSet(key, valueObj) {
+  try {
+    localStorage.setItem(key, JSON.stringify(valueObj));
+  } catch (e) {
+    // Gracefully ignore QuotaExceededError when user count exceeds localStorage 5MB limit
+    if (e && (e.name === 'QuotaExceededError' || e.code === 22)) {
+      console.warn(`localStorage quota reached for ${key}; continuing with in-memory cache.`);
+    }
+  }
+}
 
 /* ============================================================================
    APPROVING AUTHORITIES & SECURITY HELPERS
    ============================================================================ */
-let APPROVING_AUTHORITIES_CACHE = [];
-
 async function hashPasswordWithSalt(password, saltStr) {
   const enc = new TextEncoder();
   const salt = enc.encode(saltStr || ('salt_' + Math.random().toString(36).substring(2, 10)));
@@ -40,7 +56,7 @@ async function syncApprovingAuthoritiesFromSupabase() {
       const { data, error } = await sb.from('approving_authorities').select('*').order('created_at', { ascending: true });
       if (!error && Array.isArray(data) && data.length > 0) {
         APPROVING_AUTHORITIES_CACHE = data;
-        localStorage.setItem('vvce_approving_authorities', JSON.stringify(data));
+        safeLocalStorageSet('vvce_approving_authorities', data);
         populateClubRegistrationAuthoritiesDropdown();
         return data;
       }
@@ -49,7 +65,6 @@ async function syncApprovingAuthoritiesFromSupabase() {
     console.warn('syncApprovingAuthoritiesFromSupabase warning:', err);
   }
 
-  // Fallback to localStorage or default Dean authority
   const raw = localStorage.getItem('vvce_approving_authorities');
   if (raw) {
     try {
@@ -72,7 +87,7 @@ async function syncApprovingAuthoritiesFromSupabase() {
         created_at: new Date().toISOString()
       }
     ];
-    localStorage.setItem('vvce_approving_authorities', JSON.stringify(APPROVING_AUTHORITIES_CACHE));
+    safeLocalStorageSet('vvce_approving_authorities', APPROVING_AUTHORITIES_CACHE);
   }
   populateClubRegistrationAuthoritiesDropdown();
   return APPROVING_AUTHORITIES_CACHE;
@@ -91,13 +106,13 @@ function populateClubRegistrationAuthoritiesDropdown() {
     return;
   }
   const currentVal = sel.value;
+  const esc = typeof escapeHTML === 'function' ? escapeHTML : (s => String(s || ''));
   sel.innerHTML = '<option value="">-- Select Approving Authority --</option>' +
-    active.map(a => `<option value="${a.id}">${a.name} (${a.designation || 'Approving Authority'})</option>`).join('');
+    active.map(a => `<option value="${esc(a.id)}">${esc(a.name)} (${esc(a.designation || 'Approving Authority')})</option>`).join('');
   if (currentVal && active.some(a => a.id === currentVal)) {
     sel.value = currentVal;
   }
 }
-
 
 /* Stores payment screenshots keyed by "eventId::uid" to avoid embedding base64 in onclick attrs */
 const PENDING_SCREENSHOTS = {};
@@ -121,7 +136,6 @@ function getDB(key, def = []) {
   } catch (e) {}
   if (key === 'vvce_users') {
     SUPABASE_CACHE['vvce_users'] = DEFAULT_USERS.slice();
-    try { localStorage.setItem('vvce_users', JSON.stringify(SUPABASE_CACHE['vvce_users'])); } catch(e){}
     return SUPABASE_CACHE['vvce_users'];
   }
   return def;
@@ -143,6 +157,25 @@ function getDBObj(key, def = {}) {
     }
   } catch (e) {}
   return def;
+}
+
+/* Paginated fetch helper: retrieves beyond PostgREST's 1,000-row cap safely */
+async function fetchPaginatedTable(sb, table, columns = '*', { pageSize = 1000, maxRows = 10000, applyFilter = null } = {}) {
+  const allRows = [];
+  for (let offset = 0; offset < maxRows; offset += pageSize) {
+    let query = sb.from(table).select(columns).range(offset, offset + pageSize - 1);
+    if (typeof applyFilter === 'function') {
+      query = applyFilter(query);
+    }
+    const { data, error } = await query;
+    if (error) {
+      return { data: allRows, error };
+    }
+    if (!Array.isArray(data) || data.length === 0) break;
+    allRows.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return { data: allRows, error: null };
 }
 
 function mapEventForSupabase(e) {
@@ -190,28 +223,227 @@ function mapEventForSupabase(e) {
   };
 }
 
+function mapUserForSupabase(u) {
+  return {
+    id: u.id,
+    type: u.type,
+    name: u.name,
+    email: u.email,
+    usn: u.usn,
+    branch: u.branch,
+    section: u.section,
+    year: u.year,
+    sem: u.sem,
+    admission_year: u.admissionYear,
+    dept: u.dept,
+    phone: u.phone,
+    interests: u.interests,
+    skills: u.skills,
+    bio: u.bio,
+    linkedin: u.linkedin,
+    github: u.github,
+    achievements: u.achievements,
+    profile_photo: u.profilePhoto,
+    resume: u.resume,
+    points: u.points ?? null,
+    points_by_sem: u.pointsBySem ?? u.points_by_sem ?? null,
+    notifs: u.notifs,
+    club_name: u.clubName,
+    club_email: u.clubEmail,
+    domain: u.domain,
+    faculty: u.faculty,
+    approved: u.approved,
+    "desc": u.desc,
+    designation: u.designation,
+    authority_id: u.authorityId || u.authority_id || null,
+    authority_name: u.authorityName || u.authority_name || null,
+    approval_history: u.approvalHistory || u.approval_history || []
+  };
+}
+
 async function syncEventsFromSupabase() {
   const sb = getSupabaseClient();
   if (!sb) return getDB('vvce_events');
   try {
-    const { data, error } = await sb.from('events').select('*');
+    const { data, error } = await fetchPaginatedTable(sb, 'events', '*', { pageSize: 500, maxRows: 5000 });
     if (!error && Array.isArray(data)) {
       const mapped = data.map(mapEvent);
       SUPABASE_CACHE.vvce_events = mapped;
-      try { localStorage.setItem('vvce_events', JSON.stringify(mapped)); } catch(e){}
+      safeLocalStorageSet('vvce_events', mapped);
       return mapped;
     }
-  } catch(e) {
+  } catch (e) {
     console.warn('syncEventsFromSupabase failed:', e);
   }
   return getDB('vvce_events');
 }
 
+/* Fetch current user's own notifications and private profile fields (excluded from bulk queries) */
+async function fetchUserOwnDetails(userId) {
+  const sb = getSupabaseClient();
+  if (!sb || !userId || ['u1', 'u2', 'u3', 'u4'].includes(userId)) return null;
+  try {
+    const { data, error } = await sb
+      .from('users')
+      .select('id, notifs, resume')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!error && data) {
+      if (STATE.user && STATE.user.id === userId) {
+        STATE.user.notifs = Array.isArray(data.notifs) ? data.notifs : (STATE.user.notifs || []);
+        STATE.user.resume = data.resume || STATE.user.resume || null;
+      }
+      const cacheIdx = (SUPABASE_CACHE.vvce_users || []).findIndex(u => u.id === userId);
+      if (cacheIdx > -1) {
+        SUPABASE_CACHE.vvce_users[cacheIdx].notifs = data.notifs || [];
+        SUPABASE_CACHE.vvce_users[cacheIdx].resume = data.resume || null;
+      }
+      if (typeof renderNotifs === 'function') {
+        const unread = (STATE.user?.notifs || []).filter(n => !n.read).length;
+        const badge = document.getElementById('notif-badge');
+        if (badge) { badge.style.display = unread > 0 ? '' : 'none'; badge.textContent = unread; }
+      }
+      return data;
+    }
+  } catch (e) {
+    console.warn('fetchUserOwnDetails warning:', e);
+  }
+  return null;
+}
+
+/* Atomic single-row notification push (avoids O(N) setDB('vvce_users', all6000Users)) */
+async function pushUserNotifAtomic(userId, notifObj) {
+  if (!userId || !notifObj) return;
+  const users = getDB('vvce_users');
+  const u = users.find(x => x.id === userId);
+  if (u) {
+    if (!Array.isArray(u.notifs)) u.notifs = [];
+    u.notifs = [...u.notifs, notifObj].slice(-50);
+    SUPABASE_CACHE.vvce_users = users;
+    safeLocalStorageSet('vvce_users', users);
+  }
+
+  const sb = getSupabaseClient();
+  if (!sb || ['u1', 'u2', 'u3', 'u4'].includes(userId)) return;
+
+  try {
+    if (typeof sb.rpc === 'function') {
+      const { error: rpcErr } = await sb.rpc('push_user_notif', {
+        p_user_id: userId,
+        p_notif: notifObj
+      });
+      if (!rpcErr) return;
+    }
+    const { data: row } = await sb.from('users').select('notifs').eq('id', userId).maybeSingle();
+    const merged = [...(Array.isArray(row?.notifs) ? row.notifs : []), notifObj].slice(-50);
+    await sb.from('users').update({ notifs: merged }).eq('id', userId);
+  } catch (e) {
+    console.warn('pushUserNotifAtomic warning:', e);
+  }
+}
+
+/* Atomic single-row read/mark-all-read update */
+async function markUserNotifsReadAtomic(userId, notifId = null) {
+  if (!userId) return;
+  const users = getDB('vvce_users');
+  const u = users.find(x => x.id === userId);
+  if (u && Array.isArray(u.notifs)) {
+    u.notifs.forEach(n => {
+      if (!notifId || n.id === notifId) n.read = true;
+    });
+    SUPABASE_CACHE.vvce_users = users;
+    safeLocalStorageSet('vvce_users', users);
+  }
+
+  const sb = getSupabaseClient();
+  if (!sb || ['u1', 'u2', 'u3', 'u4'].includes(userId)) return;
+
+  try {
+    if (typeof sb.rpc === 'function') {
+      const { error: rpcErr } = await sb.rpc('mark_notif_read', {
+        p_user_id: userId,
+        p_notif_id: notifId
+      });
+      if (!rpcErr) return;
+    }
+    if (u && Array.isArray(u.notifs)) {
+      await sb.from('users').update({ notifs: u.notifs }).eq('id', userId);
+    }
+  } catch (e) {
+    console.warn('markUserNotifsReadAtomic warning:', e);
+  }
+}
+
+/* Single-row profile / user field update (no 6,000-user full-table write) */
+async function updateSingleUserRow(userId, camelUpdates) {
+  if (!userId) return;
+  const users = getDB('vvce_users');
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx > -1) {
+    Object.assign(users[idx], camelUpdates);
+    SUPABASE_CACHE.vvce_users = users;
+    safeLocalStorageSet('vvce_users', users);
+    if (STATE.user && STATE.user.id === userId) {
+      STATE.user = users[idx];
+    }
+  }
+
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.from !== 'function' || ['u1', 'u2', 'u3', 'u4'].includes(userId)) return;
+
+  const dbPatch = {};
+  const colMap = {
+    name: 'name', email: 'email', usn: 'usn', branch: 'branch', section: 'section',
+    year: 'year', sem: 'sem', dept: 'dept', phone: 'phone', interests: 'interests',
+    skills: 'skills', bio: 'bio', linkedin: 'linkedin', github: 'github',
+    achievements: 'achievements', profilePhoto: 'profile_photo', resume: 'resume',
+    clubName: 'club_name', clubEmail: 'club_email', domain: 'domain', faculty: 'faculty',
+    approved: 'approved', desc: 'desc', designation: 'designation',
+    approvalHistory: 'approval_history', rejectionReason: 'rejection_reason'
+  };
+  Object.entries(camelUpdates || {}).forEach(([k, v]) => {
+    if (colMap[k]) dbPatch[colMap[k]] = v;
+  });
+
+  if (Object.keys(dbPatch).length > 0) {
+    try {
+      await sb.from('users').update(dbPatch).eq('id', userId);
+    } catch (e) {
+      console.warn('updateSingleUserRow warning:', e);
+    }
+  }
+}
+
+/* Single certificate upsert / delete (avoids DELETE NOT IN 414 URI Too Long) */
+async function syncSingleCertToSupabase(cert, remove = false) {
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.from !== 'function' || !cert?.id) return;
+  try {
+    if (remove) {
+      await sb.from('vvce_certs').delete().eq('id', cert.id);
+    } else {
+      await sb.from('vvce_certs').upsert([{
+        id: cert.id,
+        "userId": cert.userId,
+        title: cert.title,
+        issuer: cert.issuer,
+        date: cert.date,
+        position: cert.position,
+        points: cert.points ?? null,
+        type: cert.type,
+        verified: cert.verified,
+        auto_generated: cert.autoGenerated || false,
+        event_id: cert.eventId || null
+      }]);
+    }
+  } catch (e) {
+    console.warn('syncSingleCertToSupabase warning:', e);
+  }
+}
+
 async function setDB(key, val) {
   SUPABASE_CACHE[key] = val;
-  try {
-    localStorage.setItem(key, JSON.stringify(val));
-  } catch (e) {}
+  safeLocalStorageSet(key, val);
 
   const sb = getSupabaseClient();
   if (!sb || typeof sb.from !== 'function') return;
@@ -230,30 +462,33 @@ async function setDB(key, val) {
         }
       }
     } else if (key === 'vvce_users') {
-      const mapped = val.map(u => ({
-        id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admission_year: u.admissionYear, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profile_photo: u.profilePhoto, resume: u.resume, points: u.points ?? null, points_by_sem: u.pointsBySem ?? u.points_by_sem ?? null, notifs: u.notifs, club_name: u.clubName, club_email: u.clubEmail, domain: u.domain, faculty: u.faculty, approved: u.approved, "desc": u.desc, designation: u.designation, authority_id: u.authorityId || u.authority_id || null, authority_name: u.authorityName || u.authority_name || null, approval_history: u.approvalHistory || u.approval_history || []
-      }));
-      await sb.from('users').upsert(mapped);
-      // Also sync fresh/real student registrations to the dedicated registered_students table
-      const studentMapped = mapped.filter(u => u.type === 'student' && !['u1','u2','u3','u4'].includes(u.id));
-      if (studentMapped.length > 0) {
-        sb.from('registered_students').upsert(studentMapped).then(() => {}).catch(() => {});
+      // Never mass-upsert 6,000 users from client; batch only non-demo rows cleanly if called
+      const DEMO_IDS = ['u1', 'u2', 'u3', 'u4'];
+      const realUsers = val.filter(u => !DEMO_IDS.includes(u.id)).map(mapUserForSupabase);
+      const chunkSize = 200;
+      for (let i = 0; i < realUsers.length; i += chunkSize) {
+        await sb.from('users').upsert(realUsers.slice(i, i + chunkSize));
       }
     } else if (key === 'vvce_certs') {
+      // Never use DELETE ... NOT IN (...) (causes 414 URI Too Long and cross-user overwrites)
       const mapped = val.map(c => ({
-        id: c.id, "userId": c.userId, title: c.title, issuer: c.issuer, date: c.date, position: c.position, points: c.points ?? null, type: c.type, verified: c.verified, auto_generated: c.autoGenerated || false, event_id: c.eventId || null
+        id: c.id,
+        "userId": c.userId,
+        title: c.title,
+        issuer: c.issuer,
+        date: c.date,
+        position: c.position,
+        points: c.points ?? null,
+        type: c.type,
+        verified: c.verified,
+        auto_generated: c.autoGenerated || false,
+        event_id: c.eventId || null
       }));
-      const activeIds = mapped.map(c => c.id);
-      if (activeIds.length > 0) {
-        await sb.from('vvce_certs').delete().not('id', 'in', `(${activeIds.join(',')})`);
-      } else {
-        await sb.from('vvce_certs').delete().neq('id', '_none_');
+      if (mapped.length > 0) {
+        await sb.from('vvce_certs').upsert(mapped);
       }
-      await sb.from('vvce_certs').upsert(mapped);
     } else if (key === 'vvce_academic') {
-      const mapped = val.map(a => ({
-        id: a.id, date: a.date, type: a.type, "desc": a.desc
-      }));
+      const mapped = val.map(a => ({ id: a.id, date: a.date, type: a.type, "desc": a.desc }));
       await sb.from('academic').upsert(mapped);
     } else if (key === 'vvce_principal_status') {
       const mapped = { id: 'status', text: val.text, note: val.note, updated: val.updated, color: val.color, icon: val.icon };
@@ -299,19 +534,52 @@ function isBranchMatch(eventBranches, userBranch) {
   });
 }
 
-/* Realtime Sync Helpers */
+/* Mappers (never hydrate or expose password columns into general cache) */
 function mapUser(u) {
   return {
-    id: u.id, type: u.type, name: u.name, email: u.email, pass: u.pass, usn: u.usn, branch: u.branch, section: u.section, year: u.year, sem: u.sem, admissionYear: u.admission_year, dept: u.dept, phone: u.phone, interests: u.interests, skills: u.skills, bio: u.bio, linkedin: u.linkedin, github: u.github, achievements: u.achievements, profilePhoto: u.profile_photo, resume: u.resume, points: u.points ?? null, pointsBySem: u.points_by_sem ?? null, notifs: u.notifs, clubName: u.club_name, clubEmail: u.club_email, domain: u.domain, faculty: u.faculty, approved: u.approved, desc: u.desc, designation: u.designation, googleId: u.google_id || u.googleId || null, authorityId: u.authority_id || u.authorityId || null, authorityName: u.authority_name || u.authorityName || null, approvalHistory: u.approval_history || u.approvalHistory || []
+    id: u.id,
+    type: u.type,
+    name: u.name,
+    email: u.email,
+    usn: u.usn,
+    branch: u.branch,
+    section: u.section,
+    year: u.year,
+    sem: u.sem,
+    admissionYear: u.admission_year,
+    dept: u.dept,
+    phone: u.phone,
+    interests: u.interests,
+    skills: u.skills,
+    bio: u.bio,
+    linkedin: u.linkedin,
+    github: u.github,
+    achievements: u.achievements,
+    profilePhoto: u.profile_photo,
+    resume: u.resume || null,
+    points: u.points ?? null,
+    pointsBySem: u.points_by_sem ?? null,
+    notifs: u.notifs || [],
+    clubName: u.club_name,
+    clubEmail: u.club_email,
+    domain: u.domain,
+    faculty: u.faculty,
+    approved: u.approved,
+    desc: u.desc,
+    designation: u.designation,
+    googleId: u.google_id || u.googleId || null,
+    authorityId: u.authority_id || u.authorityId || null,
+    authorityName: u.authority_name || u.authorityName || null,
+    approvalHistory: u.approval_history || u.approvalHistory || []
   };
 }
 
 function mapEvent(e) {
   return {
     id: e.id, name: e.name, club: e.club, adminId: e.admin_id, emoji: e.emoji, category: e.category, date: e.date, time: e.time, endDate: e.end_date, endTime: e.end_time || e.endTime || '', venue: e.venue, maxParticipants: e.max_participants, regCount: e.reg_count, fee: e.fee, needsPayment: Boolean(e.needs_payment ?? e.needsPayment ?? (Number(e.fee || 0) > 0)), adminUpiId: e.admin_upi_id || '', points: e.points ?? null, desc: e.desc, speakers: e.speakers || '', rules: e.rules || '', branches: e.branches, status: e.status, rejReason: e.rej_reason, poster: e.poster, registrations: e.registrations || [], pendingPayments: e.pending_payments || [], attendedStudents: e.attended_students || [],
-    isTeamEvent: e.isTeamEvent ?? e.is_team_event ?? false,
-    minTeamSize: e.minTeamSize ?? e.min_team_size ?? 1,
-    maxTeamSize: e.maxTeamSize ?? e.max_team_size ?? 1,
+    isTeamEvent: e.isTeamEvent ?? e.is_team_event ?? e.isteamevent ?? false,
+    minTeamSize: e.minTeamSize ?? e.min_team_size ?? e.minteamsize ?? 1,
+    maxTeamSize: e.maxTeamSize ?? e.max_team_size ?? e.maxteamsize ?? 1,
     teams: e.teams || [],
     waitlist: e.waitlist || [],
     waitlist_enabled: e.waitlist_enabled ?? e.waitlistEnabled ?? false,
@@ -332,9 +600,7 @@ function mapCert(c) {
 }
 
 function mapAcademic(a) {
-  return {
-    id: a.id, date: a.date, type: a.type, desc: a.desc
-  };
+  return { id: a.id, date: a.date, type: a.type, desc: a.desc };
 }
 
 function mapPrincipalStatus(s) {
@@ -349,30 +615,22 @@ function mapPrincipalStatus(s) {
 }
 
 function mapPrincipalSchedule(s) {
-  return {
-    id: s.id, date: s.date, startTime: s.start_time, endTime: s.end_time, title: s.title, desc: s.desc
-  };
+  return { id: s.id, date: s.date, startTime: s.start_time, endTime: s.end_time, title: s.title, desc: s.desc };
 }
 
+let _rtRenderDebounce = null;
 function handleRealtimeUpdate(key, payload) {
   const { eventType, new: newRecord, old: oldRecord } = payload;
-  const cache = SUPABASE_CACHE[key];
+  const cache = SUPABASE_CACHE[key] || [];
 
   if (key === 'vvce_principal_status') {
-    if (eventType === 'DELETE') {
-      SUPABASE_CACHE.vvce_principal_status = { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" };
-    } else {
-      SUPABASE_CACHE.vvce_principal_status = mapPrincipalStatus(newRecord);
-    }
-    try { localStorage.setItem('vvce_principal_status', JSON.stringify(SUPABASE_CACHE.vvce_principal_status)); } catch(e){}
-    if (['dashboard','admin-dashboard','authority-dashboard','principal-portal'].includes(STATE.page)) {
-      showPage(STATE.page);
-    }
+    SUPABASE_CACHE.vvce_principal_status = eventType === 'DELETE'
+      ? { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" }
+      : mapPrincipalStatus(newRecord);
+    safeLocalStorageSet('vvce_principal_status', SUPABASE_CACHE.vvce_principal_status);
   } else if (key === 'vvce_princ_attend') {
-    if (eventType === 'INSERT') {
-      if (!SUPABASE_CACHE.vvce_princ_attend.includes(newRecord.event_id)) {
-        SUPABASE_CACHE.vvce_princ_attend.push(newRecord.event_id);
-      }
+    if (eventType === 'INSERT' && !SUPABASE_CACHE.vvce_princ_attend.includes(newRecord.event_id)) {
+      SUPABASE_CACHE.vvce_princ_attend.push(newRecord.event_id);
     } else if (eventType === 'DELETE') {
       SUPABASE_CACHE.vvce_princ_attend = SUPABASE_CACHE.vvce_princ_attend.filter(id => id !== oldRecord.event_id);
     }
@@ -388,189 +646,222 @@ function handleRealtimeUpdate(key, payload) {
     if (eventType === 'DELETE') {
       SUPABASE_CACHE[key] = cache.filter(item => item.id !== oldRecord.id);
     } else if (eventType === 'INSERT') {
-      const exists = cache.some(item => item.id === newRecord.id);
-      if (!exists && mapper) {
+      if (!cache.some(item => item.id === newRecord.id) && mapper) {
         cache.push(mapper(newRecord));
       }
     } else if (eventType === 'UPDATE') {
-      // If event was archived by CPM, remove it from visible cache entirely
       if (key === 'vvce_events' && newRecord.status === 'archived') {
         SUPABASE_CACHE[key] = cache.filter(item => item.id !== newRecord.id);
       } else {
         const idx = cache.findIndex(item => item.id === newRecord.id);
-        if (idx !== -1 && mapper) {
-          cache[idx] = mapper(newRecord);
-        } else if (mapper) {
-          cache.push(mapper(newRecord));
-        }
+        if (idx !== -1 && mapper) cache[idx] = mapper(newRecord);
+        else if (mapper) cache.push(mapper(newRecord));
       }
     }
-    // Always persist realtime changes to localStorage!
-    try { localStorage.setItem(key, JSON.stringify(SUPABASE_CACHE[key])); } catch(e){}
+    safeLocalStorageSet(key, SUPABASE_CACHE[key]);
   }
 
-  // Handle active session changes (e.g. current user updated, approved state changed, points changed)
   if (STATE.user) {
     const updatedUser = (SUPABASE_CACHE.vvce_users || []).find(u => u.id === STATE.user.id);
     if (updatedUser) {
       if (STATE.user.type === 'admin' && STATE.user.approved && !updatedUser.approved) {
-        // Force logout if revoked
         STATE.user = null;
         STATE.deanUnlocked = false;
         STATE.principalUnlocked = false;
         document.getElementById('app').style.display = 'none';
         document.getElementById('auth-screen').style.display = 'flex';
         document.body.style.background = '#1a2235';
-        toast('Your club access has been revoked by Dean Student Welfare.', 'warning');
+        toast('Your club access has been revoked by your Approving Authority.', 'warning');
         return;
       }
       STATE.user = updatedUser;
     }
   }
 
-  // Smart re-render current page (only if not typing in inputs/textareas to avoid loss of focus)
+  // Debounce UI refreshes during bursts
   const activeTag = document.activeElement ? document.activeElement.tagName : '';
   const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
   if (!isTyping && STATE.page) {
-    if (STATE.page === 'participants') {
-      if (typeof renderParticipantTable === 'function') renderParticipantTable();
-    } else if ((STATE.page === 'authority-portal' || STATE.page === 'dean-portal') && STATE.authorityUnlocked) {
-      renderAuthorityPortal();
+    clearTimeout(_rtRenderDebounce);
+    _rtRenderDebounce = setTimeout(() => {
+      if (STATE.page === 'participants' && typeof renderParticipantTable === 'function') {
+        renderParticipantTable();
+      } else if ((STATE.page === 'authority-portal' || STATE.page === 'dean-portal') && STATE.authorityUnlocked) {
+        renderAuthorityPortal();
+      } else if (STATE.page) {
+        showPage(STATE.page);
+      }
+    }, 180);
+  }
+}
+
+let realtimeChannel = null;
+let _realtimeScopedUserId = null;
+
+/* Scope Supabase Realtime cleanly so 5,000+ browsers don't subscribe to global users broadcasts */
+function setupRealtimeSync(forceResubscribe = false) {
+  const sb = getSupabaseClient();
+  if (!sb || typeof sb.channel !== 'function') return;
+
+  const targetUid = STATE.user?.id && !['u1', 'u2', 'u3', 'u4'].includes(STATE.user.id) ? STATE.user.id : null;
+  if (realtimeChannel && !forceResubscribe && _realtimeScopedUserId === targetUid) return;
+
+  if (realtimeChannel) {
+    try { sb.removeChannel(realtimeChannel); } catch (e) {}
+    realtimeChannel = null;
+  }
+  _realtimeScopedUserId = targetUid;
+
+  const ch = sb.channel('vvce-hub-scoped')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
+      handleRealtimeUpdate('vvce_events', payload);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'academic' }, payload => {
+      handleRealtimeUpdate('vvce_academic', payload);
+    });
+
+  if (targetUid) {
+    ch.on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `id=eq.${targetUid}` }, payload => {
+      handleRealtimeUpdate('vvce_users', payload);
+    });
+    if (STATE.user?.type === 'student') {
+      ch.on('postgres_changes', { event: '*', schema: 'public', table: 'vvce_certs', filter: `userId=eq.${targetUid}` }, payload => {
+        handleRealtimeUpdate('vvce_certs', payload);
+      });
+    } else {
+      ch.on('postgres_changes', { event: '*', schema: 'public', table: 'vvce_certs' }, payload => {
+        handleRealtimeUpdate('vvce_certs', payload);
+      });
+    }
+  }
+
+  realtimeChannel = ch.subscribe();
+}
+
+/* Lightweight foreground refresh when switching tabs back to active session */
+async function refreshActivePortalState() {
+  const now = Date.now();
+  if (now - _refreshLastRunMs < 30000) return; // 30s cooldown prevents tab-switch DB storms
+  _refreshLastRunMs = now;
+
+  if (!STATE.user) {
+    await checkSupabaseEmailVerification();
+    return;
+  }
+
+  await syncEventsFromSupabase();
+  await fetchUserOwnDetails(STATE.user.id);
+  if (STATE.page && !document.activeElement?.tagName?.match(/INPUT|TEXTAREA|SELECT/)) {
+    if (STATE.page === 'participants' && typeof renderParticipantTable === 'function') {
+      renderParticipantTable();
     } else {
       showPage(STATE.page);
     }
   }
 }
 
-let realtimeChannel = null;
-function setupRealtimeSync() {
-  const sb = getSupabaseClient();
-  if (!sb || typeof sb.channel !== 'function') return;
-  if (realtimeChannel) return; // already setup
-
-  realtimeChannel = sb.channel('db-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
-      handleRealtimeUpdate('vvce_users', payload);
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'registered_students' }, payload => {
-      handleRealtimeUpdate('vvce_users', payload);
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
-      handleRealtimeUpdate('vvce_events', payload);
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'vvce_certs' }, payload => {
-      handleRealtimeUpdate('vvce_certs', payload);
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'academic' }, payload => {
-      handleRealtimeUpdate('vvce_academic', payload);
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'principal_status' }, payload => {
-      handleRealtimeUpdate('vvce_principal_status', payload);
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'principal_schedules' }, payload => {
-      handleRealtimeUpdate('vvce_principal_schedule', payload);
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'princ_attend' }, payload => {
-      handleRealtimeUpdate('vvce_princ_attend', payload);
-    })
-    .subscribe();
-}
-
-async function bootApp() {
+async function bootApp(force = false) {
   const sb = getSupabaseClient();
   if (!sb || typeof sb.from !== 'function') {
-    console.warn('Supabase client not ready yet, working in persistent local mode.');
+    console.warn('Supabase client not ready yet, working in local mode.');
     return;
   }
-  
-  await checkSupabaseEmailVerification();
-  checkTeamInviteUrl();
 
-  try {
-    const [uRes, regRes, eRes, cRes, aRes, psRes, pscRes, paRes] = await Promise.all([
-      sb.from('users').select('*'),
-      sb.from('registered_students').select('*').catch(() => ({ data: [] })),
-      sb.from('events').select('*'),
-      sb.from('vvce_certs').select('*'),
-      sb.from('academic').select('*'),
-      sb.from('principal_status').select('*'),
-      sb.from('principal_schedules').select('*'),
-      sb.from('princ_attend').select('*')
-    ]);
-
-    const combinedRawUsers = [...(uRes?.data || [])];
-    if (regRes && regRes.data && Array.isArray(regRes.data)) {
-      regRes.data.forEach(ru => {
-        if (!combinedRawUsers.some(u => u.id === ru.id || (u.email && ru.email && u.email.toLowerCase() === ru.email.toLowerCase()))) {
-          combinedRawUsers.push(ru);
-        }
-      });
-    }
-
-    if (combinedRawUsers.length > 0 || (uRes && uRes.data)) {
-      // ── Supabase is the single source of truth ──
-      // Remote users completely replace local cache.
-      // Only the 4 built-in demo accounts (never stored in Supabase)
-      // are appended locally so demo login always works.
-      const DEMO_IDS = ['u1', 'u2', 'u3', 'u4'];
-      const remoteUsers = combinedRawUsers.map(mapUser);
-      const remoteEmails = remoteUsers.map(u => u.email.toLowerCase());
-
-      // Keep demo accounts locally only (never push them to Supabase)
-      const demoUsers = DEFAULT_USERS.filter(
-        du => DEMO_IDS.includes(du.id) && !remoteEmails.includes(du.email.toLowerCase())
-      );
-
-      const finalUsers = [...remoteUsers, ...demoUsers];
-      SUPABASE_CACHE.vvce_users = finalUsers;
-      try { localStorage.setItem('vvce_users', JSON.stringify(finalUsers)); } catch(e){}
-    }
-    if (eRes && eRes.data) {
-      // Events: Supabase is always the source of truth (even if empty — clear means clear)
-      SUPABASE_CACHE.vvce_events = eRes.data.map(mapEvent);
-      try { localStorage.setItem('vvce_events', JSON.stringify(SUPABASE_CACHE.vvce_events)); } catch(e){}
-    }
-    if (cRes && cRes.data && cRes.data.length > 0) {
-      SUPABASE_CACHE.vvce_certs = cRes.data.map(mapCert);
-      try { localStorage.setItem('vvce_certs', JSON.stringify(SUPABASE_CACHE.vvce_certs)); } catch(e){}
-    }
-    if (aRes && aRes.data && aRes.data.length > 0) {
-      SUPABASE_CACHE.vvce_academic = aRes.data.map(a => ({
-        id: a.id, date: a.date, type: a.type, desc: a.desc
-      }));
-      try { localStorage.setItem('vvce_academic', JSON.stringify(SUPABASE_CACHE.vvce_academic)); } catch(e){}
-    }
-    if (psRes && psRes.data && psRes.data.length > 0) {
-      SUPABASE_CACHE.vvce_principal_status = mapPrincipalStatus(psRes.data[0]);
-      try { localStorage.setItem('vvce_principal_status', JSON.stringify(SUPABASE_CACHE.vvce_principal_status)); } catch(e){}
-    } else {
-      SUPABASE_CACHE.vvce_principal_status = {"text":"Available","note":"","updated":"Just now","color":"#48bb78","icon":"✅"};
-    }
-    if (pscRes && pscRes.data) {
-      SUPABASE_CACHE.vvce_principal_schedule = pscRes.data.map(s => ({
-        id: s.id, date: s.date, startTime: s.start_time, endTime: s.end_time, title: s.title, desc: s.desc
-      }));
-    } else {
-      SUPABASE_CACHE.vvce_principal_schedule = [];
-    }
-    if (paRes && paRes.data) {
-      SUPABASE_CACHE.vvce_princ_attend = paRes.data.map(r => r.event_id);
-    } else {
-      SUPABASE_CACHE.vvce_princ_attend = [];
-    }
-    setupRealtimeSync();
-    checkTeamInviteUrl();
-    
-    // Refresh UI to display the freshly loaded data from Supabase
-    if (STATE.page && !document.activeElement.tagName.match(/INPUT|TEXTAREA|SELECT/)) {
-      if (STATE.page === 'participants' && typeof renderParticipantTable === 'function') {
-        renderParticipantTable();
-      } else {
-        showPage(STATE.page);
-      }
-    }
-  } catch (err) {
-    console.error('Failed to load from Supabase:', err);
+  if (_bootInFlightPromise) return _bootInFlightPromise;
+  const now = Date.now();
+  if (!force && _bootLastRunMs > 0 && (now - _bootLastRunMs < 45000)) {
+    return;
   }
+
+  _bootInFlightPromise = (async () => {
+    _bootLastRunMs = Date.now();
+    await checkSupabaseEmailVerification();
+    checkTeamInviteUrl();
+
+    try {
+      const certsPromise = (STATE.user?.type === 'student')
+        ? fetchPaginatedTable(sb, 'vvce_certs', '*', { applyFilter: q => q.eq('userId', STATE.user.id) })
+        : fetchPaginatedTable(sb, 'vvce_certs', '*', { pageSize: 1000, maxRows: 5000 });
+
+      const [uRes, eRes, cRes, aRes, psRes, pscRes, paRes] = await Promise.all([
+        fetchPaginatedTable(sb, 'users', SAFE_USER_BULK_COLUMNS, { pageSize: 1000, maxRows: 10000 }),
+        fetchPaginatedTable(sb, 'events', '*', { pageSize: 500, maxRows: 5000 }),
+        certsPromise,
+        sb.from('academic').select('*'),
+        sb.from('principal_status').select('*'),
+        sb.from('principal_schedules').select('*'),
+        sb.from('princ_attend').select('*')
+      ]);
+
+      // Fallback without SAFE_USER_BULK_COLUMNS if any optional column doesn't exist yet
+      let rawUsers = uRes?.data || [];
+      if (uRes?.error) {
+        const fbUsers = await fetchPaginatedTable(sb, 'users', 'id,type,name,email,usn,branch,section,year,sem,admission_year,dept,phone,interests,skills,bio,linkedin,github,achievements,profile_photo,club_name,club_email,domain,faculty,approved,"desc",designation,authority_id,authority_name,approval_history', { pageSize: 1000, maxRows: 10000 });
+        rawUsers = fbUsers.data || [];
+      }
+
+      if (rawUsers.length > 0) {
+        const DEMO_IDS = ['u1', 'u2', 'u3', 'u4'];
+        const remoteUsers = rawUsers.map(mapUser);
+        const remoteEmails = new Set(remoteUsers.map(u => (u.email || '').toLowerCase()));
+        const demoUsers = DEFAULT_USERS.filter(du => DEMO_IDS.includes(du.id) && !remoteEmails.has(du.email.toLowerCase()));
+
+        // Preserve current user's loaded private fields (notifs/resume) across boot refreshes
+        if (STATE.user) {
+          const curIdx = remoteUsers.findIndex(u => u.id === STATE.user.id);
+          if (curIdx > -1) {
+            remoteUsers[curIdx].notifs = STATE.user.notifs || [];
+            remoteUsers[curIdx].resume = STATE.user.resume || null;
+          }
+        }
+
+        const finalUsers = [...remoteUsers, ...demoUsers];
+        SUPABASE_CACHE.vvce_users = finalUsers;
+        safeLocalStorageSet('vvce_users', finalUsers);
+      }
+
+      if (eRes && eRes.data) {
+        SUPABASE_CACHE.vvce_events = eRes.data.map(mapEvent);
+        safeLocalStorageSet('vvce_events', SUPABASE_CACHE.vvce_events);
+      }
+      if (cRes && cRes.data && cRes.data.length > 0) {
+        SUPABASE_CACHE.vvce_certs = cRes.data.map(mapCert);
+        safeLocalStorageSet('vvce_certs', SUPABASE_CACHE.vvce_certs);
+      }
+      if (aRes && aRes.data && aRes.data.length > 0) {
+        SUPABASE_CACHE.vvce_academic = aRes.data.map(a => ({ id: a.id, date: a.date, type: a.type, desc: a.desc }));
+        safeLocalStorageSet('vvce_academic', SUPABASE_CACHE.vvce_academic);
+      }
+      if (psRes && psRes.data && psRes.data.length > 0) {
+        SUPABASE_CACHE.vvce_principal_status = mapPrincipalStatus(psRes.data[0]);
+        safeLocalStorageSet('vvce_principal_status', SUPABASE_CACHE.vvce_principal_status);
+      } else {
+        SUPABASE_CACHE.vvce_principal_status = { text: "Available", note: "", updated: "Just now", color: "#48bb78", icon: "✅" };
+      }
+      SUPABASE_CACHE.vvce_principal_schedule = (pscRes && pscRes.data)
+        ? pscRes.data.map(s => ({ id: s.id, date: s.date, startTime: s.start_time, endTime: s.end_time, title: s.title, desc: s.desc }))
+        : [];
+      SUPABASE_CACHE.vvce_princ_attend = (paRes && paRes.data) ? paRes.data.map(r => r.event_id) : [];
+
+      if (STATE.user?.id) {
+        await fetchUserOwnDetails(STATE.user.id);
+      }
+      setupRealtimeSync();
+      checkTeamInviteUrl();
+
+      if (STATE.page && !document.activeElement?.tagName?.match(/INPUT|TEXTAREA|SELECT/)) {
+        if (STATE.page === 'participants' && typeof renderParticipantTable === 'function') {
+          renderParticipantTable();
+        } else {
+          showPage(STATE.page);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load from Supabase:', err);
+    }
+  })().finally(() => {
+    _bootInFlightPromise = null;
+  });
+
+  return _bootInFlightPromise;
 }
-

@@ -162,28 +162,28 @@ function regList(evs, past, isPendingTab = false) {
     }
 
     return `
-      <div class="sched-row" style="margin-bottom:10px;cursor:pointer;flex-direction:column;align-items:stretch;gap:8px;" onclick="openEventModal('${e.id}')">
+      <div class="sched-row" style="margin-bottom:10px;cursor:pointer;flex-direction:column;align-items:stretch;gap:8px;" onclick="openEventModal('${escapeHTML(e.id)}')">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <span class="sched-emoji" style="font-size:32px;">${e.emoji||'🎓'}</span>
+          <span class="sched-emoji" style="font-size:32px;">${escapeHTML(e.emoji||'🎓')}</span>
           <div class="sched-info" style="flex:1;min-width:200px;">
             <div class="sched-name" style="font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              ${e.name}
+              ${escapeHTML(e.name)}
               ${e.isTeamEvent && userTeam ? `
                 <span style="font-size:11px;font-weight:700;background:#f5f3ff;color:#7c3aed;padding:2px 8px;border-radius:12px;border:1px solid #ddd6fe;">
-                  👥 ${userTeam.name} ${isLeader ? '👑 (Leader)' : (isPendingInvite ? '⏳ (Invited)' : '👤 (Member)')}
+                  👥 ${escapeHTML(userTeam.name)} ${isLeader ? '👑 (Leader)' : (isPendingInvite ? '⏳ (Invited)' : '👤 (Member)')}
                 </span>
               ` : ''}
             </div>
-            <div class="sched-meta">${e.club} &bull; ${formatDate(e.date)} • ${formatTime(e.time)} • ${e.venue}</div>
+            <div class="sched-meta">${escapeHTML(e.club)} &bull; ${escapeHTML(formatDate(e.date))} • ${escapeHTML(formatTime(e.time))} • ${escapeHTML(e.venue)}</div>
             ${status === 'rejected' && prog?.rejectionReason ? `
               <div style="font-size:11.5px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;padding:4px 8px;border-radius:6px;margin-top:4px;font-weight:600;">
-                ❌ Rejected: ${prog.rejectionReason}
+                ❌ Rejected: ${escapeHTML(prog.rejectionReason)}
               </div>` : ''}
             ${e.isTeamEvent && userTeam && pendingCount > 0 ? `
               <div style="font-size:11.5px;color:#d97706;font-weight:600;margin-top:3px;">
                 ⚠️ Waiting for invite confirmation from: ${(userTeam.pendingEmails || []).map(email => {
                   const det = (userTeam.pendingMembers || userTeam.memberDetails || []).find(d => (typeof d === 'object' ? d.email : d).toLowerCase() === email.toLowerCase());
-                  return det?.name ? `${det.name} (${email})` : email;
+                  return det?.name ? `${escapeHTML(det.name)} (${escapeHTML(email)})` : escapeHTML(email);
                 }).join(', ')}
               </div>
             ` : ''}
