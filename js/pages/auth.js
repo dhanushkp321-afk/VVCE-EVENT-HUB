@@ -67,14 +67,14 @@ function cleanAuthUrlParams() {
   try {
     const url = new URL(window.location.href);
     let changed = false;
-    ['code', 'type', 'error', 'error_code', 'error_description'].forEach(param => {
+    ['code', 'type', 'mode', 'error', 'error_code', 'error_description'].forEach(param => {
       if (url.searchParams.has(param)) {
         url.searchParams.delete(param);
         changed = true;
       }
     });
     const hash = url.hash || '';
-    if (hash && /(access_token|refresh_token|provider_token|expires_in|token_type|type=|error=)/i.test(hash)) {
+    if (hash && /(access_token|refresh_token|provider_token|expires_in|token_type|type=|mode=|error=|error_code=|error_description=)/i.test(hash)) {
       url.hash = '';
       changed = true;
     }
@@ -246,6 +246,7 @@ async function finalizeRegistration(role, userPayload) {
   try {
     sessionStorage.setItem('vvce_oauth_flow', 'signup');
     sessionStorage.setItem('vvce_pending_reg_' + cleanEmail, JSON.stringify(userPayload));
+    localStorage.setItem('vvce_pending_verify_email', cleanEmail);
   } catch (e) {}
 
   toast('Sending verification email...', 'info');
@@ -273,7 +274,10 @@ async function finalizeRegistration(role, userPayload) {
         }
       });
       if (otpErr) {
-        try { sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail); } catch (e) {}
+        try {
+          sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail);
+          localStorage.removeItem('vvce_pending_verify_email');
+        } catch (e) {}
         showAuthMsg('This email is already registered. Please sign in instead.', 'warning');
         return;
       }
@@ -289,7 +293,10 @@ async function finalizeRegistration(role, userPayload) {
       return;
     }
 
-    try { sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail); } catch (e) {}
+    try {
+      sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail);
+      localStorage.removeItem('vvce_pending_verify_email');
+    } catch (e) {}
     if (error.status === 429 || error.message?.includes('rate limit') || error.message?.includes('over_email_send_rate_limit')) {
       showAuthMsg(
         '⚠️ Email sending is temporarily limited (Supabase free tier allows ~3 emails/hour). ' +
@@ -340,6 +347,29 @@ async function finalizeRegistration(role, userPayload) {
   switchMainTab('signin');
 }
 
+function resolveSignInPrefillEmail(searchParams, hashParams) {
+  const fromUrl = (searchParams?.get('email') || hashParams?.get('email') || '').trim().toLowerCase();
+  if (fromUrl && isValidVvceEmail(fromUrl)) return fromUrl;
+
+  try {
+    const fromLocal = (localStorage.getItem('vvce_pending_verify_email') || '').trim().toLowerCase();
+    if (fromLocal && isValidVvceEmail(fromLocal)) return fromLocal;
+  } catch (e) {}
+
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith('vvce_pending_reg_')) {
+        const candidate = k.slice('vvce_pending_reg_'.length).trim().toLowerCase();
+        if (candidate && isValidVvceEmail(candidate)) return candidate;
+      }
+    }
+  } catch (e) {}
+
+  const fromInput = (document.getElementById('login-email')?.value || '').trim().toLowerCase();
+  return (fromInput && isValidVvceEmail(fromInput)) ? fromInput : '';
+}
+
 // Function to handle the redirect back from email verification, Google OAuth, or Password Recovery
 async function checkSupabaseEmailVerification() {
   const sb = getSupabaseClient();
@@ -347,6 +377,8 @@ async function checkSupabaseEmailVerification() {
 
   let isRecoveryUrl = false;
   let recoveryLinkError = null;
+  let urlAuthNotice = null;
+  let prefillSignInEmail = '';
 
   // Inspect redirect URL params BEFORE Supabase auth handlers clean or process them
   try {
@@ -354,39 +386,43 @@ async function checkSupabaseEmailVerification() {
     const searchParams = new URLSearchParams(window.location.search || '');
     isRecoveryUrl = hashParams.get('type') === 'recovery'
       || searchParams.get('type') === 'recovery'
-      || searchParams.get('mode') === 'reset';
+      || searchParams.get('mode') === 'reset'
+      || hashParams.get('mode') === 'reset';
 
-    const errCode = searchParams.get('error_code') || hashParams.get('error_code') || '';
+    const errCode = (searchParams.get('error_code') || hashParams.get('error_code') || '').trim().toLowerCase();
+    const errType = (searchParams.get('error') || hashParams.get('error') || '').trim().toLowerCase();
     const oauthErr = searchParams.get('error_description') || hashParams.get('error_description')
       || searchParams.get('error') || hashParams.get('error');
 
-    if (oauthErr) {
+    let oauthFlow = '';
+    try { oauthFlow = sessionStorage.getItem('vvce_oauth_flow') || ''; } catch (e) {}
+
+    if (oauthErr || errCode) {
+      prefillSignInEmail = resolveSignInPrefillEmail(searchParams, hashParams);
       cleanAuthUrlParams();
       try { sessionStorage.removeItem('vvce_oauth_flow'); } catch (e) {}
-      let hasResetCtx = false;
-      try { hasResetCtx = !!sessionStorage.getItem('vvce_pw_reset_ctx'); } catch (e) {}
 
-      if (isRecoveryUrl || errCode === 'otp_expired' || (hasResetCtx && /expired|invalid|token|recovery/i.test(oauthErr))) {
+      if (isRecoveryUrl) {
         recoveryLinkError = '❌ Your password reset link is invalid or has expired. Please enter your @vvce.ac.in email to request a new link.';
+      } else if (
+        errCode === 'otp_expired'
+        || (errType === 'access_denied' && oauthFlow !== 'google')
+        || /otp_expired|email link is invalid or has expired/i.test(oauthErr || '')
+      ) {
+        urlAuthNotice = {
+          msg: 'Your verification link has already been used or expired. Please try signing in with your password or Google.',
+          type: 'warning'
+        };
       } else {
-        showAuthMsg('❌ Sign-in could not be completed: ' + oauthErr, 'error');
+        urlAuthNotice = {
+          msg: '❌ Sign-in could not be completed: ' + (oauthErr || errCode),
+          type: 'error'
+        };
       }
     } else if (isRecoveryUrl) {
       window._isPasswordRecoveryActive = true;
     }
   } catch (e) {}
-
-  if (recoveryLinkError) {
-    handleForgotPassword();
-    const step1Msg = document.getElementById('reset-step1-msg');
-    if (step1Msg) {
-      step1Msg.textContent = recoveryLinkError;
-      step1Msg.className = 'auth-msg error';
-      step1Msg.style.display = 'block';
-    }
-    showAuthMsg(recoveryLinkError, 'error');
-    return;
-  }
 
   // Listen for auth state changes (email verification, Google OAuth, and PASSWORD_RECOVERY)
   if (!window._authListenerSetup) {
@@ -404,6 +440,30 @@ async function checkSupabaseEmailVerification() {
         await handleVerifiedSession(session, event);
       }
     });
+  }
+
+  if (recoveryLinkError) {
+    handleForgotPassword();
+    const step1Msg = document.getElementById('reset-step1-msg');
+    if (step1Msg) {
+      step1Msg.textContent = recoveryLinkError;
+      step1Msg.className = 'auth-msg error';
+      step1Msg.style.display = 'block';
+    }
+    showAuthMsg(recoveryLinkError, 'error');
+    return;
+  }
+
+  if (urlAuthNotice) {
+    switchMainTab('signin');
+    if (prefillSignInEmail) {
+      const loginEmailInp = document.getElementById('login-email');
+      if (loginEmailInp && !loginEmailInp.value) {
+        loginEmailInp.value = prefillSignInEmail;
+      }
+    }
+    showAuthMsg(urlAuthNotice.msg, urlAuthNotice.type);
+    return;
   }
 
   try {
@@ -548,6 +608,7 @@ async function handleVerifiedSession(session, trigger) {
         try {
           sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail);
           sessionStorage.removeItem('vvce_oauth_flow');
+          localStorage.removeItem('vvce_pending_verify_email');
         } catch (e) {}
         cleanAuthUrlParams();
 
@@ -563,6 +624,7 @@ async function handleVerifiedSession(session, trigger) {
         try {
           sessionStorage.removeItem('vvce_pending_reg_' + cleanEmail);
           sessionStorage.removeItem('vvce_oauth_flow');
+          localStorage.removeItem('vvce_pending_verify_email');
         } catch (e) {}
         cleanAuthUrlParams();
         if (trigger !== 'PAGE_LOAD' && !STATE.user) {
