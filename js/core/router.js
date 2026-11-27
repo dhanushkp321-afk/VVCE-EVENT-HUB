@@ -95,7 +95,6 @@ function showPage(pageId) {
     'authority-attendance': 'Attendance',
     'authority-portal': 'Approving Authority Portal',
     'dean-portal': 'Approving Authority Portal',
-
   };
   document.getElementById('topbar-title').textContent = titles[pageId] || pageId;
 
@@ -128,7 +127,6 @@ function showPage(pageId) {
     'authority-attendance': renderAttendancePage,
     'authority-portal':     () => renderAuthorityPortal(),
     'dean-portal':          () => renderAuthorityPortal(),
-
   };
   if (renders[pageId]) renders[pageId]();
 }
@@ -151,7 +149,7 @@ function renderSidebar() {
   const sbAv = document.getElementById('sb-avatar');
   if (sbAv) {
     if (user.profilePhoto) {
-      sbAv.innerHTML = `<img src="${user.profilePhoto}" alt="avatar">`;
+      sbAv.innerHTML = `<img src="${sanitizeUrl(user.profilePhoto)}" alt="avatar">`;
     } else {
       sbAv.textContent = avatar(user.name);
     }
@@ -206,9 +204,7 @@ function renderSidebar() {
       <div class="sb-section-label">Account</div>
       ${navItem('profile','👤','Profile')}
     `;
-  
   } else { // authority (Faculty / Approving Authority)
-    const activeAuthorities = getActiveApprovingAuthorities();
     const isUnlocked = STATE.authorityUnlocked;
     const currentAuthName = STATE.currentAuthorityName || 'Select Authority';
 
@@ -234,10 +230,10 @@ function renderSidebar() {
         <div style="display:flex; flex-direction:column; line-height:1.2; overflow:hidden;">
           <span class="nav-label" style="font-size:12.5px;">Approving Authority</span>
           <span style="font-size:10px; color:${isUnlocked?'#86efac':'#cbd5e1'}; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
-            ${isUnlocked ? '✓ ' + currentAuthName : 'Login Required'}
+            ${isUnlocked ? '✓ ' + escapeHTML(currentAuthName) : 'Login Required'}
           </span>
         </div>
-        ${isUnlocked && pendingBadge ? `<span class="portal-tab-badge" style="margin-left:auto;margin-right:6px;">${pendingBadge}</span>` : ''}
+        ${isUnlocked && pendingBadge ? `<span class="portal-tab-badge" style="margin-left:auto;margin-right:6px;">${escapeHTML(pendingBadge)}</span>` : ''}
         <span class="portal-pill portal-pill-dean">${isUnlocked ? 'ACTIVE' : 'LOCK'}</span>
       </div>
     `;
@@ -248,10 +244,10 @@ function renderSidebar() {
 
 function navItem(page, icon, label, badge = '') {
   const isActive = STATE.page === page ? 'active' : '';
-  const bdg = badge ? `<span class="nav-count">${badge}</span>` : '';
-  return `<div class="nav-item ${isActive}" data-page="${page}" onclick="showPage('${page}')">
-    <span class="nav-icon">${icon}</span>
-    <span class="nav-label">${label}</span>${bdg}
+  const bdg = badge ? `<span class="nav-count">${escapeHTML(badge)}</span>` : '';
+  return `<div class="nav-item ${isActive}" data-page="${escapeHTML(page)}" onclick="showPage('${escapeHTML(page)}')">
+    <span class="nav-icon">${escapeHTML(icon)}</span>
+    <span class="nav-label">${escapeHTML(label)}</span>${bdg}
   </div>`;
 }
 
@@ -259,7 +255,7 @@ function renderTopbarUser() {
   const user = STATE.user;
   const av = document.getElementById('topbar-avatar');
   if (!av) return;
-  if (user.profilePhoto) { av.innerHTML = `<img src="${user.profilePhoto}">`; }
+  if (user.profilePhoto) { av.innerHTML = `<img src="${sanitizeUrl(user.profilePhoto)}">`; }
   else { av.textContent = avatar(user.name); }
 }
 
@@ -311,42 +307,45 @@ function renderNotifs() {
   `).join('');
 }
 
-async function readNotif(id) { if (!STATE.user) return; const users = getDB('vvce_users'); const u = users.find(x => x.id === STATE.user.id); const notifs = (u?.notifs || STATE.user.notifs || []).map(n => n.id === id ? { ...n, read: true } : n); if (u) u.notifs = notifs; STATE.user.notifs = notifs; renderNotifs(); if (typeof markUserNotifsReadAtomic === 'function') await markUserNotifsReadAtomic(STATE.user.id, id); return;
+async function readNotif(id) {
+  if (!STATE.user) return;
   const users = getDB('vvce_users');
   const u = users.find(x => x.id === STATE.user.id);
-  if (u) {
-    const n = (u.notifs||[]).find(x => x.id === id);
-    if (n) n.read = true;
-    setDB('vvce_users', users);
-    STATE.user = u;
-    renderNotifs();
+  const notifs = (u?.notifs || STATE.user.notifs || []).map(n => n.id === id ? { ...n, read: true } : n);
+  if (u) u.notifs = notifs;
+  STATE.user.notifs = notifs;
+  renderNotifs();
+  if (typeof markUserNotifsReadAtomic === 'function') {
+    await markUserNotifsReadAtomic(STATE.user.id, id);
   }
 }
 
-async function markAllRead() { if (!STATE.user) return; const users = getDB('vvce_users'); const u = users.find(x => x.id === STATE.user.id); const notifs = (u?.notifs || STATE.user.notifs || []).map(n => ({ ...n, read: true })); if (u) u.notifs = notifs; STATE.user.notifs = notifs; renderNotifs(); if (typeof markUserNotifsReadAtomic === 'function') await markUserNotifsReadAtomic(STATE.user.id, null); return;
+async function markAllRead() {
+  if (!STATE.user) return;
   const users = getDB('vvce_users');
   const u = users.find(x => x.id === STATE.user.id);
-  if (u) { (u.notifs||[]).forEach(n => n.read = true); STATE.user = u; renderNotifs(); }
+  const notifs = (u?.notifs || STATE.user.notifs || []).map(n => ({ ...n, read: true }));
+  if (u) u.notifs = notifs;
+  STATE.user.notifs = notifs;
+  renderNotifs();
+  if (typeof markUserNotifsReadAtomic === 'function') {
+    await markUserNotifsReadAtomic(STATE.user.id, null);
+  }
 }
 
 function addNotif(msg, icon = '🔔') {
+  if (!STATE.user) return;
   addNotifToUser(STATE.user.id, msg, icon);
 }
 
-function addNotifToUser(userId, msg, icon = '🔔') { const notifObj = { id: genId('n'), msg, icon, time: 'Just now', timestamp: Date.now(), read: false }; if (typeof pushUserNotifAtomic === 'function') { pushUserNotifAtomic(userId, notifObj); if (STATE.user && STATE.user.id === userId) { const badge = document.getElementById('notif-badge'); if (badge) badge.style.display = ''; } return; }
-  const users = getDB('vvce_users');
-  const u = users.find(x => x.id === userId);
-  if (u) {
-    if (!u.notifs) u.notifs = [];
-    u.notifs.push({ id: genId('n'), msg, icon, time: 'Just now', timestamp: Date.now(), read: false });
-    setDB('vvce_users', users);
-    
-    // If the notified user is currently logged in, update their state and UI
-    if (STATE.user && STATE.user.id === userId) {
-      STATE.user = u;
-      const badge = document.getElementById('notif-badge');
-      if (badge) { badge.style.display = ''; }
-    }
+function addNotifToUser(userId, msg, icon = '🔔') {
+  const notifObj = { id: genId('n'), msg, icon, time: 'Just now', timestamp: Date.now(), read: false };
+  if (typeof pushUserNotifAtomic === 'function') {
+    pushUserNotifAtomic(userId, notifObj);
+  }
+  if (STATE.user && STATE.user.id === userId) {
+    const badge = document.getElementById('notif-badge');
+    if (badge) { badge.style.display = ''; }
   }
 }
 
@@ -367,5 +366,3 @@ document.addEventListener('click', (e) => {
     }
   }
 });
-
-
